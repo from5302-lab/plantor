@@ -7,23 +7,29 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
+import type { SignupChild } from "@/lib/messages";
 
 export type SubscriptionStatus = "active" | "expired" | "paused";
 
 /**
- * 신청(signup) 한 건을 진짜 가족 데이터(families + children + subscriptions)
- * 로 변환하고, 같은 트랜잭션에서 signup 의 status 를 'confirmed' 로 표시한다.
+ * 신청(signup) 한 건을 진짜 가족 데이터로 변환한다.
  *
- * 모든 쓰기는 writeBatch 로 묶여 있어 일부만 성공하는 일이 없다.
+ *   families/{familyId}              - 가족(부모) 1행
+ *   children/{childId}               - 신청에 포함된 자녀 N행
+ *   subscriptions/{subscriptionId}   - 자녀 × 선택 서비스 만큼
+ *
+ * 모든 쓰기는 writeBatch 로 묶여 부분 실패가 없다.
  */
 export async function convertSignupToFamily(signup: {
   id: string;
   parentName: string;
   phone: string;
-  childName: string;
-  childGrade: string;
-  selectedServices: string[];
-}): Promise<{ familyId: string; childId: string; subscriptionIds: string[] }> {
+  children: SignupChild[];
+}): Promise<{
+  familyId: string;
+  childIds: string[];
+  subscriptionIds: string[];
+}> {
   const batch = writeBatch(db);
 
   // 1) 가족(부모) 레코드
@@ -35,40 +41,44 @@ export async function convertSignupToFamily(signup: {
     createdAt: serverTimestamp(),
   });
 
-  // 2) 자녀 레코드 (현재는 신청 1건 = 자녀 1명)
-  const childRef = doc(collection(db, "children"));
-  batch.set(childRef, {
-    familyId: familyRef.id,
-    name: signup.childName,
-    grade: signup.childGrade,
-    createdAt: serverTimestamp(),
-  });
-
-  // 3) 구독 레코드 (선택한 서비스만큼)
-  //    기본 종료일 = 시작일(now) + 30일
+  // 2 & 3) 자녀 + 자녀별 구독
   const now = new Date();
   const endDate = new Date(now);
   endDate.setDate(endDate.getDate() + 30);
 
+  const childIds: string[] = [];
   const subscriptionIds: string[] = [];
-  for (const slug of signup.selectedServices) {
-    const svc = SERVICES.find((s) => s.slug === slug);
-    if (!svc) continue;
-    const subRef = doc(collection(db, "subscriptions"));
-    batch.set(subRef, {
+
+  for (const child of signup.children) {
+    const childRef = doc(collection(db, "children"));
+    batch.set(childRef, {
       familyId: familyRef.id,
-      childId: childRef.id,
-      serviceSlug: slug,
-      monthlyPrice: svc.pricePerMonth ?? 0,
-      status: "active" as SubscriptionStatus,
-      startDate: Timestamp.fromDate(now),
-      endDate: Timestamp.fromDate(endDate),
+      name: child.name,
+      grade: child.grade,
+      loginId: child.loginId,
       createdAt: serverTimestamp(),
     });
-    subscriptionIds.push(subRef.id);
+    childIds.push(childRef.id);
+
+    for (const slug of child.selectedServices) {
+      const svc = SERVICES.find((s) => s.slug === slug);
+      if (!svc) continue;
+      const subRef = doc(collection(db, "subscriptions"));
+      batch.set(subRef, {
+        familyId: familyRef.id,
+        childId: childRef.id,
+        serviceSlug: slug,
+        monthlyPrice: svc.pricePerMonth ?? 0,
+        status: "active" as SubscriptionStatus,
+        startDate: Timestamp.fromDate(now),
+        endDate: Timestamp.fromDate(endDate),
+        createdAt: serverTimestamp(),
+      });
+      subscriptionIds.push(subRef.id);
+    }
   }
 
-  // 4) 원본 signup 을 'confirmed' 로 표시 + familyId 백링크
+  // 4) 원본 signup 을 'confirmed' + 백링크
   batch.update(doc(db, "signups", signup.id), {
     status: "confirmed",
     convertedFamilyId: familyRef.id,
@@ -76,9 +86,5 @@ export async function convertSignupToFamily(signup: {
 
   await batch.commit();
 
-  return {
-    familyId: familyRef.id,
-    childId: childRef.id,
-    subscriptionIds,
-  };
+  return { familyId: familyRef.id, childIds, subscriptionIds };
 }

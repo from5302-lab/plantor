@@ -19,9 +19,7 @@ service cloud.firestore {
     match /signups/{signupId} {
       allow create: if
         request.resource.data.keys().hasAll([
-          'parentName', 'phone',
-          'childName', 'childGrade',
-          'selectedServices', 'status', 'createdAt'
+          'parentName', 'phone', 'children', 'status', 'createdAt'
         ])
         && request.resource.data.status == 'pending'
         && request.resource.data.parentName is string
@@ -30,13 +28,9 @@ service cloud.firestore {
         && request.resource.data.phone is string
         && request.resource.data.phone.size() > 0
         && request.resource.data.phone.size() < 50
-        && request.resource.data.childName is string
-        && request.resource.data.childName.size() > 0
-        && request.resource.data.childName.size() < 100
-        && request.resource.data.childGrade is string
-        && request.resource.data.selectedServices is list
-        && request.resource.data.selectedServices.size() > 0
-        && request.resource.data.selectedServices.size() <= 10;
+        && request.resource.data.children is list
+        && request.resource.data.children.size() > 0
+        && request.resource.data.children.size() <= 10;
 
       allow read, update: if isAdmin();
       allow delete: if false;

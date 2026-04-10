@@ -70,16 +70,27 @@ function expect(cond, msg) {
 console.log("\n🌱 Plantor signup flow test\n");
 
 // 1) 유효한 데이터 → CREATE 성공
-console.log("[1] 유효한 신청 데이터 CREATE");
+console.log("[1] 유효한 신청 데이터 CREATE (멀티 자녀)");
 let createdId = null;
 await check("올바른 페이로드는 통과", async () => {
   const ref = await addDoc(collection(db, "signups"), {
     parentName: "테스트엄마",
     phone: "010-0000-0000",
-    childName: "테스트자녀",
-    childGrade: "초2",
-    selectedServices: ["class5", "dailykor"],
-    estimatedMonthly: 48000,
+    children: [
+      {
+        name: "테스트자녀1",
+        grade: "초2",
+        loginId: "test_kid_1",
+        selectedServices: ["class5", "dailykor"],
+      },
+      {
+        name: "테스트자녀2",
+        grade: "중1",
+        loginId: "test_kid_2",
+        selectedServices: ["classcard-middle"],
+      },
+    ],
+    estimatedMonthly: 63000,
     status: "pending",
     createdAt: serverTimestamp(),
   });
@@ -96,9 +107,9 @@ await check("phone 누락 → 거절", async () => {
     await addDoc(collection(db, "signups"), {
       parentName: "테스트",
       // phone 누락
-      childName: "자녀",
-      childGrade: "초1",
-      selectedServices: ["class5"],
+      children: [
+        { name: "자녀", grade: "초1", loginId: "x", selectedServices: ["class5"] },
+      ],
       status: "pending",
       createdAt: serverTimestamp(),
     });
@@ -111,22 +122,20 @@ await check("phone 누락 → 거절", async () => {
   expect(rejected, "거절되어야 하는데 통과되었음");
 });
 
-await check("selectedServices 비어있음 → 거절", async () => {
+await check("children 빈 배열 → 거절", async () => {
   let rejected = false;
   try {
     await addDoc(collection(db, "signups"), {
       parentName: "테스트",
       phone: "010-0000-0000",
-      childName: "자녀",
-      childGrade: "초1",
-      selectedServices: [],
+      children: [],
       status: "pending",
       createdAt: serverTimestamp(),
     });
   } catch (e) {
     rejected = true;
   }
-  expect(rejected, "빈 selectedServices 가 통과되었음");
+  expect(rejected, "빈 children 가 통과되었음");
 });
 
 // 3) 잘못된 status → 거절
@@ -137,9 +146,9 @@ await check("status='confirmed' 로 직접 생성 시도 → 거절", async () =
     await addDoc(collection(db, "signups"), {
       parentName: "위조시도",
       phone: "010-0000-0000",
-      childName: "자녀",
-      childGrade: "초1",
-      selectedServices: ["class5"],
+      children: [
+        { name: "자녀", grade: "초1", loginId: "x", selectedServices: ["class5"] },
+      ],
       status: "confirmed", // ← 일반 사용자가 status 를 confirmed 로 생성
       createdAt: serverTimestamp(),
     });

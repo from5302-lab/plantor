@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { SERVICES, SITE } from "@/data/site";
+import { SERVICES } from "@/data/site";
+import { Select } from "@/components/ui/select";
 
 const GRADES = [
   "미취학",
@@ -18,21 +19,35 @@ const GRADES = [
   "중3",
 ];
 
+// 신청 폼에서 선택 가능한 서비스 = 구독형만
+// (1:1 영어과외는 별도 문의 / 금요웨비나는 무료 커뮤니티라 폼에서 제외)
+const SIGNUP_SERVICES = SERVICES.filter((s) => s.category === "subscription");
+
+type ChildEntry = {
+  name: string;
+  grade: string;
+  loginId: string;
+  selectedServices: string[];
+};
+
 type FormState = {
   parentName: string;
   phone: string;
-  childName: string;
-  childGrade: string;
-  selectedServices: string[];
+  children: ChildEntry[];
   agreed: boolean;
 };
+
+const emptyChild = (): ChildEntry => ({
+  name: "",
+  grade: "",
+  loginId: "",
+  selectedServices: [],
+});
 
 const EMPTY: FormState = {
   parentName: "",
   phone: "",
-  childName: "",
-  childGrade: "",
-  selectedServices: [],
+  children: [emptyChild()],
   agreed: false,
 };
 
@@ -42,29 +57,68 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  // ?slug=class5 같은 쿼리 파라미터로 사전 선택
+  // ?slug=class5 같은 쿼리 파라미터로 첫 자녀의 서비스 사전 선택
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const slug = params.get("slug");
-    if (slug && SERVICES.some((s) => s.slug === slug)) {
-      setForm((prev) => ({ ...prev, selectedServices: [slug] }));
+    if (slug && SIGNUP_SERVICES.some((s) => s.slug === slug)) {
+      setForm((prev) => ({
+        ...prev,
+        children: prev.children.map((c, i) =>
+          i === 0 ? { ...c, selectedServices: [slug] } : c
+        ),
+      }));
     }
   }, []);
 
   const estimatedTotal = useMemo(() => {
-    return form.selectedServices.reduce((sum, slug) => {
-      const svc = SERVICES.find((s) => s.slug === slug);
-      return sum + (svc?.pricePerMonth ?? 0);
+    return form.children.reduce((sum, child) => {
+      return (
+        sum +
+        child.selectedServices.reduce((s, slug) => {
+          const svc = SIGNUP_SERVICES.find((x) => x.slug === slug);
+          return s + (svc?.pricePerMonth ?? 0);
+        }, 0)
+      );
     }, 0);
-  }, [form.selectedServices]);
+  }, [form.children]);
 
-  function toggleService(slug: string) {
+  function updateChild(idx: number, patch: Partial<ChildEntry>) {
     setForm((prev) => ({
       ...prev,
-      selectedServices: prev.selectedServices.includes(slug)
-        ? prev.selectedServices.filter((s) => s !== slug)
-        : [...prev.selectedServices, slug],
+      children: prev.children.map((c, i) =>
+        i === idx ? { ...c, ...patch } : c
+      ),
+    }));
+  }
+
+  function toggleChildService(idx: number, slug: string) {
+    setForm((prev) => ({
+      ...prev,
+      children: prev.children.map((c, i) => {
+        if (i !== idx) return c;
+        return {
+          ...c,
+          selectedServices: c.selectedServices.includes(slug)
+            ? c.selectedServices.filter((s) => s !== slug)
+            : [...c.selectedServices, slug],
+        };
+      }),
+    }));
+  }
+
+  function addChild() {
+    setForm((prev) => ({ ...prev, children: [...prev.children, emptyChild()] }));
+  }
+
+  function removeChild(idx: number) {
+    setForm((prev) => ({
+      ...prev,
+      children:
+        prev.children.length === 1
+          ? prev.children
+          : prev.children.filter((_, i) => i !== idx),
     }));
   }
 
@@ -74,22 +128,31 @@ export function SignupForm() {
 
     if (!form.parentName.trim()) return setError("부모님 성함을 입력해 주세요.");
     if (!form.phone.trim()) return setError("연락처를 입력해 주세요.");
-    if (!form.childName.trim())
-      return setError("자녀 이름을 입력해 주세요.");
-    if (!form.childGrade) return setError("자녀 학년을 선택해 주세요.");
-    if (form.selectedServices.length === 0)
-      return setError("신청하실 서비스를 1개 이상 선택해 주세요.");
-    if (!form.agreed)
-      return setError("개인정보 수집·이용에 동의해 주세요.");
+
+    for (let i = 0; i < form.children.length; i++) {
+      const c = form.children[i];
+      const label = `자녀 ${i + 1}`;
+      if (!c.name.trim()) return setError(`${label}의 이름을 입력해 주세요.`);
+      if (!c.grade) return setError(`${label}의 학년을 선택해 주세요.`);
+      if (!c.loginId.trim())
+        return setError(`${label}의 ID를 입력해 주세요.`);
+      if (c.selectedServices.length === 0)
+        return setError(`${label}의 서비스를 1개 이상 선택해 주세요.`);
+    }
+
+    if (!form.agreed) return setError("개인정보 수집·이용에 동의해 주세요.");
 
     setSubmitting(true);
     try {
       await addDoc(collection(db, "signups"), {
         parentName: form.parentName.trim(),
         phone: form.phone.trim(),
-        childName: form.childName.trim(),
-        childGrade: form.childGrade,
-        selectedServices: form.selectedServices,
+        children: form.children.map((c) => ({
+          name: c.name.trim(),
+          grade: c.grade,
+          loginId: c.loginId.trim(),
+          selectedServices: c.selectedServices,
+        })),
         estimatedMonthly: estimatedTotal,
         status: "pending",
         createdAt: serverTimestamp(),
@@ -121,18 +184,7 @@ export function SignupForm() {
         </p>
         <p className="mt-6 text-xs text-emerald-700/80 dark:text-emerald-300/80">
           입금자명은 신청 시 입력하신 부모님 성함과 동일하게 보내주세요.
-          <br />
-          무료 웨비나/엄마 커뮤니티에 관심 있으시면 아래 오픈채팅으로 들어와
-          주세요.
         </p>
-        <a
-          href={SITE.kakaoOpenChat}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 inline-flex h-11 items-center justify-center rounded-full border border-emerald-600 px-6 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
-        >
-          🙋‍♀️ 맘& 오픈채팅 입장
-        </a>
       </div>
     );
   }
@@ -152,7 +204,6 @@ export function SignupForm() {
           required
           value={form.parentName}
           onChange={(v) => setForm({ ...form, parentName: v })}
-          placeholder="예) 김다영"
         />
         <Field
           label="연락처 (입금 안내가 가는 번호)"
@@ -160,89 +211,40 @@ export function SignupForm() {
           type="tel"
           value={form.phone}
           onChange={(v) => setForm({ ...form, phone: v })}
-          placeholder="예) 010-1234-5678"
         />
       </fieldset>
 
-      {/* 자녀 정보 */}
+      {/* 자녀 정보 (멀티) */}
       <fieldset className="space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <legend className="mb-2 text-sm font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
           자녀 정보
         </legend>
-        <Field
-          label="자녀 이름"
-          required
-          value={form.childName}
-          onChange={(v) => setForm({ ...form, childName: v })}
-          placeholder="예) 찬영"
-        />
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            학년 <span className="text-emerald-600">*</span>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {GRADES.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setForm({ ...form, childGrade: g })}
-                className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                  form.childGrade === g
-                    ? "border-emerald-600 bg-emerald-600 text-white"
-                    : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600"
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        </div>
-      </fieldset>
 
-      {/* 서비스 선택 */}
-      <fieldset className="space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <legend className="mb-2 text-sm font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-          신청 서비스 (복수 선택 가능)
-        </legend>
-        <div className="space-y-2">
-          {SERVICES.map((svc) => {
-            const checked = form.selectedServices.includes(svc.slug);
-            return (
-              <label
-                key={svc.slug}
-                className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
-                  checked
-                    ? "border-emerald-500 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
-                    : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleService(svc.slug)}
-                  className="mt-1 h-4 w-4 accent-emerald-600"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-zinc-900 dark:text-white">
-                      {svc.emoji} {svc.name}
-                    </span>
-                    <span className="shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                      {svc.priceLabel}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {svc.hook}
-                  </p>
-                </div>
-              </label>
-            );
-          })}
+        <div className="space-y-4">
+          {form.children.map((child, idx) => (
+            <ChildCard
+              key={idx}
+              index={idx}
+              child={child}
+              canRemove={form.children.length > 1}
+              onUpdate={(patch) => updateChild(idx, patch)}
+              onToggleService={(slug) => toggleChildService(idx, slug)}
+              onRemove={() => removeChild(idx)}
+            />
+          ))}
         </div>
+
+        <button
+          type="button"
+          onClick={addChild}
+          className="w-full rounded-2xl border border-dashed border-zinc-300 py-3 text-sm font-medium text-zinc-600 transition hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-emerald-600 dark:hover:text-emerald-400"
+        >
+          + 자녀 추가
+        </button>
 
         {estimatedTotal > 0 && (
           <div className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm dark:bg-zinc-800">
-            예상 월 결제액:{" "}
+            예상 월 결제액 합계:{" "}
             <strong className="text-emerald-700 dark:text-emerald-300">
               ₩{estimatedTotal.toLocaleString()}
             </strong>
@@ -263,7 +265,7 @@ export function SignupForm() {
             <strong>개인정보 수집·이용에 동의합니다 (필수)</strong>
             <br />
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              수집 항목: 부모/자녀 이름, 학년, 연락처. 이용 목적: 학습
+              수집 항목: 부모/자녀 이름, 학년, 자녀 ID, 연락처. 이용 목적: 학습
               프로그램 발급 및 안내. 보유 기간: 서비스 이용 종료 후 1년.
             </span>
           </span>
@@ -287,20 +289,129 @@ export function SignupForm() {
   );
 }
 
+// ─────────────────────────────────────────────────────────
+// 자녀 카드
+// ─────────────────────────────────────────────────────────
+function ChildCard({
+  index,
+  child,
+  canRemove,
+  onUpdate,
+  onToggleService,
+  onRemove,
+}: {
+  index: number;
+  child: ChildEntry;
+  canRemove: boolean;
+  onUpdate: (patch: Partial<ChildEntry>) => void;
+  onToggleService: (slug: string) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-950/50">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+          🌱 자녀 {index + 1}
+        </span>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-xs text-zinc-500 transition hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
+          >
+            삭제
+          </button>
+        )}
+      </div>
+
+      <Field
+        label="자녀 이름"
+        required
+        value={child.name}
+        onChange={(v) => onUpdate({ name: v })}
+      />
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          학년 <span className="text-emerald-600">*</span>
+        </label>
+        <Select
+          value={child.grade}
+          onChange={(v) => onUpdate({ grade: v })}
+          options={GRADES}
+          placeholder="학년 선택"
+          required
+          ariaLabel={`자녀 ${index + 1} 학년`}
+        />
+      </div>
+
+      <Field
+        label="자녀 ID (학습 프로그램 로그인용 / 영문·숫자)"
+        required
+        value={child.loginId}
+        onChange={(v) => onUpdate({ loginId: v })}
+      />
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          신청 서비스 <span className="text-emerald-600">*</span>{" "}
+          <span className="text-xs text-zinc-500">(복수 선택 가능)</span>
+        </label>
+        <div className="space-y-2">
+          {SIGNUP_SERVICES.map((svc) => {
+            const checked = child.selectedServices.includes(svc.slug);
+            return (
+              <label
+                key={svc.slug}
+                className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                  checked
+                    ? "border-emerald-500 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
+                    : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggleService(svc.slug)}
+                  className="mt-1 h-4 w-4 accent-emerald-600"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-zinc-900 dark:text-white">
+                      {svc.emoji} {svc.name}
+                    </span>
+                    <span className="shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {svc.priceLabel}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {svc.hook}
+                  </p>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// Field
+// ─────────────────────────────────────────────────────────
 function Field({
   label,
   required,
   type = "text",
   value,
   onChange,
-  placeholder,
 }: {
   label: string;
   required?: boolean;
   type?: string;
   value: string;
   onChange: (v: string) => void;
-  placeholder?: string;
 }) {
   return (
     <div>
@@ -311,8 +422,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
+        className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
       />
     </div>
   );

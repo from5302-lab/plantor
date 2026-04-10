@@ -12,29 +12,30 @@ const SERVICES = [
   { slug: "class5", name: "초등 클래스5", priceLabel: "월 15,000원", pricePerMonth: 15000 },
   { slug: "dailykor", name: "매일국어", priceLabel: "월 33,000원", pricePerMonth: 33000 },
   { slug: "classcard-middle", name: "중등 클래스카드 (내신본문암기)", priceLabel: "월 15,000원", pricePerMonth: 15000 },
-  { slug: "english-1on1", name: "1:1 온라인 영어과외", priceLabel: "별도 문의", pricePerMonth: 0 },
-  { slug: "mom-webinar", name: "[Mom&] 맘이랑 금요웨비나", priceLabel: "무료", pricePerMonth: 0 },
 ];
 
 const formatWon = (n) => `₩${n.toLocaleString("ko-KR")}`;
 
-function buildPaymentGuide({ parentName, childName, childGrade, selectedServices }) {
+function buildPaymentGuide({ parentName, children }) {
   const lines = [];
   lines.push(`안녕하세요, ${parentName}님 🌱`);
   lines.push(`Plantor 신청해 주셔서 감사합니다.`);
   lines.push("");
-  lines.push(`▫ 자녀: ${childName} (${childGrade})`);
-  lines.push(`▫ 신청 서비스:`);
-  let monthly = 0;
-  for (const slug of selectedServices) {
-    const svc = SERVICES.find((s) => s.slug === slug);
-    if (!svc) continue;
-    lines.push(`   - ${svc.name} / ${svc.priceLabel}`);
-    monthly += svc.pricePerMonth ?? 0;
+
+  let monthlyTotal = 0;
+  for (const child of children) {
+    lines.push(`▫ ${child.name} (${child.grade}) — ID: ${child.loginId}`);
+    for (const slug of child.selectedServices) {
+      const svc = SERVICES.find((s) => s.slug === slug);
+      if (!svc) continue;
+      lines.push(`   - ${svc.name} / ${svc.priceLabel}`);
+      monthlyTotal += svc.pricePerMonth ?? 0;
+    }
+    lines.push("");
   }
-  lines.push("");
-  if (monthly > 0) {
-    lines.push(`💰 월 결제: ${formatWon(monthly)}`);
+
+  if (monthlyTotal > 0) {
+    lines.push(`💰 월 결제 합계: ${formatWon(monthlyTotal)}`);
     lines.push("");
   }
   lines.push(`🏦 입금 계좌`);
@@ -49,9 +50,20 @@ function buildPaymentGuide({ parentName, childName, childGrade, selectedServices
 
 const sample = buildPaymentGuide({
   parentName: "김다영",
-  childName: "찬영",
-  childGrade: "초2",
-  selectedServices: ["dailykor", "class5"],
+  children: [
+    {
+      name: "찬영",
+      grade: "초2",
+      loginId: "ycy0222",
+      selectedServices: ["dailykor", "class5"],
+    },
+    {
+      name: "민영",
+      grade: "중1",
+      loginId: "myj0610",
+      selectedServices: ["classcard-middle"],
+    },
+  ],
 });
 
 console.log("─".repeat(60));

@@ -24,13 +24,18 @@ import { convertSignupToFamily } from "@/lib/families";
 
 type SignupStatus = "pending" | "confirmed" | "rejected";
 
+type SignupChild = {
+  name: string;
+  grade: string;
+  loginId: string;
+  selectedServices: string[];
+};
+
 type Signup = {
   id: string;
   parentName: string;
   phone: string;
-  childName: string;
-  childGrade: string;
-  selectedServices: string[];
+  children: SignupChild[];
   estimatedMonthly: number;
   status: SignupStatus;
   createdAt: Date | null;
@@ -169,13 +174,36 @@ function Dashboard({ user }: { user: User }) {
             data.createdAt instanceof Timestamp
               ? data.createdAt.toDate()
               : null;
+          // 새 모양(children 배열) + 옛 모양(childName / childGrade /
+          // selectedServices)을 모두 처리한다. 옛 데이터는 단일 자녀로 변환.
+          let children: SignupChild[];
+          if (Array.isArray(data.children)) {
+            children = data.children.map((c: Record<string, unknown>) => ({
+              name: String(c?.name ?? ""),
+              grade: String(c?.grade ?? ""),
+              loginId: String(c?.loginId ?? ""),
+              selectedServices: Array.isArray(c?.selectedServices)
+                ? (c.selectedServices as string[])
+                : [],
+            }));
+          } else {
+            children = [
+              {
+                name: String(data.childName ?? ""),
+                grade: String(data.childGrade ?? ""),
+                loginId: "",
+                selectedServices: Array.isArray(data.selectedServices)
+                  ? data.selectedServices
+                  : [],
+              },
+            ];
+          }
+
           return {
             id: d.id,
             parentName: data.parentName ?? "",
             phone: data.phone ?? "",
-            childName: data.childName ?? "",
-            childGrade: data.childGrade ?? "",
-            selectedServices: data.selectedServices ?? [],
+            children,
             estimatedMonthly: data.estimatedMonthly ?? 0,
             status: (data.status ?? "pending") as SignupStatus,
             createdAt,
@@ -215,7 +243,9 @@ function Dashboard({ user }: { user: User }) {
 
   async function approveAsFamily(signup: Signup) {
     if (signup.convertedFamilyId) {
-      alert(`이미 가족으로 등록되어 있습니다 (familyId: ${signup.convertedFamilyId})`);
+      alert(
+        `이미 가족으로 등록되어 있습니다 (familyId: ${signup.convertedFamilyId})`
+      );
       return;
     }
     try {
@@ -223,8 +253,8 @@ function Dashboard({ user }: { user: User }) {
       alert(
         `✅ 가족 등록 완료\n` +
           `familyId: ${result.familyId}\n` +
-          `childId: ${result.childId}\n` +
-          `subscriptions: ${result.subscriptionIds.length}건`
+          `자녀 ${result.childIds.length}명\n` +
+          `구독 ${result.subscriptionIds.length}건`
       );
     } catch (err) {
       alert(
@@ -240,22 +270,27 @@ function Dashboard({ user }: { user: User }) {
       "신청일",
       "부모",
       "연락처",
-      "자녀",
+      "자녀이름",
       "학년",
+      "자녀ID",
       "서비스",
-      "월결제",
+      "월결제(자녀)",
       "상태",
     ];
-    const rows = signups.map((s) => [
-      s.createdAt ? s.createdAt.toISOString() : "",
-      s.parentName,
-      s.phone,
-      s.childName,
-      s.childGrade,
-      s.selectedServices.join("|"),
-      String(s.estimatedMonthly),
-      s.status,
-    ]);
+    // 신청 1건 × 자녀 N명 → CSV 행 N개로 평탄화
+    const rows = signups.flatMap((s) =>
+      s.children.map((c) => [
+        s.createdAt ? s.createdAt.toISOString() : "",
+        s.parentName,
+        s.phone,
+        c.name,
+        c.grade,
+        c.loginId,
+        c.selectedServices.join("|"),
+        "",
+        s.status,
+      ])
+    );
     const csv =
       "\uFEFF" +
       [header, ...rows]
@@ -379,9 +414,7 @@ function SignupRow({
   async function copyMessage() {
     const msg = buildPaymentGuide({
       parentName: signup.parentName,
-      childName: signup.childName,
-      childGrade: signup.childGrade,
-      selectedServices: signup.selectedServices,
+      children: signup.children,
     });
     try {
       await navigator.clipboard.writeText(msg);
@@ -435,23 +468,38 @@ function SignupRow({
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm dark:bg-zinc-800/50">
-        <div>
-          <strong>{signup.childName}</strong>
-          <span className="ml-2 text-zinc-500 dark:text-zinc-400">
-            {signup.childGrade}
-          </span>
-        </div>
-        <ul className="mt-2 space-y-1">
-          {signup.selectedServices.map((slug) => {
-            const svc = SERVICES.find((s) => s.slug === slug);
-            return (
-              <li key={slug} className="text-zinc-700 dark:text-zinc-300">
-                · {svc ? `${svc.emoji} ${svc.name} — ${svc.priceLabel}` : slug}
-              </li>
-            );
-          })}
-        </ul>
+      <div className="mt-4 space-y-3">
+        {signup.children.map((child, idx) => (
+          <div
+            key={idx}
+            className="rounded-xl bg-zinc-50 p-4 text-sm dark:bg-zinc-800/50"
+          >
+            <div>
+              <strong>{child.name}</strong>
+              <span className="ml-2 text-zinc-500 dark:text-zinc-400">
+                {child.grade}
+              </span>
+              {child.loginId && (
+                <span className="ml-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                  ID: {child.loginId}
+                </span>
+              )}
+            </div>
+            <ul className="mt-2 space-y-1">
+              {child.selectedServices.map((slug) => {
+                const svc = SERVICES.find((s) => s.slug === slug);
+                return (
+                  <li key={slug} className="text-zinc-700 dark:text-zinc-300">
+                    ·{" "}
+                    {svc
+                      ? `${svc.emoji} ${svc.name} — ${svc.priceLabel}`
+                      : slug}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
