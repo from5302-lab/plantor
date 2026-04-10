@@ -42,6 +42,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ─────────────────────────────────────────────────────────
+    // families / children / subscriptions
+    //   현재는 운영자만 read/write 가능.
+    //   추후 부모/학생 로그인 추가 시, 본인 소유 데이터에 대한
+    //   read 권한을 추가할 예정.
+    // ─────────────────────────────────────────────────────────
+    match /families/{familyId} {
+      allow read, write: if isAdmin();
+    }
+    match /children/{childId} {
+      allow read, write: if isAdmin();
+    }
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if isAdmin();
+    }
+
     // 그 외 모든 컬렉션 — 명시적 거부
     match /{document=**} {
       allow read, write: if false;

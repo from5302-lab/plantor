@@ -164,6 +164,29 @@ await check("signups 컬렉션 익명 read → permission denied", async () => {
   expect(rejected, "익명 read 가 통과되었음 — 보안 구멍!");
 });
 
+// 4-2) 새 컬렉션들도 비로그인 read/write 거절 확인
+console.log("\n[4-2] families/children/subscriptions: 비로그인 접근 거절");
+for (const col of ["families", "children", "subscriptions"]) {
+  await check(`${col} 익명 read → permission denied`, async () => {
+    let rejected = false;
+    try {
+      await getDocs(collection(db, col));
+    } catch (e) {
+      rejected = true;
+    }
+    expect(rejected, `${col} 익명 read 가 통과되었음`);
+  });
+  await check(`${col} 익명 create → permission denied`, async () => {
+    let rejected = false;
+    try {
+      await addDoc(collection(db, col), { evil: "payload" });
+    } catch (e) {
+      rejected = true;
+    }
+    expect(rejected, `${col} 익명 create 가 통과되었음`);
+  });
+}
+
 // 5) 메시지 템플릿 미리보기
 console.log("\n[5] 카톡 메시지 템플릿 미리보기");
 const { buildPaymentGuide } = await import("../src/lib/messages.ts").catch(

@@ -20,6 +20,7 @@ import { auth, db } from "@/lib/firebase";
 import { ADMIN_EMAIL, SERVICES, SITE } from "@/data/site";
 import { formatDateTime, formatWon } from "@/lib/format";
 import { buildPaymentGuide } from "@/lib/messages";
+import { convertSignupToFamily } from "@/lib/families";
 
 type SignupStatus = "pending" | "confirmed" | "rejected";
 
@@ -33,6 +34,7 @@ type Signup = {
   estimatedMonthly: number;
   status: SignupStatus;
   createdAt: Date | null;
+  convertedFamilyId: string | null;
 };
 
 type Filter = SignupStatus | "all";
@@ -177,6 +179,7 @@ function Dashboard({ user }: { user: User }) {
             estimatedMonthly: data.estimatedMonthly ?? 0,
             status: (data.status ?? "pending") as SignupStatus,
             createdAt,
+            convertedFamilyId: data.convertedFamilyId ?? null,
           };
         });
         setSignups(rows);
@@ -206,6 +209,28 @@ function Dashboard({ user }: { user: User }) {
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "상태 변경 중 오류가 발생했습니다."
+      );
+    }
+  }
+
+  async function approveAsFamily(signup: Signup) {
+    if (signup.convertedFamilyId) {
+      alert(`이미 가족으로 등록되어 있습니다 (familyId: ${signup.convertedFamilyId})`);
+      return;
+    }
+    try {
+      const result = await convertSignupToFamily(signup);
+      alert(
+        `✅ 가족 등록 완료\n` +
+          `familyId: ${result.familyId}\n` +
+          `childId: ${result.childId}\n` +
+          `subscriptions: ${result.subscriptionIds.length}건`
+      );
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? `가족 등록 실패: ${err.message}`
+          : "가족 등록 중 오류가 발생했습니다."
       );
     }
   }
@@ -327,6 +352,7 @@ function Dashboard({ user }: { user: User }) {
                 key={s.id}
                 signup={s}
                 onChangeStatus={changeStatus}
+                onApproveAsFamily={approveAsFamily}
               />
             ))}
           </div>
@@ -342,9 +368,11 @@ function Dashboard({ user }: { user: User }) {
 function SignupRow({
   signup,
   onChangeStatus,
+  onApproveAsFamily,
 }: {
   signup: Signup;
   onChangeStatus: (id: string, status: SignupStatus) => void;
+  onApproveAsFamily: (signup: Signup) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -377,7 +405,7 @@ function SignupRow({
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-base font-bold text-zinc-900 dark:text-white">
               {signup.parentName}
             </span>
@@ -386,6 +414,14 @@ function SignupRow({
             >
               {labelOf(signup.status)}
             </span>
+            {signup.convertedFamilyId && (
+              <span
+                className="rounded-full bg-emerald-100 px-2 py-0.5 font-mono text-xs text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                title={`familyId: ${signup.convertedFamilyId}`}
+              >
+                👨‍👩‍👧 가족 등록됨
+              </span>
+            )}
           </div>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {formatDateTime(signup.createdAt)} · 📞 {signup.phone}
@@ -425,12 +461,20 @@ function SignupRow({
         >
           {copied ? "✅ 복사됨" : "📋 카톡 메시지 복사"}
         </button>
-        {signup.status !== "confirmed" && (
+        {!signup.convertedFamilyId && (
           <button
-            onClick={() => onChangeStatus(signup.id, "confirmed")}
+            onClick={() => onApproveAsFamily(signup)}
             className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
           >
-            ✅ 입금 확인
+            ✅ 입금 확인 + 가족 등록
+          </button>
+        )}
+        {signup.convertedFamilyId && signup.status !== "confirmed" && (
+          <button
+            onClick={() => onChangeStatus(signup.id, "confirmed")}
+            className="rounded-full border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+          >
+            상태만 확인으로 표시
           </button>
         )}
         {signup.status !== "rejected" && (
