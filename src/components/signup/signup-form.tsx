@@ -20,7 +20,6 @@ const GRADES = [
 
 type FormState = {
   parentName: string;
-  kakaoEmail: string;
   phone: string;
   childName: string;
   childGrade: string;
@@ -30,7 +29,6 @@ type FormState = {
 
 const EMPTY: FormState = {
   parentName: "",
-  kakaoEmail: "",
   phone: "",
   childName: "",
   childGrade: "",
@@ -75,8 +73,6 @@ export function SignupForm() {
     setError(null);
 
     if (!form.parentName.trim()) return setError("부모님 성함을 입력해 주세요.");
-    if (!form.kakaoEmail.trim())
-      return setError("카카오 계정(이메일)을 입력해 주세요.");
     if (!form.phone.trim()) return setError("연락처를 입력해 주세요.");
     if (!form.childName.trim())
       return setError("자녀 이름을 입력해 주세요.");
@@ -90,7 +86,6 @@ export function SignupForm() {
     try {
       await addDoc(collection(db, "signups"), {
         parentName: form.parentName.trim(),
-        kakaoEmail: form.kakaoEmail.trim(),
         phone: form.phone.trim(),
         childName: form.childName.trim(),
         childGrade: form.childGrade,
@@ -120,21 +115,24 @@ export function SignupForm() {
           신청이 접수되었습니다
         </h2>
         <p className="mt-4 text-base leading-7 text-emerald-800 dark:text-emerald-200">
-          카카오 오픈채팅에 들어와 주시면
+          입력하신 연락처로 입금 안내를 드립니다.
           <br />
-          입금 안내와 함께 학습 도구 ID/PW를 발급해 드립니다.
+          입금이 확인되면 학습 프로그램 ID/PW를 즉시 발급해 드립니다.
+        </p>
+        <p className="mt-6 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+          입금자명은 신청 시 입력하신 부모님 성함과 동일하게 보내주세요.
+          <br />
+          무료 웨비나/엄마 커뮤니티에 관심 있으시면 아래 오픈채팅으로 들어와
+          주세요.
         </p>
         <a
           href={SITE.kakaoOpenChat}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-emerald-600 px-8 text-base font-bold text-white transition hover:bg-emerald-700"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-full border border-emerald-600 px-6 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
         >
-          카카오 오픈채팅 입장 →
+          🙋‍♀️ 맘& 오픈채팅 입장
         </a>
-        <p className="mt-6 text-xs text-emerald-700/80 dark:text-emerald-300/80">
-          입금자명은 신청 시 입력하신 부모님 성함과 동일하게 보내주세요.
-        </p>
       </div>
     );
   }
@@ -150,22 +148,14 @@ export function SignupForm() {
           부모님 정보
         </legend>
         <Field
-          label="성함 (입금자명과 동일)"
+          label="성함 (입금자명과 동일하게)"
           required
           value={form.parentName}
           onChange={(v) => setForm({ ...form, parentName: v })}
           placeholder="예) 김다영"
         />
         <Field
-          label="카카오 계정 (이메일)"
-          required
-          type="email"
-          value={form.kakaoEmail}
-          onChange={(v) => setForm({ ...form, kakaoEmail: v })}
-          placeholder="예) kdy3240@kakao.com"
-        />
-        <Field
-          label="연락처"
+          label="연락처 (입금 안내가 가는 번호)"
           required
           type="tel"
           value={form.phone}
@@ -276,8 +266,8 @@ export function SignupForm() {
             <strong>개인정보 수집·이용에 동의합니다 (필수)</strong>
             <br />
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              수집 항목: 부모/자녀 이름, 학년, 카카오 계정, 연락처. 이용 목적:
-              학습 도구 발급 및 안내. 보유 기간: 서비스 이용 종료 후 1년.
+              수집 항목: 부모/자녀 이름, 학년, 연락처. 이용 목적: 학습
+              프로그램 발급 및 안내. 보유 기간: 서비스 이용 종료 후 1년.
             </span>
           </span>
         </label>

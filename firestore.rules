@@ -19,7 +19,7 @@ service cloud.firestore {
     match /signups/{signupId} {
       allow create: if
         request.resource.data.keys().hasAll([
-          'parentName', 'kakaoEmail', 'phone',
+          'parentName', 'phone',
           'childName', 'childGrade',
           'selectedServices', 'status', 'createdAt'
         ])
@@ -27,9 +27,8 @@ service cloud.firestore {
         && request.resource.data.parentName is string
         && request.resource.data.parentName.size() > 0
         && request.resource.data.parentName.size() < 100
-        && request.resource.data.kakaoEmail is string
-        && request.resource.data.kakaoEmail.size() < 200
         && request.resource.data.phone is string
+        && request.resource.data.phone.size() > 0
         && request.resource.data.phone.size() < 50
         && request.resource.data.childName is string
         && request.resource.data.childName.size() > 0
