@@ -14,9 +14,6 @@ export const SITE = {
     account: "[계좌번호]",
     holder: "[예금주]",
   },
-  // 가맹비 / 신규 할인 정책
-  enrollmentFee: 6000,
-  newSignupDiscount: 5000,
 } as const;
 
 // 운영자(어드민) 이메일 — Firestore 보안 규칙과 동일해야 함

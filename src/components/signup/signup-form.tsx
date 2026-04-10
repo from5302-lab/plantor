@@ -246,9 +246,6 @@ export function SignupForm() {
             <strong className="text-emerald-700 dark:text-emerald-300">
               ₩{estimatedTotal.toLocaleString()}
             </strong>
-            <span className="ml-1 text-zinc-500 dark:text-zinc-400">
-              (가맹비 ₩6,000, 신규 할인 ₩5,000 별도)
-            </span>
           </div>
         )}
       </fieldset>

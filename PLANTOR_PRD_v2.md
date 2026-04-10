@@ -114,10 +114,9 @@ Plantor는 **에듀테크 큐레이터 + 학부모 커뮤니티 + 학습 허브*
 
 ### 가격 정책
 
-- 가맹비 ₩6,000 (1회) — 신규 가입 시
-- 신규 할인 ₩5,000 — 첫 결제 시
-- 매출 = 가맹비 - 할인 + 월 구독료
-- 순이익 ≈ 매출 × 일정 비율 (운영 정책에 따름)
+- 표시 가격(`priceLabel`) = 사용자에게 보이는 **최종 월 결제액** (운영 비용 모두 포함)
+- 할인은 **추후 쿠폰 시스템**으로 별도 적용 (현재 단계에서는 할인 없음)
+- 운영 마진/원가 구조는 **대외비** — 사이트와 메시지 어디에도 노출하지 않음
 
 ---
 
@@ -265,14 +264,10 @@ THiNK·서비스 카드 스크롤
 - **현재 단계**: 계좌이체 only (수기 입금 확인)
 - **다음 단계**: 결제 모달(토스/카카오페이/포트원 등) 추가 — 시점 미정
 
-### 10.3 수익 공식 (단순화)
+### 10.3 수익 공식
 
-```
-신규 회원 매출 = (월 구독료) + 가맹비 6,000 - 신규 할인 5,000
-                 = 월 구독료 + 1,000
-
-기존 회원 매출 = 월 구독료
-```
+> 운영 마진 구조는 **대외비**이므로 본 PRD에는 기록하지 않는다.
+> 사용자에게 보이는 가격은 항상 `Service.priceLabel` 한 가지 (월 결제액)뿐이다.
 
 ---
 
@@ -369,9 +364,8 @@ subscriptions/
     status: "pending" | "active" | "expired" | "cancelled"
     startDate: timestamp
     endDate: timestamp
-    monthlyPrice: number
-    enrollmentFee: number
-    discount: number
+    monthlyPrice: number          // 사용자에게 청구되는 월 금액
+    couponCode: string | null     // (Phase 2+) 추후 쿠폰 시스템에서 적용된 쿠폰
     paidAt: timestamp | null
 
 services/

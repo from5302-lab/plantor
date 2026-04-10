@@ -24,16 +24,11 @@ export function buildPaymentGuide(args: {
     monthly += svc.pricePerMonth ?? 0;
   }
 
-  const firstPayment = monthly + SITE.enrollmentFee - SITE.newSignupDiscount;
-
   lines.push("");
-  lines.push(`💰 첫 결제: ${formatWon(firstPayment)}`);
-  lines.push(
-    `   (월 ${formatWon(monthly)} + 가맹비 ${formatWon(
-      SITE.enrollmentFee
-    )} - 신규 할인 ${formatWon(SITE.newSignupDiscount)})`
-  );
-  lines.push("");
+  if (monthly > 0) {
+    lines.push(`💰 월 결제: ${formatWon(monthly)}`);
+    lines.push("");
+  }
   lines.push(`🏦 입금 계좌`);
   lines.push(`   ${SITE.bank.name} ${SITE.bank.account}`);
   lines.push(`   예금주: ${SITE.bank.holder}`);
