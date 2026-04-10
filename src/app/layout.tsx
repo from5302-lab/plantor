@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Plantor — Plan + Mentor",
   description:
-    "학원이 쓰는 검증된 학습 도구를, 학원 없이 가정에 직접 연결합니다.",
+    "학원이 쓰는 검증된 학습 프로그램을, 학원 없이 가정에 직접 연결합니다.",
 };
 
 export default function RootLayout({

@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────
+    // Helper: 운영자(어드민) 판별
+    //   현재는 내 카카오/구글 계정 이메일을 하드코딩.
+    //   추후 custom claims로 옮길 예정.
+    // ─────────────────────────────────────────────────────────
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'from5302@gmail.com';
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // signups: 비로그인 누구나 '생성'만 가능. 읽기/수정은 운영자만.
+    // ─────────────────────────────────────────────────────────
+    match /signups/{signupId} {
+      allow create: if
+        request.resource.data.keys().hasAll([
+          'parentName', 'kakaoEmail', 'phone',
+          'childName', 'childGrade',
+          'selectedServices', 'status', 'createdAt'
+        ])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.parentName is string
+        && request.resource.data.parentName.size() > 0
+        && request.resource.data.parentName.size() < 100
+        && request.resource.data.kakaoEmail is string
+        && request.resource.data.kakaoEmail.size() < 200
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() < 50
+        && request.resource.data.childName is string
+        && request.resource.data.childName.size() > 0
+        && request.resource.data.childName.size() < 100
+        && request.resource.data.childGrade is string
+        && request.resource.data.selectedServices is list
+        && request.resource.data.selectedServices.size() > 0
+        && request.resource.data.selectedServices.size() <= 10;
+
+      allow read, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // 그 외 모든 컬렉션 — 명시적 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

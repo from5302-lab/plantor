@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SERVICES, SITE } from "@/data/site";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -70,14 +71,23 @@ export function ServicesSection() {
                   </li>
                 ))}
               </ul>
-              <a
-                href={SITE.kakaoOpenChat}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-              >
-                {service.category === "community" ? "참여하기" : "신청하기"}
-              </a>
+              {service.category === "community" ? (
+                <a
+                  href={SITE.kakaoOpenChat}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  참여하기
+                </a>
+              ) : (
+                <Link
+                  href={`/signup?slug=${service.slug}`}
+                  className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  신청하기
+                </Link>
+              )}
             </div>
           ))}
         </div>

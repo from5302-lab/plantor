@@ -4,7 +4,7 @@ export const SITE = {
   brand: "Plantor",
   tagline: "Plan + Mentor",
   description:
-    "학원이 쓰는 검증된 학습 도구를, 학원 없이 가정에 직접 연결합니다.",
+    "학원이 쓰는 검증된 학습 프로그램을, 학원 없이 가정에 직접 연결합니다.",
   kakaoOpenChat: "https://open.kakao.com/o/gs9aP64h",
   email: "from5302@gmail.com",
 } as const;

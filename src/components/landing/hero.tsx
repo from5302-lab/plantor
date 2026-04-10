@@ -8,7 +8,7 @@ export function Hero() {
         {SITE.tagline}
       </p>
       <h1 className="max-w-3xl text-balance text-4xl font-bold leading-tight tracking-tight text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
-        학원이 쓰는 학습 도구,
+        학원이 쓰는 학습 프로그램,
         <br className="hidden sm:block" />
         <span className="text-emerald-600 dark:text-emerald-400">
           {" "}
@@ -17,7 +17,7 @@ export function Hero() {
         부터.
       </h1>
       <p className="mt-6 max-w-xl text-balance text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
-        Plantor는 학원에서 검증된 에듀테크 도구를 가정에 직접 연결하는
+        Plantor는 학원에서 검증된 학습프로그램을 가정에 직접 연결하는
         <br className="hidden sm:block" />
         부모를 위한 에듀테크 큐레이션 플랫폼입니다.
       </p>
