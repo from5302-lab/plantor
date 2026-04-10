@@ -7,7 +7,20 @@ export const SITE = {
     "학원이 쓰는 검증된 학습 프로그램을, 학원 없이 가정에 직접 연결합니다.",
   kakaoOpenChat: "https://open.kakao.com/o/gs9aP64h",
   email: "from5302@gmail.com",
+  // ⚠️ 입금 안내 메시지에 자동으로 들어가는 계좌 정보입니다.
+  // 운영자(본인)만 보고 편집하세요. 사이트 페이지에는 노출되지 않습니다.
+  bank: {
+    name: "[은행명]",
+    account: "[계좌번호]",
+    holder: "[예금주]",
+  },
+  // 가맹비 / 신규 할인 정책
+  enrollmentFee: 6000,
+  newSignupDiscount: 5000,
 } as const;
+
+// 운영자(어드민) 이메일 — Firestore 보안 규칙과 동일해야 함
+export const ADMIN_EMAIL = "from5302@gmail.com";
 
 // ──────────────────────────────────────────────
 // THiNK — 코어밸류 4개
