@@ -19,7 +19,7 @@ export function Hero() {
       <p className="mt-6 max-w-xl text-balance text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
         Plantor는 학원에서 검증된 에듀테크 도구를 가정에 직접 연결하는
         <br className="hidden sm:block" />
-        부모-학습툴 큐레이션 플랫폼입니다.
+        부모를 위한 에듀테크 큐레이션 플랫폼입니다.
       </p>
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">
         <a
