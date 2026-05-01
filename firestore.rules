@@ -9,8 +9,11 @@ service cloud.firestore {
     //   추후 custom claims로 옮길 예정.
     // ─────────────────────────────────────────────────────────
     function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'from5302@gmail.com';
+      return request.auth != null && (
+        request.auth.token.email == 'from5302@gmail.com'
+        || request.auth.token.email == 'from302@plantor.app'
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     // ─────────────────────────────────────────────────────────
@@ -29,27 +32,180 @@ service cloud.firestore {
         && request.resource.data.phone.size() > 0
         && request.resource.data.phone.size() < 50
         && request.resource.data.children is list
-        && request.resource.data.children.size() > 0
+        && request.resource.data.children.size() >= 0
         && request.resource.data.children.size() <= 10;
 
-      allow read, update: if isAdmin();
-      allow delete: if false;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // users: 본인 문서 읽기/생성 가능, 운영자는 전체 읽기/쓰기
+    // ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, create: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isAdmin();
     }
 
     // ─────────────────────────────────────────────────────────
     // families / children / subscriptions
-    //   현재는 운영자만 read/write 가능.
-    //   추후 부모/학생 로그인 추가 시, 본인 소유 데이터에 대한
-    //   read 권한을 추가할 예정.
+    //   운영자: 전체 read/write
+    //   학부모: userId가 본인인 가족 데이터만 read
     // ─────────────────────────────────────────────────────────
     match /families/{familyId} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      // 학부모 본인: phone 필드만 수정 가능
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone']);
       allow read, write: if isAdmin();
+
+      // 쿠폰함 서브컬렉션: 본인 가족만 읽기, 어드민 전체
+      match /couponWallet/{couponId} {
+        allow read: if request.auth != null
+          && get(/databases/$(database)/documents/families/$(familyId)).data.userId == request.auth.uid;
+        allow read, write: if isAdmin();
+      }
     }
     match /children/{childId} {
-      allow read, write: if isAdmin();
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
     }
     match /subscriptions/{subscriptionId} {
+      allow read: if request.auth != null;
       allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // learningLogs: 누구나 읽기 (공개 피드), 학생 본인 생성, 운영자 전체
+    // ─────────────────────────────────────────────────────────
+    match /learningLogs/{logId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // feedReports: 로그인 회원만 신고 생성, 1인 1신고는 프론트에서 관리
+    // ─────────────────────────────────────────────────────────
+    match /feedReports/{reportId} {
+      allow create: if request.auth != null
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.logId is string;
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // attendanceSessions: 학생 본인 생성/읽기/수정, 운영자 전체
+    // ─────────────────────────────────────────────────────────
+    match /attendanceSessions/{sessionId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null;
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // renewalRequests: 로그인 사용자 생성, 운영자 전체
+    // ─────────────────────────────────────────────────────────
+    match /renewalRequests/{requestId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // coupons: 운영자 전체 read/write, 로그인 사용자 read (코드 검증용)
+    // ─────────────────────────────────────────────────────────
+    match /coupons/{couponId} {
+      allow read: if true;  // 쿠폰 코드 검증은 비인증 사용자도 가능
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // referralCodes: 추천인 코드 검증용 — 누구나 읽기, 본인 자동 생성 허용
+    // ─────────────────────────────────────────────────────────
+    match /referralCodes/{code} {
+      allow read: if true;
+      // 로그인한 사용자는 자신의 코드 생성 가능 (1회, update 불가)
+      allow create: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // referrals: 운영자 전체 read/write
+    // ─────────────────────────────────────────────────────────
+    match /referrals/{referralId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // tasks: 학생 본인 읽기/생성(draft), 어드민 전체
+    // childId = children 컬렉션 doc ID (auth.uid 아님)
+    // → users/{uid}.plantor_id == children/{childId}.loginId 로 본인 확인
+    // ─────────────────────────────────────────────────────────
+    match /tasks/{taskId} {
+      function studentMatchesChild(childId) {
+        let plantorId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plantor_id', '');
+        return plantorId != ''
+          && get(/databases/$(database)/documents/children/$(childId)).data.get('loginId', '') == plantorId;
+      }
+
+      // 본인 과제 읽기
+      allow read: if request.auth != null && studentMatchesChild(resource.data.childId);
+      // 학생 생성 (draft만, 본인 childId)
+      allow create: if request.auth != null
+        && request.resource.data.status == "draft"
+        && request.resource.data.createdBy == "student"
+        && studentMatchesChild(request.resource.data.childId);
+      // 학생 본인 draft 취소(삭제)
+      allow delete: if request.auth != null
+        && resource.data.status == "draft"
+        && resource.data.createdBy == "student"
+        && studentMatchesChild(resource.data.childId);
+      // 어드민 전체
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // studentProfiles: 학생 본인 읽기/쓰기, 어드민 전체
+    // ─────────────────────────────────────────────────────────
+    match /studentProfiles/{childId} {
+      function studentOwnsProfile() {
+        let plantorId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plantor_id', '');
+        return plantorId != ''
+          && get(/databases/$(database)/documents/children/$(childId)).data.get('loginId', '') == plantorId;
+      }
+      allow read, write: if request.auth != null && studentOwnsProfile();
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // directClasses: 어드민 전용
+    // ─────────────────────────────────────────────────────────
+    match /directClasses/{classId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // smsTemplates: 어드민 전용
+    // ─────────────────────────────────────────────────────────
+    match /smsTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // lessonLogs: 수업일지 (어드민 전용)
+    // ─────────────────────────────────────────────────────────
+    match /lessonLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // serviceOverrides: 누구나 읽기, 어드민 전체 쓰기
+    // ─────────────────────────────────────────────────────────
+    match /serviceOverrides/{slug} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // 그 외 모든 컬렉션 — 명시적 거부

@@ -1,4 +1,10 @@
 // 작은 포매팅 유틸 모음
+import { Timestamp } from "firebase/firestore";
+
+/** Firestore Timestamp → Date 변환 유틸 */
+export function tsToDate(v: unknown): Date | null {
+  return v instanceof Timestamp ? v.toDate() : null;
+}
 
 export function formatWon(n: number): string {
   return `₩${n.toLocaleString("ko-KR")}`;

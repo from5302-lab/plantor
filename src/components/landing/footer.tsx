@@ -1,29 +1,44 @@
+import Link from "next/link";
+import { T } from "@/lib/design-tokens";
 import { SITE } from "@/data/site";
 
 export function Footer() {
   return (
-    <footer className="border-t border-zinc-200 bg-white px-6 py-10 dark:border-zinc-800 dark:bg-black">
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-sm text-zinc-500 sm:flex-row dark:text-zinc-400">
-        <div className="flex items-center gap-2">
-          <span>🌱</span>
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-            {SITE.brand}
-          </span>
+    <footer
+      className="px-6 max-[600px]:px-4"
+      style={{
+        backgroundColor: T.white,
+        borderTop: T.border,
+        paddingTop: 32,
+        paddingBottom: 32,
+      }}
+    >
+      <div
+        className="mx-auto max-w-[1000px] flex flex-wrap items-center justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start max-[600px]:gap-3"
+        style={{ fontSize: 13, color: T.textMuted }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <img src="/favicon.svg" alt="" width={18} height={18} style={{ display: "block" }} />
+          <span style={{ fontWeight: 600, color: T.textSecondary }}>{SITE.brand}</span>
           <span>·</span>
           <span>{SITE.tagline}</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5 max-[600px]:flex-wrap max-[600px]:gap-x-4 max-[600px]:gap-y-2">
+          <Link href="/community" className="nav-link" style={{ color: T.textMuted, textDecoration: "none" }}>커뮤니티</Link>
+          <Link href="/about" className="nav-link" style={{ color: T.textMuted, textDecoration: "none" }}>소개</Link>
           <a
             href={SITE.kakaoOpenChat}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-emerald-600 dark:hover:text-emerald-400"
+            className="nav-link"
+            style={{ color: T.textMuted, textDecoration: "none" }}
           >
             카카오 오픈채팅
           </a>
           <a
             href={`mailto:${SITE.email}`}
-            className="hover:text-emerald-600 dark:hover:text-emerald-400"
+            className="nav-link"
+            style={{ color: T.textMuted, textDecoration: "none" }}
           >
             {SITE.email}
           </a>

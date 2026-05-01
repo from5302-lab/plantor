@@ -5,14 +5,14 @@ export const SITE = {
   tagline: "Plan + Mentor",
   description:
     "학원이 쓰는 검증된 학습 프로그램을, 학원 없이 가정에 직접 연결합니다.",
-  kakaoOpenChat: "https://open.kakao.com/o/gs9aP64h",
+  kakaoOpenChat: "https://open.kakao.com/o/gntJzE4h",
   email: "from5302@gmail.com",
   // ⚠️ 입금 안내 메시지에 자동으로 들어가는 계좌 정보입니다.
   // 운영자(본인)만 보고 편집하세요. 사이트 페이지에는 노출되지 않습니다.
   bank: {
-    name: "[은행명]",
-    account: "[계좌번호]",
-    holder: "[예금주]",
+    name: "카카오뱅크",
+    account: "3333-36-9725919",
+    holder: "이충선",
   },
 } as const;
 
@@ -31,32 +31,32 @@ export type CoreValue = {
 
 export const CORE_VALUES: CoreValue[] = [
   {
-    emoji: "🚀",
+    emoji: "👩‍🏫",
     key: "growth",
-    title: "학원 한 명의 효과를, 집에서 한 명에게",
+    title: "학부모에게 교사 계정을 드립니다",
     description:
-      "1:1 맞춤이 기본. 학원 그룹 수업이 아닌 우리 아이 진도에 맞춘 학습.",
+      "학습 열람만 되는 게 아니에요. 교사 계정을 통해 진도 설정, 과제 부여, 학습 현황 관리까지 직접 하실 수 있어요.",
   },
   {
     emoji: "🖥️",
     key: "access",
-    title: "학원비 1/10, 시간은 부모 일정대로",
+    title: "등원시간 0분, 모든 곳이 교실",
     description:
-      "월 1.5만원부터. 등원 시간·교통 시간 없이 집에서 바로 시작합니다.",
+      "별도의 이동 없이 집에서 편하게, 원하는 시간에 학습할 수 있습니다.",
   },
   {
     emoji: "📊",
     key: "data",
-    title: "공부했는지 보이는 학습",
+    title: "학습 현황을 한눈에 확인하세요",
     description:
-      "학습 결과와 진도가 부모에게 매일 보입니다. '했지?' 가 사라집니다.",
+      "자녀가 오늘 학습했는지, 이번 주 몇 일 공부했는지 부모님 화면에 자동으로 기록됩니다. 매일 물어보지 않아도 아이의 학습 흐름을 파악하실 수 있어요.",
   },
   {
-    emoji: "🌱",
+    emoji: "🌿",
     key: "evolve",
-    title: "엄마들의 피드백으로 큐레이션이 자란다",
+    title: "재구독률 93% — 한번 쓰면 계속 씁니다",
     description:
-      "Mom& 커뮤니티에서 검증된 도구만 라인업에 올립니다. 부모가 큐레이션의 일부입니다.",
+      "직접 자녀와 써본 학부모들이 다시 선택한 프로그램만 엄선했어요. 93%가 다음 달도 결제합니다.",
   },
 ];
 
@@ -66,6 +66,7 @@ export const CORE_VALUES: CoreValue[] = [
 export type Service = {
   slug: string;
   emoji: string;
+  iconUrl?: string;
   name: string;
   hook: string;
   pricePerMonth: number | null; // null = 별도 문의 / 무료
@@ -75,65 +76,168 @@ export type Service = {
   bullets: string[];
   externalUrl?: string;
   highlight?: boolean;
+  brandColor?: string;
+  agencyFee?: number;  // 가맹비 (원/월)
+  status?: "active" | "coming_soon";  // 없으면 slug 기반 자동 판별
+  signupType?: "new" | "renewal" | "both";  // status=active 일 때
+  order?: number;  // 노출 순서 (낮을수록 앞)
+  signupUrl?: string;  // 신청 버튼 커스텀 링크 (없으면 /signup)
+  studentUrl?: string; // 학생 접속 링크
+  parentUrl?: string;  // 학부모 접속 링크
 };
 
 export const SERVICES: Service[] = [
   {
-    slug: "class5",
-    emoji: "🎯",
-    name: "초등 클래스5",
-    hook: "초등 핵심 5과목, 매일 짧게",
-    pricePerMonth: 15000,
-    priceLabel: "월 15,000원",
-    targetGrades: "미취학 ~ 초등",
-    category: "subscription",
-    bullets: ["국어·수학·영어·사회·과학", "하루 15분 루틴", "초등 가장 인기"],
-    highlight: true,
-  },
-  {
     slug: "dailykor",
     emoji: "📘",
+    iconUrl: "/service-icons/dailykor.png",
     name: "매일국어",
-    hook: "문해력은 영어쌤도 인정한 솔루션",
+    hook: "제대로 읽을 수 있어야 공부를 잘한다.",
     pricePerMonth: 33000,
-    priceLabel: "월 33,000원",
-    targetGrades: "초등 ~ 중등",
+    priceLabel: "₩33,000/월",
+    targetGrades: "초1 ~ 중등",
     category: "subscription",
-    bullets: ["좋은 글감 매일 1편", "독해 + 어휘 동시", "꾸준히 → 단단해짐"],
+    bullets: [
+      "문해력 · 독해력 · 구조분석 훈련",
+      "개인별 맞춤 진단 · 자기주도학습",
+      "초등 교과서 문해력 → 중등 비문학 독해",
+    ],
     externalUrl: "https://www.dailykor.com/",
+    brandColor: "#29affc",
+    agencyFee: 22000,
+    studentUrl: "https://www.dailykor.com/front",
+    parentUrl: "https://www.dailykor.com/academy",
+  },
+  {
+    slug: "autovoca",
+    emoji: "📝",
+    iconUrl: "/service-icons/autovoca.png",
+    name: "오토보카",
+    hook: "의미연상 표현으로 단어를 자동암기",
+    pricePerMonth: 5000,
+    priceLabel: "₩5,000/월",
+    targetGrades: "중등 ~ 고등",
+    category: "subscription",
+    bullets: [
+      "원어민 음성 + 품사별 예문학습",
+      "단기기억에서 장기기억으로 전환되는 자동오답복습",
+      "온라인학습과 쓰기교재 병행",
+    ],
+    externalUrl: "https://www.autovoca.co.kr/",
+    brandColor: "#417cd8",
+    agencyFee: 0,
+    studentUrl: "https://www.autovoca.co.kr/",
+  },
+  {
+    slug: "class5",
+    emoji: "🎯",
+    iconUrl: "/service-icons/class5.png",
+    name: "초등 클래스5",
+    hook: "아이가 즐거운 아웃풋 영어",
+    pricePerMonth: 15000,
+    priceLabel: "₩15,000/월",
+    targetGrades: "미취학 ~ 초등",
+    category: "subscription",
+    bullets: [
+      "Phonics · Reading · Movie · Writing · Grammar",
+      "낭독, 더빙, 쓰기 교재에서 보이는 눈에 띄는 학습효과",
+      "1,884 리딩 유닛 · 1,500개 영상 · AI 자동평가",
+    ],
+    externalUrl: "https://www.class5.co.kr/",
+    highlight: true,
+    brandColor: "#ebb22b",
+    agencyFee: 6000,
+    studentUrl: "https://play.class5.co.kr/",
+    parentUrl: "https://www.class5.co.kr/login",
   },
   {
     slug: "classcard-middle",
     emoji: "🏆",
-    name: "중등 클래스카드 (내신본문암기)",
-    hook: "중간·기말 본문 암기를 게임처럼",
+    iconUrl: "/service-icons/classcard.png",
+    name: "중등 클래스카드",
+    hook: "내신대비 어휘, 문법, 듣기, 독해 완벽 마스터.",
     pricePerMonth: 15000,
-    priceLabel: "월 15,000원",
+    priceLabel: "₩15,000/월",
     targetGrades: "중1 ~ 중3",
     category: "subscription",
-    bullets: ["교과서 본문 자동 변환", "암기·테스트·게임 모드", "내신 직전 폭주 가능"],
+    bullets: [
+      "영어쌤 1/3 선택 · 출판사 공식 26,000개 자료",
+      "모의고사·수능 10년치 자료제공",
+      "AI 오답분석 · 주관식 자동채점",
+    ],
+    externalUrl: "https://www.classcard.net/",
+    brandColor: "#7fd132",
+    agencyFee: 4000,
+    studentUrl: "https://www.classcard.net/",
   },
   {
-    slug: "english-1on1",
-    emoji: "💯",
-    name: "1:1 온라인 영어과외",
-    hook: "수학할 시간을 벌어주는 영어수업",
-    pricePerMonth: null,
-    priceLabel: "별도 문의",
-    targetGrades: "중등 내신반",
+    slug: "vibe-coding",
+    emoji: "💻",
+    iconUrl: "/service-icons/vibe-coding.svg",
+    name: "바이브코딩 수업",
+    hook: "첫 수업에 바로 웹서비스 하나 완성.",
+    pricePerMonth: 150000,
+    priceLabel: "₩150,000/월",
+    targetGrades: "초등 ~ 중3",
     category: "premium",
-    bullets: ["빡세지만 효율적인 내신대비", "선생님 직접 매칭", "주 단위 진도 보고"],
+    bullets: [
+      "주 1회 수업 — 이론 + 실습 + 퀴즈 구성",
+      "AI 협업 → UI 설계 → Firebase → 배포 전 과정 커버",
+      "수업 결과물: 실제 배포된 사이트 + 수료증 발급",
+    ],
+    externalUrl: "https://coken-vibe.web.app/",
+    brandColor: "#7f8b99",
+    studentUrl: "https://coken-vibe.web.app/",
+  },
+  {
+    slug: "great-books",
+    emoji: "📖",
+    iconUrl: "/service-icons/great-books.png",
+    name: "고전독서모임",
+    hook: "고전 한 권으로 가족 대화를 여는 월간 독서 클럽",
+    pricePerMonth: 11000,
+    priceLabel: "₩11,000/월",
+    targetGrades: "학부모",
+    category: "community",
+    bullets: [
+      "매주 화요일 10pm Zoom 모임",
+      "월 1권 고전 읽기 · 주간 질문카드 · 대화미션",
+      "완독보다 대화를 위한 독서",
+    ],
+    externalUrl: "https://greatbooksclub.web.app/",
+    agencyFee: 0,
   },
   {
     slug: "mom-webinar",
     emoji: "🙋‍♀️",
     name: "[Mom&] 맘이랑 금요웨비나",
-    hook: "AI시대 성장을 원하는 맘들의 모임",
+    externalUrl: "https://open.kakao.com/o/gntJzE4h",
+    hook: "매주 금요일 밤 열시, 깨어있는 엄마들끼리",
     pricePerMonth: 0,
     priceLabel: "무료",
     targetGrades: "학부모",
     category: "community",
-    bullets: ["매주 금요일", "아이가 혼자 학습할 수 있는 시대?", "참여만 해도 인사이트"],
+    bullets: [
+      "AI · 교육 · 테크 · 정보 · 소통",
+      "고전독서모임 · 바이브코딩 등 커뮤니티 참여",
+      "Plantor 신규 프로그램 선공개",
+    ],
+  },
+  {
+    slug: "coming-soon-math-science",
+    emoji: "🔭",
+    name: "수학 · 과학 프로그램",
+    hook: "곧 만나요! 검증된 수학·과학 프로그램을 준비 중입니다.",
+    pricePerMonth: null,
+    priceLabel: "준비 중",
+    targetGrades: "초등 ~ 중등",
+    category: "subscription" as const,
+    externalUrl: "https://www.mathflat.com/",
+    bullets: [
+      "개념 이해 → 실전 문제 풀이 연계 커리큘럼",
+      "AI 오답 분석 · 취약 유형 집중 훈련",
+      "관심 등록 시 오픈 즉시 우선 안내",
+    ],
   },
 ];
 
@@ -141,7 +245,6 @@ export const SERVICES: Service[] = [
 // 통계 (현재 운영 데이터 기준)
 // ──────────────────────────────────────────────
 export const STATS = [
-  { value: "27", label: "가족과 함께" },
   { value: "5", label: "큐레이션 라인업" },
   { value: "1.5만~", label: "월 시작 가격" },
   { value: "초1~중3", label: "커버 학년" },
@@ -154,23 +257,31 @@ export type Faq = { q: string; a: string };
 
 export const FAQS: Faq[] = [
   {
-    q: "학원이랑 뭐가 달라요?",
-    a: "학원이 쓰는 검증된 도구를, 학원을 거치지 않고 가정에 직접 연결합니다. 같은 도구를 학원비의 1/10 가격으로, 우리 아이 일정에 맞춰 사용할 수 있습니다.",
+    q: "학원 프로그램과 어떤 차이가 있나요?",
+    a: "학원에서 실제로 사용하는 검증된 프로그램을, 학원 등록 없이 가정에서 직접 이용하실 수 있어요. 콘텐츠는 동일하고, 학원비 부담만 없어집니다.",
   },
   {
-    q: "결제는 어떻게 하나요?",
-    a: "현재는 계좌이체로만 진행합니다. 신청 후 카카오톡으로 입금 안내를 드리고, 입금 확인되면 즉시 학습 도구 ID/PW를 발송해 드립니다. 자동결제 모듈은 추후 추가될 예정입니다.",
+    q: "결제는 어떻게 진행되나요?",
+    a: "신청 완료 후 문자로 계좌 정보를 안내해 드려요. 입금이 확인되면 학습 계정 정보(ID/PW)를 바로 전달드립니다.",
   },
   {
-    q: "환불 되나요?",
-    a: "사용 시작 전에는 100% 환불됩니다. 사용 중 환불은 사용 일수를 제외하고 일할 계산됩니다. 자세한 내용은 신청 전 카카오톡으로 문의해 주세요.",
+    q: "환불 정책이 어떻게 되나요?",
+    a: "학습 시작 전이라면 전액 환불해 드립니다. 학습 시작 후 2주 이내라면 남은 기간만큼 일할 계산으로 환불해 드려요. 다만 2주 이상 학습이 진행된 경우에는 환불이 어렵습니다. 궁금한 점은 문자나 카카오 오픈채팅으로 편하게 문의해 주세요.",
   },
   {
-    q: "여러 자녀를 한 계정으로 등록할 수 있나요?",
-    a: "네, 가족 단위로 운영됩니다. 자녀별로 학습 도구가 발급되고, 부모님 한 분이 모든 자녀의 학습 현황을 한 화면에서 보실 수 있습니다.",
+    q: "자녀가 둘인데 따로 신청해야 하나요?",
+    a: "한 번에 함께 신청하시면 됩니다. 자녀별로 학습 계정이 따로 발급되고, 부모님은 하나의 화면에서 모든 자녀의 학습 현황을 확인하실 수 있어요.",
   },
   {
     q: "금요웨비나는 정말 무료인가요?",
-    a: "네, 100% 무료입니다. AI시대 자기주도학습, 우리 아이 미래에 대한 이야기를 매주 금요일에 나눕니다. 카카오 오픈채팅에 들어오시면 안내드립니다.",
+    a: "네, 완전 무료입니다. 카카오 오픈채팅에 참여하시면 매주 금요일 밤에 알림을 받으실 수 있어요. 별도 신청서나 사전 등록은 필요 없습니다.",
+  },
+  {
+    q: "아이가 실제로 학습하고 있는지 확인할 수 있나요?",
+    a: "각 학습 프로그램의 학습 기록과 진도 현황이 부모님 화면에 실시간으로 표시돼요. 따로 확인하지 않으셔도 자연스럽게 파악하실 수 있습니다.",
+  },
+  {
+    q: "PC, 태블릿, 스마트폰 모두 사용 가능한가요?",
+    a: "네, 모든 기기에서 이용하실 수 있습니다. 이동 중에도 스마트폰 하나로 충분히 학습할 수 있어요.",
   },
 ];

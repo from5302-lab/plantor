@@ -1,23 +1,21 @@
 import { Hero } from "@/components/landing/hero";
 import { Values } from "@/components/landing/values";
 import { ServicesSection } from "@/components/landing/services-section";
-import { Stats } from "@/components/landing/stats";
-import { WebinarBanner } from "@/components/landing/webinar-banner";
+import { SignupCtaBanner } from "@/components/landing/signup-cta-banner";
 import { Faq } from "@/components/landing/faq";
 import { Cta } from "@/components/landing/cta";
-import { Footer } from "@/components/landing/footer";
+import { LoginRedirect } from "@/components/auth/login-redirect";
 
 export default function Home() {
   return (
     <>
+      <LoginRedirect />
       <Hero />
-      <Values />
       <ServicesSection />
-      <Stats />
-      <WebinarBanner />
+      <SignupCtaBanner />
+      <Values />
       <Faq />
       <Cta />
-      <Footer />
     </>
   );
 }

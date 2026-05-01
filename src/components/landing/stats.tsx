@@ -2,15 +2,35 @@ import { STATS } from "@/data/site";
 
 export function Stats() {
   return (
-    <section className="px-6 py-16 sm:py-20">
-      <div className="mx-auto max-w-4xl">
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+    <section className="px-6 max-[600px]:px-4" style={{ backgroundColor: "#ffffff", paddingTop: 64, paddingBottom: 64 }}>
+      <div style={{ margin: "0 auto", maxWidth: 800 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 24,
+          }}
+        >
           {STATS.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <div className="text-3xl font-bold text-emerald-600 sm:text-4xl dark:text-emerald-400">
+            <div key={stat.label} style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "clamp(28px, 4vw, 36px)",
+                  fontWeight: 700,
+                  letterSpacing: "-0.75px",
+                  color: "rgba(0,0,0,0.95)",
+                }}
+              >
                 {stat.value}
               </div>
-              <div className="mt-2 text-xs font-medium text-zinc-500 sm:text-sm dark:text-zinc-400">
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#a39e98",
+                }}
+              >
                 {stat.label}
               </div>
             </div>
