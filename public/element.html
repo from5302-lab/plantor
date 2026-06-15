@@ -826,6 +826,22 @@
                     <span class="value" id="backAtomic">1</span>
                   </div>
                   <div class="item">
+                    <span class="label">주기</span>
+                    <span class="value" id="backPeriod">1</span>
+                  </div>
+                  <div class="item">
+                    <span class="label">족</span>
+                    <span class="value" id="backGroup">1</span>
+                  </div>
+                  <div class="item">
+                    <span class="label">전자 배치</span>
+                    <span class="value" id="backConfig">1</span>
+                  </div>
+                  <div class="item">
+                    <span class="label">원자가전자</span>
+                    <span class="value" id="backValence">1</span>
+                  </div>
+                  <div class="item">
                     <span class="label">분류</span>
                     <span class="value" id="backFamily">비금속</span>
                   </div>
@@ -983,6 +999,18 @@
       return shells;
     }
 
+    // Periodic-table facts from atomic number (Z = 1..20)
+    function periodOf(z) { return electronShells(z).length; }
+    function groupOf(z) {
+      if (z === 2) return 18; // He sits in group 18
+      const outer = electronShells(z).slice(-1)[0];
+      return outer <= 2 ? outer : outer + 10;
+    }
+    function valenceOf(z) {
+      if (groupOf(z) === 18) return 0; // noble gases: stable, treated as 0
+      return electronShells(z).slice(-1)[0];
+    }
+
     // Pick dark/light text for a given background (WCAG relative luminance)
     function contrastText(hex) {
       const c = hex.replace('#', '');
@@ -1047,6 +1075,10 @@
     const backName = document.getElementById('backName');
     const backEnglish = document.getElementById('backEnglish');
     const backAtomic = document.getElementById('backAtomic');
+    const backPeriod = document.getElementById('backPeriod');
+    const backGroup = document.getElementById('backGroup');
+    const backConfig = document.getElementById('backConfig');
+    const backValence = document.getElementById('backValence');
     const backFamily = document.getElementById('backFamily');
     const scoreBadge = document.getElementById('scoreBadge');
     const questionText = document.getElementById('questionText');
@@ -1087,6 +1119,10 @@
       backName.textContent = el.name;
       backEnglish.textContent = el.en;
       backAtomic.textContent = el.no;
+      backPeriod.textContent = periodOf(el.no);
+      backGroup.textContent = groupOf(el.no);
+      backConfig.textContent = electronShells(el.no).join(', ');
+      backValence.textContent = valenceOf(el.no);
       backFamily.textContent = el.family;
 
       if (isFlipped) {
