@@ -313,6 +313,14 @@
 
     .card-back { transform: rotateY(180deg); }
 
+    /* Front: fill height, no dead top/bottom space (sides keep padding) */
+    .card-front { padding-top: 16px; padding-bottom: 16px; }
+    .card-front > div {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
     .card-top {
       display: flex;
       justify-content: space-between;
@@ -331,13 +339,13 @@
       letter-spacing: 0.01em;
     }
 
-    /* ---------- Atom visual (single accent, clean) ---------- */
+    /* ---------- Atom visual (per-element shells + CPK color) ---------- */
     .element-visual {
       position: relative;
-      --atom: clamp(128px, 23svh, 200px);
+      --atom: clamp(150px, min(34svh, 66vw), 320px);
       display: grid;
       place-items: center;
-      margin: 8px auto 4px;
+      margin: auto auto 0;
       width: var(--atom);
       height: var(--atom);
     }
@@ -348,8 +356,8 @@
     }
 
     .nucleus {
-      width: calc(var(--atom) * 0.382);
-      height: calc(var(--atom) * 0.382);
+      width: calc(var(--atom) * 0.40);
+      height: calc(var(--atom) * 0.40);
       border-radius: 50%;
       background: var(--accent);
       color: #fff;
@@ -360,18 +368,19 @@
       line-height: 1.1;
       padding: 6px;
       z-index: 2;
-      box-shadow: 0 2px 10px rgba(0,113,227,0.35);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(0,0,0,0.06);
     }
 
     .nucleus .symbol {
-      font-size: calc(var(--atom) * 0.13);
+      font-size: calc(var(--atom) * 0.135);
       font-weight: 700;
       letter-spacing: -0.01em;
     }
 
     .nucleus .name {
-      font-size: calc(var(--atom) * 0.046);
-      color: rgba(255,255,255,0.85);
+      font-size: calc(var(--atom) * 0.05);
+      color: inherit;
+      opacity: 0.82;
       margin-top: 2px;
       font-weight: 500;
     }
@@ -382,43 +391,21 @@
       border-radius: 50%;
     }
 
-    .orbit.o1 { width: calc(var(--atom) * 0.591); height: calc(var(--atom) * 0.591); }
-    .orbit.o2 { width: calc(var(--atom) * 0.818); height: calc(var(--atom) * 0.818); }
-    .orbit.o3 { width: calc(var(--atom) * 0.955); height: calc(var(--atom) * 0.955); }
-
     @media (prefers-reduced-motion: no-preference) {
-      .orbit.o1 { animation: spin 20s linear infinite; }
-      .orbit.o2 { animation: spin 30s linear infinite reverse; }
-      .orbit.o3 { animation: spin 38s linear infinite; }
+      .orbit { animation: spin linear infinite; }
     }
 
     .electron {
       position: absolute;
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--accent);
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.10);
     }
-
-    .e1 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.295)); }
-    .e2 { transform: translate(-50%, -50%) rotate(120deg) translateX(calc(var(--atom) * 0.295)); }
-    .e3 { transform: translate(-50%, -50%) rotate(240deg) translateX(calc(var(--atom) * 0.295)); }
-
-    .e4 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.409)); }
-    .e5 { transform: translate(-50%, -50%) rotate(72deg) translateX(calc(var(--atom) * 0.409)); }
-    .e6 { transform: translate(-50%, -50%) rotate(144deg) translateX(calc(var(--atom) * 0.409)); }
-    .e7 { transform: translate(-50%, -50%) rotate(216deg) translateX(calc(var(--atom) * 0.409)); }
-    .e8 { transform: translate(-50%, -50%) rotate(288deg) translateX(calc(var(--atom) * 0.409)); }
-
-    .e9 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.477)); }
-    .e10 { transform: translate(-50%, -50%) rotate(60deg) translateX(calc(var(--atom) * 0.477)); }
-    .e11 { transform: translate(-50%, -50%) rotate(120deg) translateX(calc(var(--atom) * 0.477)); }
-    .e12 { transform: translate(-50%, -50%) rotate(180deg) translateX(calc(var(--atom) * 0.477)); }
-    .e13 { transform: translate(-50%, -50%) rotate(240deg) translateX(calc(var(--atom) * 0.477)); }
-    .e14 { transform: translate(-50%, -50%) rotate(300deg) translateX(calc(var(--atom) * 0.477)); }
 
     .element-title { text-align: center; }
 
@@ -435,6 +422,11 @@
       letter-spacing: -0.02em;
       margin-bottom: 0;
     }
+
+    /* Front: larger, vertically balanced symbol/name block */
+    .card-front .element-title { margin: 14px auto auto; }
+    .card-front .element-title .big-symbol { font-size: clamp(2.6rem, 9svh, 5rem); }
+    .card-front .element-title h2 { font-size: clamp(1.5rem, 5.5svh, 2.6rem); }
 
     .element-title .small { color: var(--text-2); margin-top: 4px; }
 
@@ -806,34 +798,7 @@
                   <span class="pill" id="frontAtomic">원자번호 1</span>
                 </div>
 
-                <div class="element-visual" id="visualBox">
-                  <div class="orbit o1">
-                    <span class="electron e1"></span>
-                    <span class="electron e2"></span>
-                    <span class="electron e3"></span>
-                  </div>
-                  <div class="orbit o2">
-                    <span class="electron e4"></span>
-                    <span class="electron e5"></span>
-                    <span class="electron e6"></span>
-                    <span class="electron e7"></span>
-                    <span class="electron e8"></span>
-                  </div>
-                  <div class="orbit o3">
-                    <span class="electron e9"></span>
-                    <span class="electron e10"></span>
-                    <span class="electron e11"></span>
-                    <span class="electron e12"></span>
-                    <span class="electron e13"></span>
-                    <span class="electron e14"></span>
-                  </div>
-                  <div class="nucleus" id="nucleusBox">
-                    <div>
-                      <div class="symbol" id="visualSymbol">H</div>
-                      <div class="name" id="visualName">수소</div>
-                    </div>
-                  </div>
-                </div>
+                <div class="element-visual" id="visualBox"></div>
 
                 <div class="element-title">
                   <div class="big-symbol" id="frontSymbol">H</div>
@@ -996,6 +961,63 @@
       { no: 20, symbol: 'Ca', name: '칼슘',     en: 'Calcium',   family: '알칼리 토금속', tip: 'Ca = Calcium. 뼈와 연결해서 기억.', memo: 'Ca = 칼슘' }
     ];
 
+    // CPK / Jmol colors used in molecular models (carbon darkened for legibility)
+    const CPK = {
+      H: '#ffffff', He: '#d9ffff', Li: '#cc80ff', Be: '#c2ff00', B: '#ffb5b5',
+      C: '#383838', N: '#3050f8', O: '#ff0d0d', F: '#90e050', Ne: '#b3e3f5',
+      Na: '#ab5cf2', Mg: '#8aff00', Al: '#bfa6a6', Si: '#f0c8a0', P: '#ff8000',
+      S: '#ffff30', Cl: '#1ff01f', Ar: '#80d1e3', K: '#8f40d4', Ca: '#3dff00'
+    };
+
+    // Real electron-per-shell counts (2, 8, 8, 2 filling — valid for Z = 1..20)
+    function electronShells(z) {
+      const cap = [2, 8, 8, 2];
+      const shells = [];
+      let rem = z;
+      for (const c of cap) {
+        if (rem <= 0) break;
+        const k = Math.min(c, rem);
+        shells.push(k);
+        rem -= k;
+      }
+      return shells;
+    }
+
+    // Pick dark/light text for a given background (WCAG relative luminance)
+    function contrastText(hex) {
+      const c = hex.replace('#', '');
+      const f = (i) => {
+        const v = parseInt(c.substr(i, 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      const L = 0.2126 * f(0) + 0.7152 * f(2) + 0.0722 * f(4);
+      return L > 0.5 ? '#1d1d1f' : '#ffffff';
+    }
+
+    function renderAtom(el) {
+      const color = CPK[el.symbol] || 'var(--accent)';
+      const txt = contrastText(CPK[el.symbol] || '#0071e3');
+      const shells = electronShells(el.no);
+      const n = shells.length;
+      const durations = [22, 30, 38, 46];
+      let html = '';
+      shells.forEach((count, i) => {
+        const r = n === 1 ? 0.32 : 0.27 + 0.20 * (i / (n - 1));
+        const dia = (r * 2).toFixed(3);
+        const rad = r.toFixed(3);
+        const dur = durations[i] || 40;
+        const dir = i % 2 === 1 ? 'reverse' : 'normal';
+        let dots = '';
+        for (let j = 0; j < count; j++) {
+          const ang = ((360 / count) * j).toFixed(2);
+          dots += `<span class="electron" style="background:${color};transform:translate(-50%,-50%) rotate(${ang}deg) translateX(calc(var(--atom) * ${rad}));"></span>`;
+        }
+        html += `<div class="orbit" style="width:calc(var(--atom) * ${dia});height:calc(var(--atom) * ${dia});animation-duration:${dur}s;animation-direction:${dir};">${dots}</div>`;
+      });
+      html += `<div class="nucleus" style="background:${color};color:${txt};"><div><div class="symbol">${el.symbol}</div><div class="name">${el.name}</div></div></div>`;
+      visualBox.innerHTML = html;
+    }
+
     let currentIndex = 0;
     let isFlipped = false;
     let quizMode = 'mc';
@@ -1019,8 +1041,7 @@
     const frontAtomic = document.getElementById('frontAtomic');
     const frontSymbol = document.getElementById('frontSymbol');
     const frontName = document.getElementById('frontName');
-    const visualSymbol = document.getElementById('visualSymbol');
-    const visualName = document.getElementById('visualName');
+    const visualBox = document.getElementById('visualBox');
     const backShort = document.getElementById('backShort');
     const backSymbol = document.getElementById('backSymbol');
     const backName = document.getElementById('backName');
@@ -1059,8 +1080,7 @@
       frontAtomic.textContent = `원자번호 ${el.no}`;
       frontSymbol.textContent = el.symbol;
       frontName.textContent = el.name;
-      visualSymbol.textContent = el.symbol;
-      visualName.textContent = el.name;
+      renderAtom(el);
 
       backShort.textContent = `${el.symbol} · ${el.name}`;
       backSymbol.textContent = el.symbol;
