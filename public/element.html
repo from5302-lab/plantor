@@ -864,10 +864,6 @@
                     <span class="label">분류</span>
                     <span class="value" id="backFamily">비금속</span>
                   </div>
-                  <div class="item">
-                    <span class="label">외우기 포인트</span>
-                    <span class="value" id="backMemo">가장 첫 원소</span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1031,7 +1027,6 @@
     const backEnglish = document.getElementById('backEnglish');
     const backAtomic = document.getElementById('backAtomic');
     const backFamily = document.getElementById('backFamily');
-    const backMemo = document.getElementById('backMemo');
     const scoreBadge = document.getElementById('scoreBadge');
     const questionText = document.getElementById('questionText');
     const optionsBox = document.getElementById('optionsBox');
@@ -1073,7 +1068,6 @@
       backEnglish.textContent = el.en;
       backAtomic.textContent = el.no;
       backFamily.textContent = el.family;
-      backMemo.textContent = el.memo;
 
       if (isFlipped) {
         flashcard.classList.remove('flipped');
