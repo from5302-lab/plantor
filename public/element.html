@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f5f5f7" />
+  <title>원소기호 1~20 암기 카드 & 퀴즈</title>
+  <style>
+    :root {
+      --canvas: #f5f5f7;
+      --surface: #ffffff;
+      --text: #1d1d1f;
+      --text-2: rgba(0,0,0,0.56);
+      --text-3: rgba(0,0,0,0.4);
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --on-accent: #ffffff;
+      --fill: #f5f5f7;
+      --fill-press: #ececef;
+      --hairline: rgba(0,0,0,0.08);
+      --good: #34c759;
+      --bad: #ff3b30;
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 18px;
+      --shadow-card: 0 4px 20px rgba(0,0,0,0.08);
+      --nav-glass: rgba(255,255,255,0.72);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Apple SD Gothic Neo", "Pretendard", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      min-height: 100%;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--canvas);
+      min-height: 100vh;
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    .container {
+      width: min(980px, calc(100% - 40px));
+      margin: 0 auto 48px;
+    }
+
+    .hero {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      padding: 8px 0;
+      background: var(--nav-glass);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-size: clamp(1.25rem, 3vw, 1.5rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0;
+    }
+
+    .auth-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .auth-row .toolbar {
+      display: flex;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .auth-user { display: none; }
+
+    .auth-user strong,
+    .auth-user span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .app-shell {
+      display: grid;
+      gap: 18px;
+      margin-top: 4px;
+    }
+
+    /* Segmented control — rounded rectangle, never a pill */
+    .tabbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      border-radius: var(--r-md);
+      background: rgba(235,235,240,0.82);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      margin-top: 12px;
+    }
+
+    .tab-btn {
+      flex: 1 1 0;
+      padding: 8px;
+      border-radius: var(--r-sm);
+      background: transparent;
+      color: var(--text-2);
+      border: 0;
+      font-weight: 500;
+      font-size: 0.95rem;
+      min-height: 36px;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition: background .2s ease, color .2s ease;
+    }
+
+    .tab-btn.active {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      font-weight: 600;
+    }
+
+    .app-section { display: none; }
+    .app-section.active { display: block; }
+
+    .panel {
+      background: var(--surface);
+      border: 0;
+      border-radius: var(--r-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .home-panel {
+      gap: 16px;
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .app-section.active.home-panel { display: grid; }
+
+    .rail-label {
+      margin-top: 4px;
+      color: var(--text-3);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding: 0 2px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 16px 0 18px;
+    }
+
+    button, select, input[type="text"] {
+      font: inherit;
+      outline: none;
+    }
+
+    /* Apple "commerce compact" button geometry — 8px radius, no capsule */
+    button {
+      background: var(--accent);
+      color: var(--on-accent);
+      border: 0;
+      border-radius: var(--r-sm);
+      padding: 10px 16px;
+      min-height: 44px;
+      cursor: pointer;
+      font-size: 1.0625rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: background .2s ease, transform .1s ease, opacity .2s ease;
+    }
+
+    button:hover { background: var(--accent-hover); }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+    button.secondary,
+    button.warn {
+      background: var(--fill);
+      color: var(--text);
+    }
+
+    button.secondary:hover,
+    button.warn:hover { background: var(--fill-press); }
+
+    button.good { background: var(--accent); color: var(--on-accent); }
+    button.good:hover { background: var(--accent-hover); }
+
+    button:focus-visible,
+    input:focus-visible,
+    .tab-btn:focus-visible,
+    .element-info-card:focus-visible,
+    .option-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ---------- Flashcard ---------- */
+    .flashcard-wrap {
+      perspective: 1200px;
+      margin-top: 4px;
+    }
+
+    .flashcard {
+      position: relative;
+      width: 100%;
+      min-height: 460px;
+      transform-style: preserve-3d;
+      transition: transform .55s cubic-bezier(0.2, 0.6, 0.25, 1);
+      cursor: pointer;
+      touch-action: pan-y;
+    }
+
+    .flashcard.flipped { transform: rotateY(180deg); }
+    .flashcard.dragging { transition: none; }
+
+    [data-view="cards"].panel {
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    /* Card tab fills the viewport — no page scroll */
+    .app-section.active[data-view="cards"] {
+      display: flex;
+      flex-direction: column;
+      height: calc(100svh - 110px);
+      min-height: 420px;
+    }
+
+    .card-head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+
+    .card-controls {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    [data-view="cards"] .flashcard-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      margin-top: 4px;
+    }
+
+    [data-view="cards"] .flashcard {
+      min-height: 0;
+      height: 100%;
+      max-height: none;
+    }
+
+    .swipe-hint {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--text-3);
+      font-size: 0.8125rem;
+      padding: 8px 4px 0;
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--r-lg);
+      padding: 28px 28px 32px;
+      backface-visibility: hidden;
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card-back { transform: rotateY(180deg); }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    /* Editorial caption (formerly capsule pill) */
+    .pill {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: var(--text-3);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    /* ---------- Atom visual (single accent, clean) ---------- */
+    .element-visual {
+      position: relative;
+      --atom: clamp(128px, 23svh, 200px);
+      display: grid;
+      place-items: center;
+      margin: 8px auto 4px;
+      width: var(--atom);
+      height: var(--atom);
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .nucleus {
+      width: calc(var(--atom) * 0.382);
+      height: calc(var(--atom) * 0.382);
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-weight: 600;
+      line-height: 1.1;
+      padding: 6px;
+      z-index: 2;
+      box-shadow: 0 2px 10px rgba(0,113,227,0.35);
+    }
+
+    .nucleus .symbol {
+      font-size: calc(var(--atom) * 0.13);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .nucleus .name {
+      font-size: calc(var(--atom) * 0.046);
+      color: rgba(255,255,255,0.85);
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    .orbit {
+      position: absolute;
+      border: 1.5px solid rgba(0,0,0,0.08);
+      border-radius: 50%;
+    }
+
+    .orbit.o1 { width: calc(var(--atom) * 0.591); height: calc(var(--atom) * 0.591); }
+    .orbit.o2 { width: calc(var(--atom) * 0.818); height: calc(var(--atom) * 0.818); }
+    .orbit.o3 { width: calc(var(--atom) * 0.955); height: calc(var(--atom) * 0.955); }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .orbit.o1 { animation: spin 20s linear infinite; }
+      .orbit.o2 { animation: spin 30s linear infinite reverse; }
+      .orbit.o3 { animation: spin 38s linear infinite; }
+    }
+
+    .electron {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .e1 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.295)); }
+    .e2 { transform: translate(-50%, -50%) rotate(120deg) translateX(calc(var(--atom) * 0.295)); }
+    .e3 { transform: translate(-50%, -50%) rotate(240deg) translateX(calc(var(--atom) * 0.295)); }
+
+    .e4 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.409)); }
+    .e5 { transform: translate(-50%, -50%) rotate(72deg) translateX(calc(var(--atom) * 0.409)); }
+    .e6 { transform: translate(-50%, -50%) rotate(144deg) translateX(calc(var(--atom) * 0.409)); }
+    .e7 { transform: translate(-50%, -50%) rotate(216deg) translateX(calc(var(--atom) * 0.409)); }
+    .e8 { transform: translate(-50%, -50%) rotate(288deg) translateX(calc(var(--atom) * 0.409)); }
+
+    .e9 { transform: translate(-50%, -50%) translateX(calc(var(--atom) * 0.477)); }
+    .e10 { transform: translate(-50%, -50%) rotate(60deg) translateX(calc(var(--atom) * 0.477)); }
+    .e11 { transform: translate(-50%, -50%) rotate(120deg) translateX(calc(var(--atom) * 0.477)); }
+    .e12 { transform: translate(-50%, -50%) rotate(180deg) translateX(calc(var(--atom) * 0.477)); }
+    .e13 { transform: translate(-50%, -50%) rotate(240deg) translateX(calc(var(--atom) * 0.477)); }
+    .e14 { transform: translate(-50%, -50%) rotate(300deg) translateX(calc(var(--atom) * 0.477)); }
+
+    .element-title { text-align: center; }
+
+    .element-title .big-symbol {
+      font-size: clamp(2.2rem, 7.5svh, 4rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+
+    .element-title h2 {
+      font-size: clamp(1.2rem, 4svh, 1.8rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0;
+    }
+
+    .element-title .small { color: var(--text-2); margin-top: 4px; }
+
+    .subinfo {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .subinfo .item {
+      background: var(--fill);
+      padding: 12px;
+      border-radius: var(--r-md);
+      text-align: center;
+    }
+
+    .label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-3);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .memory-tip {
+      margin-top: 16px;
+      background: var(--fill);
+      border: 0;
+      padding: 14px 16px;
+      border-radius: var(--r-md);
+      color: var(--text-2);
+      line-height: 1.5;
+      font-size: 0.9375rem;
+    }
+
+    .memory-tip strong { color: var(--text); }
+
+    /* ---------- Quiz ---------- */
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .section-title h2 {
+      font-size: 1.375rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .scoreboard {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      padding: 6px 12px;
+      border-radius: var(--r-sm);
+      background: var(--fill);
+      color: var(--text-2);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .card-head .badge { font-size: 0.9375rem; }
+
+    .quiz-box {
+      margin-top: 16px;
+      padding: 20px;
+      border-radius: var(--r-md);
+      background: var(--fill);
+    }
+
+    .question {
+      font-size: 1.125rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .question strong { font-weight: 700; }
+
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .option-btn {
+      text-align: left;
+      min-height: 52px;
+      padding: 14px 16px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .option-btn:hover {
+      background: var(--surface);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    input[type="text"] {
+      flex: 1 1 240px;
+      padding: 12px 14px;
+      background: var(--surface);
+      color: var(--text);
+      border-radius: var(--r-sm);
+      border: 1px solid var(--hairline);
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.22);
+    }
+
+    input::placeholder { color: var(--text-3); }
+
+    .result {
+      margin-top: 14px;
+      min-height: 24px;
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+
+    .result.good { color: var(--good); }
+    .result.bad { color: var(--bad); }
+    .result.info { color: var(--text-2); }
+
+    /* Quiz two-step layout — each step fits the viewport, no scroll */
+    .app-section.active[data-view="quiz"] {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100svh - 120px);
+    }
+
+    .quiz-step {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .setup-label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin: 6px 2px -2px;
+    }
+
+    .seg2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .seg-btn { background: var(--fill); color: var(--text); }
+    .seg-btn:hover { background: var(--fill-press); }
+    .seg-btn.active { background: var(--accent); color: #fff; }
+    .seg-btn.active:hover { background: var(--accent-hover); }
+
+    .start-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
+      text-align: left;
+      background: var(--fill);
+      color: var(--text);
+      padding: 16px 18px;
+      min-height: auto;
+    }
+    .start-card:hover { background: var(--fill-press); }
+    .start-card strong { font-size: 1.0625rem; font-weight: 600; }
+    .start-card span { font-size: 0.8125rem; color: var(--text-2); font-weight: 400; }
+    .start-card.primary { background: var(--accent); }
+    .start-card.primary:hover { background: var(--accent-hover); }
+    .start-card.primary strong { color: #fff; }
+    .start-card.primary span { color: rgba(255,255,255,0.85); }
+
+    .play-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .play-head .secondary { min-height: 38px; padding: 8px 14px; }
+
+    #quizPlay .quiz-box { flex: 1; }
+    .play-controls { margin-top: auto; }
+    .play-controls button { width: 100%; }
+
+    /* ---------- Home rail ---------- */
+    .element-info-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .element-info-card {
+      padding: 12px 14px;
+      border-radius: var(--r-md);
+      background: var(--surface);
+      border: 0;
+      box-shadow: var(--shadow-card);
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: transform .15s ease, box-shadow .2s ease;
+    }
+
+    .element-info-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .element-info-card strong {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .element-info-card span {
+      color: var(--text-2);
+      font-size: 0.8125rem;
+      line-height: 1.3;
+    }
+
+    /* ---------- Records ---------- */
+    .top-stats {
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .records-stats { display: grid; }
+
+    .stat-card {
+      background: var(--fill);
+      border: 0;
+      border-radius: var(--r-md);
+      padding: 16px;
+    }
+
+    .stat-card span {
+      display: block;
+      color: var(--text-3);
+      font-size: 0.8125rem;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .stat-card strong {
+      font-size: 1.375rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .record-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .record-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border-radius: var(--r-md);
+      background: var(--fill);
+      border: 0;
+    }
+
+    .record-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .record-score {
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      padding: 28px;
+      border-radius: var(--r-md);
+      background: var(--fill);
+      color: var(--text-2);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      color: var(--text-3);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    .footer-note strong { color: var(--text-2); }
+
+    .small {
+      font-size: 0.875rem;
+      color: var(--text-2);
+    }
+
+    @media (max-width: 700px) {
+      .container { width: calc(100% - 28px); margin: 0 auto 32px; }
+      .panel { padding: 18px; }
+      h1 { font-size: 1.1875rem; white-space: nowrap; }
+      .auth-row button { font-size: 0.9375rem; padding: 8px 12px; min-height: 38px; }
+      .toolbar { display: grid; grid-template-columns: 1fr 1fr; }
+      .toolbar button { width: 100%; }
+      .options { grid-template-columns: 1fr; }
+      .input-row { flex-direction: column; }
+      .element-info-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .element-info-card { padding: 10px; }
+      .element-info-card strong { font-size: 1.25rem; }
+      .element-info-card span { font-size: 0.75rem; }
+      .card-face { padding: 18px 20px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="app-shell">
+      <nav class="tabbar" aria-label="학습 메뉴">
+        <button class="tab-btn active" data-tab="info">홈</button>
+        <button class="tab-btn" data-tab="cards">카드</button>
+        <button class="tab-btn" data-tab="quiz">퀴즈</button>
+        <button class="tab-btn" data-tab="records">기록</button>
+      </nav>
+
+      <section class="panel home-panel app-section active" data-view="info">
+        <div class="rail-label">원소 1~20</div>
+        <div class="element-info-grid" id="elementInfoGrid"></div>
+      </section>
+
+      <section class="panel app-section" data-view="cards">
+        <div class="card-head">
+          <span class="badge" id="cardCounter">1 / 20</span>
+          <button id="unknownFocusBtn" class="secondary">모르는 것</button>
+        </div>
+
+        <div class="flashcard-wrap">
+          <div class="flashcard" id="flashcard">
+            <div class="card-face card-front">
+              <div>
+                <div class="card-top">
+                  <span class="pill" id="frontAtomic">원자번호 1</span>
+                </div>
+
+                <div class="element-visual" id="visualBox">
+                  <div class="orbit o1">
+                    <span class="electron e1"></span>
+                    <span class="electron e2"></span>
+                    <span class="electron e3"></span>
+                  </div>
+                  <div class="orbit o2">
+                    <span class="electron e4"></span>
+                    <span class="electron e5"></span>
+                    <span class="electron e6"></span>
+                    <span class="electron e7"></span>
+                    <span class="electron e8"></span>
+                  </div>
+                  <div class="orbit o3">
+                    <span class="electron e9"></span>
+                    <span class="electron e10"></span>
+                    <span class="electron e11"></span>
+                    <span class="electron e12"></span>
+                    <span class="electron e13"></span>
+                    <span class="electron e14"></span>
+                  </div>
+                  <div class="nucleus" id="nucleusBox">
+                    <div>
+                      <div class="symbol" id="visualSymbol">H</div>
+                      <div class="name" id="visualName">수소</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="element-title">
+                  <div class="big-symbol" id="frontSymbol">H</div>
+                  <h2 id="frontName">수소</h2>
+                </div>
+              </div>
+
+              <div class="memory-tip" id="frontHint">
+                가장 가벼운 원소. H = Hydrogen = 수소.
+              </div>
+            </div>
+
+            <div class="card-face card-back">
+              <div>
+                <div class="card-top">
+                  <span class="pill">카드 뒷면</span>
+                  <span class="pill" id="backShort">H · 수소</span>
+                </div>
+
+                <div class="element-title" style="margin-top: 20px;">
+                  <div class="big-symbol" id="backSymbol">H</div>
+                  <h2 id="backName">수소</h2>
+                  <p class="small" id="backEnglish">Hydrogen</p>
+                </div>
+
+                <div class="subinfo">
+                  <div class="item">
+                    <span class="label">원자번호</span>
+                    <span class="value" id="backAtomic">1</span>
+                  </div>
+                  <div class="item">
+                    <span class="label">분류</span>
+                    <span class="value" id="backFamily">비금속</span>
+                  </div>
+                  <div class="item">
+                    <span class="label">외우기 포인트</span>
+                    <span class="value" id="backMemo">가장 첫 원소</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="memory-tip" id="backTip">
+                <strong>암기 팁:</strong> 1번은 H, 수소. 주기율표의 시작점!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="swipe-hint">
+          <span>← 모름</span>
+          <span id="unknownCountText">모르는 원소 0개</span>
+          <span>외움 →</span>
+        </div>
+
+        <div class="card-controls">
+          <button id="prevBtn" class="secondary">이전</button>
+          <button id="flipBtn">뒤집기</button>
+          <button id="nextBtn" class="secondary">다음</button>
+        </div>
+      </section>
+
+      <section class="panel app-section" data-view="quiz">
+        <!-- STEP 1 — 설정 -->
+        <div class="quiz-step" id="quizSetup">
+          <div class="section-title">
+            <div>
+              <h2>퀴즈</h2>
+              <div class="small">방식을 고르고 시작하세요.</div>
+            </div>
+          </div>
+
+          <div class="setup-label">출제 방식</div>
+          <div class="seg2">
+            <button id="modeMcBtn" class="seg-btn active">선택형</button>
+            <button id="modeInputBtn" class="seg-btn">입력형</button>
+          </div>
+
+          <div class="setup-label">시작하기</div>
+          <button class="start-card" id="startPracticeBtn">
+            <strong>연습 모드</strong>
+            <span>틀려도 부담 없이 계속 풀어요</span>
+          </button>
+          <button class="start-card primary" id="startExamBtn">
+            <strong>20문제 시험</strong>
+            <span>20문제를 풀면 기록에 저장돼요</span>
+          </button>
+        </div>
+
+        <!-- STEP 2 — 풀이 -->
+        <div class="quiz-step" id="quizPlay" style="display:none;">
+          <div class="play-head">
+            <button id="quizBackBtn" class="secondary">← 나가기</button>
+            <div class="scoreboard">
+              <span class="badge" id="scoreBadge">점수 0</span>
+              <span class="badge" id="examProgressBadge">연습 중</span>
+            </div>
+          </div>
+
+          <div class="quiz-box">
+            <div class="question" id="questionText">문제를 불러오는 중...</div>
+
+            <div id="mcArea">
+              <div class="options" id="optionsBox"></div>
+            </div>
+
+            <div id="inputArea" style="display:none;">
+              <div class="small">원소기호 또는 이름으로 입력 (예: H 또는 수소)</div>
+              <div class="input-row">
+                <input type="text" id="answerInput" placeholder="정답 입력" />
+                <button id="submitAnswerBtn" class="good">확인</button>
+              </div>
+            </div>
+
+            <div class="result info" id="resultText">정답을 골라보세요.</div>
+          </div>
+
+          <div class="play-controls">
+            <button id="newQuizBtn" class="secondary">다음 문제</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel app-section" data-view="records">
+        <div class="section-title">
+          <div>
+            <h2>시험 기록</h2>
+          </div>
+          <div class="toolbar" style="margin:0;">
+            <button id="clearRecordsBtn" class="secondary">기록 지우기</button>
+          </div>
+        </div>
+        <div class="top-stats records-stats">
+          <div class="stat-card">
+            <span>최근 점수</span>
+            <strong id="latestScore">-</strong>
+          </div>
+          <div class="stat-card">
+            <span>최고 점수</span>
+            <strong id="bestScore">-</strong>
+          </div>
+          <div class="stat-card">
+            <span>시험 횟수</span>
+            <strong id="testCount">0회</strong>
+          </div>
+        </div>
+        <div class="record-list" id="recordList"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const elements = [
+      { no: 1, symbol: 'H',  name: '수소',      en: 'Hydrogen',  family: '비금속', tip: '가장 가벼운 원소. H = Hydrogen.', memo: '1번, 시작점' },
+      { no: 2, symbol: 'He', name: '헬륨',      en: 'Helium',    family: '비활성 기체', tip: '풍선에 많이 쓰이는 가벼운 기체.', memo: 'He = 헬륨 풍선' },
+      { no: 3, symbol: 'Li', name: '리튬',      en: 'Lithium',   family: '알칼리 금속', tip: '배터리로 많이 떠올리는 원소.', memo: 'Li = 리튬전지' },
+      { no: 4, symbol: 'Be', name: '베릴륨',    en: 'Beryllium', family: '알칼리 토금속', tip: 'Be = Beryllium, 단단한 금속 이미지.', memo: 'Be = 베릴륨' },
+      { no: 5, symbol: 'B',  name: '붕소',      en: 'Boron',     family: '준금속', tip: 'B = Boron = 붕소.', memo: 'B 하나 = 붕소' },
+      { no: 6, symbol: 'C',  name: '탄소',      en: 'Carbon',    family: '비금속', tip: '탄소 C는 생명과 유기물의 핵심.', memo: 'C = Carbon' },
+      { no: 7, symbol: 'N',  name: '질소',      en: 'Nitrogen',  family: '비금속', tip: '공기 중 많은 비율을 차지하는 질소.', memo: 'N = Nitrogen' },
+      { no: 8, symbol: 'O',  name: '산소',      en: 'Oxygen',    family: '비금속', tip: '숨 쉴 때 필요한 산소.', memo: 'O = Oxygen' },
+      { no: 9, symbol: 'F',  name: '플루오린',  en: 'Fluorine',  family: '할로젠', tip: 'F = Fluorine, 반응성이 큰 할로젠.', memo: 'F = 플루오린' },
+      { no: 10, symbol: 'Ne', name: '네온',     en: 'Neon',      family: '비활성 기체', tip: '네온사인의 네온.', memo: 'Ne = 네온사인' },
+      { no: 11, symbol: 'Na', name: '나트륨',   en: 'Sodium',    family: '알칼리 금속', tip: 'Na는 영어 sodium에서 왔어요.', memo: 'Na = 나트륨' },
+      { no: 12, symbol: 'Mg', name: '마그네슘', en: 'Magnesium', family: '알칼리 토금속', tip: 'Mg = 마그네슘. 영양제로도 익숙해요.', memo: 'Mg = 마그네슘' },
+      { no: 13, symbol: 'Al', name: '알루미늄', en: 'Aluminium', family: '금속', tip: 'Al = 알루미늄. 가볍고 널리 쓰이는 금속.', memo: 'Al = 알루미늄' },
+      { no: 14, symbol: 'Si', name: '규소',     en: 'Silicon',   family: '준금속', tip: 'Si = Silicon. 반도체와 연결해서 기억.', memo: 'Si = 실리콘' },
+      { no: 15, symbol: 'P',  name: '인',       en: 'Phosphorus',family: '비금속', tip: 'P = Phosphorus = 인.', memo: 'P = 인' },
+      { no: 16, symbol: 'S',  name: '황',       en: 'Sulfur',    family: '비금속', tip: 'S = Sulfur = 황.', memo: 'S = 황' },
+      { no: 17, symbol: 'Cl', name: '염소',     en: 'Chlorine',  family: '할로젠', tip: 'Cl = Chlorine = 염소.', memo: 'Cl = 염소' },
+      { no: 18, symbol: 'Ar', name: '아르곤',   en: 'Argon',     family: '비활성 기체', tip: 'Ar = Argon, 안정적인 비활성 기체.', memo: 'Ar = 아르곤' },
+      { no: 19, symbol: 'K',  name: '칼륨',     en: 'Potassium', family: '알칼리 금속', tip: 'K는 영어 potassium에서 왔어요.', memo: 'K = 칼륨' },
+      { no: 20, symbol: 'Ca', name: '칼슘',     en: 'Calcium',   family: '알칼리 토금속', tip: 'Ca = Calcium. 뼈와 연결해서 기억.', memo: 'Ca = 칼슘' }
+    ];
+
+    let currentIndex = 0;
+    let isFlipped = false;
+    let quizMode = 'mc';
+    let currentQuestion = null;
+    let score = 0;
+    let attempts = 0;
+    let examMode = false;
+    const examTotal = 20;
+    const recordKey = 'plantor-element-quiz-records';
+    let focusUnknownOnly = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let isDraggingCard = false;
+    let suppressNextFlip = false;
+    let isAnimating = false;
+    let swipeTimer = null;
+    const unknownKey = 'plantor-element-unknown-nos';
+
+    const flashcard = document.getElementById('flashcard');
+    const cardCounter = document.getElementById('cardCounter');
+    const frontAtomic = document.getElementById('frontAtomic');
+    const frontSymbol = document.getElementById('frontSymbol');
+    const frontName = document.getElementById('frontName');
+    const frontHint = document.getElementById('frontHint');
+    const visualSymbol = document.getElementById('visualSymbol');
+    const visualName = document.getElementById('visualName');
+    const backShort = document.getElementById('backShort');
+    const backSymbol = document.getElementById('backSymbol');
+    const backName = document.getElementById('backName');
+    const backEnglish = document.getElementById('backEnglish');
+    const backAtomic = document.getElementById('backAtomic');
+    const backFamily = document.getElementById('backFamily');
+    const backMemo = document.getElementById('backMemo');
+    const backTip = document.getElementById('backTip');
+    const scoreBadge = document.getElementById('scoreBadge');
+    const questionText = document.getElementById('questionText');
+    const optionsBox = document.getElementById('optionsBox');
+    const resultText = document.getElementById('resultText');
+    const mcArea = document.getElementById('mcArea');
+    const inputArea = document.getElementById('inputArea');
+    const answerInput = document.getElementById('answerInput');
+    const elementInfoGrid = document.getElementById('elementInfoGrid');
+    const examProgressBadge = document.getElementById('examProgressBadge');
+    const recordList = document.getElementById('recordList');
+    const latestScore = document.getElementById('latestScore');
+    const bestScore = document.getElementById('bestScore');
+    const testCount = document.getElementById('testCount');
+    const unknownFocusBtn = document.getElementById('unknownFocusBtn');
+    const unknownCountText = document.getElementById('unknownCountText');
+
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function setCard(index) {
+      currentIndex = index;
+      const el = elements[currentIndex];
+      cardCounter.textContent = `${currentIndex + 1} / ${elements.length}`;
+      frontAtomic.textContent = `원자번호 ${el.no}`;
+      frontSymbol.textContent = el.symbol;
+      frontName.textContent = el.name;
+      frontHint.textContent = el.tip;
+      visualSymbol.textContent = el.symbol;
+      visualName.textContent = el.name;
+
+      backShort.textContent = `${el.symbol} · ${el.name}`;
+      backSymbol.textContent = el.symbol;
+      backName.textContent = el.name;
+      backEnglish.textContent = el.en;
+      backAtomic.textContent = el.no;
+      backFamily.textContent = el.family;
+      backMemo.textContent = el.memo;
+      backTip.innerHTML = `<strong>암기 팁:</strong> ${el.tip}`;
+
+      if (isFlipped) {
+        flashcard.classList.remove('flipped');
+        isFlipped = false;
+      }
+
+      // Always make the card visible & centered — guards against a stuck swipe animation
+      clearTimeout(swipeTimer);
+      isAnimating = false;
+      if (flashcardWrap) {
+        flashcardWrap.style.transition = '';
+        flashcardWrap.style.transform = '';
+        flashcardWrap.style.opacity = '';
+      }
+    }
+
+    function flipCard() {
+      isFlipped = !isFlipped;
+      flashcard.classList.toggle('flipped', isFlipped);
+    }
+
+    function renderElementInfo() {
+      elementInfoGrid.innerHTML = elements.map(el => `
+        <button class="element-info-card" data-index="${el.no - 1}" title="${el.name} 암기카드 보기">
+          <strong>${el.symbol}</strong>
+          <span>${el.no}. ${el.name}</span>
+        </button>
+      `).join('');
+
+      elementInfoGrid.querySelectorAll('.element-info-card').forEach(card => {
+        card.addEventListener('click', () => {
+          setCard(Number(card.dataset.index));
+          switchTab('cards');
+        });
+      });
+    }
+
+    function getUnknownNos() {
+      try {
+        return new Set(JSON.parse(localStorage.getItem(unknownKey)) || []);
+      } catch (error) {
+        return new Set();
+      }
+    }
+
+    function saveUnknownNos(unknownNos) {
+      localStorage.setItem(unknownKey, JSON.stringify([...unknownNos]));
+      updateUnknownUi();
+    }
+
+    function updateUnknownUi() {
+      const count = getUnknownNos().size;
+      unknownCountText.textContent = `모르는 원소 ${count}개`;
+      unknownFocusBtn.textContent = focusUnknownOnly ? '전체 보기' : `모르는 것 ${count}`;
+      unknownFocusBtn.disabled = count === 0 && !focusUnknownOnly;
+    }
+
+    function markCurrentCard(known) {
+      const el = elements[currentIndex];
+      const unknownNos = getUnknownNos();
+      if (known) {
+        unknownNos.delete(el.no);
+      } else {
+        unknownNos.add(el.no);
+      }
+      saveUnknownNos(unknownNos);
+      showNextStudyCard();
+    }
+
+    function getStudyIndexes() {
+      if (!focusUnknownOnly) return elements.map((_, idx) => idx);
+      const unknownNos = getUnknownNos();
+      const indexes = elements
+        .map((el, idx) => unknownNos.has(el.no) ? idx : -1)
+        .filter(idx => idx >= 0);
+      return indexes.length ? indexes : elements.map((_, idx) => idx);
+    }
+
+    function showNextStudyCard(step = 1) {
+      const indexes = getStudyIndexes();
+      const currentPosition = indexes.indexOf(currentIndex);
+      const nextPosition = currentPosition >= 0
+        ? (currentPosition + step + indexes.length) % indexes.length
+        : 0;
+      setCard(indexes[nextPosition]);
+    }
+
+    function getRecords() {
+      try {
+        return JSON.parse(localStorage.getItem(recordKey)) || [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveRecords(records) {
+      localStorage.setItem(recordKey, JSON.stringify(records.slice(0, 20)));
+    }
+
+    function renderRecords() {
+      const records = getRecords();
+      latestScore.textContent = records[0] ? `${records[0].score}/${records[0].total}` : '-';
+      bestScore.textContent = records.length ? `${Math.max(...records.map(record => record.score))}/${examTotal}` : '-';
+      testCount.textContent = `${records.length}회`;
+
+      if (!records.length) {
+        recordList.innerHTML = '<div class="empty-state">아직 시험 기록이 없습니다.<br>암기퀴즈에서 20문제 시험을 완료해보세요.</div>';
+        return;
+      }
+
+      recordList.innerHTML = records.map(record => `
+        <div class="record-item">
+          <div>
+            <strong>${record.date}</strong>
+            <span class="small">${record.mode} · ${record.score}개 정답 · ${record.total}문제</span>
+          </div>
+          <div class="record-score">${record.percent}%</div>
+        </div>
+      `).join('');
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+      });
+      document.querySelectorAll('.app-section').forEach(section => {
+        section.classList.toggle('active', section.dataset.view === tabName);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function randomElement(excludeNo = null) {
+      const pool = excludeNo === null ? elements : elements.filter(el => el.no !== excludeNo);
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function makeQuestion() {
+      if (examMode && attempts >= examTotal) {
+        finishExam();
+        return;
+      }
+
+      const target = randomElement();
+      const types = [
+        'symbolToName',
+        'nameToSymbol'
+      ];
+      const type = types[Math.floor(Math.random() * types.length)];
+      currentQuestion = { target, type };
+      resultText.textContent = quizMode === 'mc' ? '정답을 골라보세요.' : '정답을 입력해보세요.';
+      resultText.className = 'result info';
+      updateScore();
+
+      if (quizMode === 'mc') {
+        renderMcQuestion(target, type);
+      } else {
+        renderInputQuestion(target, type);
+      }
+    }
+
+    function renderMcQuestion(target, type) {
+      let correctAnswer = '';
+      let question = '';
+      let distractorSource = [];
+
+      if (type === 'symbolToName') {
+        question = `문제: 원소기호 <strong>${target.symbol}</strong>의 원소이름은?`;
+        correctAnswer = target.name;
+        distractorSource = elements.map(el => el.name);
+      } else {
+        question = `문제: 원소이름 <strong>${target.name}</strong>의 원소기호는?`;
+        correctAnswer = target.symbol;
+        distractorSource = elements.map(el => el.symbol);
+      }
+
+      questionText.innerHTML = question;
+
+      const wrongs = shuffleArray(distractorSource.filter(item => item !== correctAnswer)).slice(0, 3);
+      const options = shuffleArray([correctAnswer, ...wrongs]);
+      optionsBox.innerHTML = options.map(option => `
+        <button class="option-btn" data-answer="${option.replace(/"/g, '&quot;')}">${option}</button>
+      `).join('');
+
+      optionsBox.querySelectorAll('.option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          checkAnswer(btn.dataset.answer);
+        });
+      });
+    }
+
+    function renderInputQuestion(target, type) {
+      let question = '';
+      if (type === 'symbolToName') {
+        question = `문제: 원소기호 <strong>${target.symbol}</strong>의 원소이름을 입력하세요.`;
+      } else {
+        question = `문제: 원소이름 <strong>${target.name}</strong>의 원소기호를 입력하세요.`;
+      }
+      questionText.innerHTML = question;
+      answerInput.value = '';
+      answerInput.focus();
+    }
+
+    function getCorrectAnswers(question) {
+      const t = question.target;
+      if (question.type === 'symbolToName') return [t.name];
+      return [t.symbol];
+    }
+
+    function normalize(str) {
+      return str.trim().toLowerCase().replace(/\s+/g, '');
+    }
+
+    function checkAnswer(userAnswer) {
+      if (!currentQuestion) return;
+      const corrects = getCorrectAnswers(currentQuestion);
+      const isCorrect = corrects.some(ans => normalize(ans) === normalize(userAnswer));
+      attempts += 1;
+      if (isCorrect) score += 1;
+      updateScore();
+
+      const target = currentQuestion.target;
+      if (isCorrect) {
+        resultText.innerHTML = `정답! <strong>${target.no}번 ${target.name} (${target.symbol})</strong>`;
+        resultText.className = 'result good';
+      } else {
+        resultText.innerHTML = `오답! 정답은 <strong>${target.no}번 ${target.name} (${target.symbol})</strong> 입니다.`;
+        resultText.className = 'result bad';
+      }
+
+      if (examMode && attempts >= examTotal) {
+        setTimeout(finishExam, 900);
+      } else {
+        setTimeout(makeQuestion, 1100);
+      }
+    }
+
+    function updateScore() {
+      scoreBadge.textContent = `점수 ${score}`;
+      examProgressBadge.textContent = examMode ? `시험 ${Math.min(attempts + 1, examTotal)} / ${examTotal}` : '연습 중';
+    }
+
+    function finishExam() {
+      const total = attempts || examTotal;
+      const percent = total ? Math.round((score / total) * 100) : 0;
+
+      const records = getRecords();
+      records.unshift({
+        score,
+        total,
+        percent,
+        mode: quizMode === 'mc' ? '선택형' : '입력형',
+        date: new Date().toLocaleString('ko-KR'),
+        savedAt: Date.now()
+      });
+      saveRecords(records);
+      renderRecords();
+
+      examMode = false;
+      updateScore();
+      showQuizStep('setup');
+      switchTab('records');
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      showNextStudyCard(-1);
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      showNextStudyCard(1);
+    });
+
+    document.getElementById('flipBtn').addEventListener('click', () => {
+      if (isAnimating) return;
+      flipCard();
+    });
+
+    const flashcardWrap = document.querySelector('.flashcard-wrap');
+    let pointerActive = false;
+    let dragDX = 0;
+
+    flashcard.addEventListener('click', () => {
+      if (isAnimating) return;
+      if (suppressNextFlip) {
+        suppressNextFlip = false;
+        return;
+      }
+      flipCard();
+    });
+
+    flashcard.addEventListener('pointerdown', (e) => {
+      if (isAnimating) return;
+      pointerActive = true;
+      isDraggingCard = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragDX = 0;
+      if (flashcard.setPointerCapture) flashcard.setPointerCapture(e.pointerId);
+    });
+
+    flashcard.addEventListener('pointermove', (e) => {
+      if (!pointerActive) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (!isDraggingCard) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+          isDraggingCard = true;
+          flashcardWrap.style.transition = 'none';
+        } else {
+          return;
+        }
+      }
+      dragDX = dx;
+      e.preventDefault();
+      flashcardWrap.style.transform = `translateX(${dx}px) rotate(${dx * 0.04}deg)`;
+      flashcardWrap.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 420));
+    });
+
+    function endCardDrag() {
+      if (!pointerActive) return;
+      pointerActive = false;
+      if (!isDraggingCard) return;
+
+      const dx = dragDX;
+      suppressNextFlip = true;
+      const threshold = 90;
+
+      if (Math.abs(dx) > threshold) {
+        const known = dx > 0;
+        isAnimating = true;
+        flashcardWrap.style.transition = 'transform .3s ease, opacity .3s ease';
+        flashcardWrap.style.transform = `translateX(${known ? 600 : -600}px) rotate(${known ? 18 : -18}deg)`;
+        flashcardWrap.style.opacity = '0';
+        clearTimeout(swipeTimer);
+        swipeTimer = setTimeout(() => {
+          // setCard() (via markCurrentCard) resets the wrap styles and clears isAnimating
+          markCurrentCard(known);
+        }, 300);
+      } else {
+        flashcardWrap.style.transition = 'transform .25s ease, opacity .25s ease';
+        flashcardWrap.style.transform = '';
+        flashcardWrap.style.opacity = '';
+      }
+      isDraggingCard = false;
+    }
+
+    flashcard.addEventListener('pointerup', endCardDrag);
+    flashcard.addEventListener('pointercancel', endCardDrag);
+
+    unknownFocusBtn.addEventListener('click', () => {
+      focusUnknownOnly = !focusUnknownOnly;
+      updateUnknownUi();
+      showNextStudyCard(1);
+    });
+
+    const quizSetup = document.getElementById('quizSetup');
+    const quizPlay = document.getElementById('quizPlay');
+    const modeMcBtn = document.getElementById('modeMcBtn');
+    const modeInputBtn = document.getElementById('modeInputBtn');
+    const newQuizBtn = document.getElementById('newQuizBtn');
+
+    function showQuizStep(step) {
+      quizSetup.style.display = step === 'setup' ? 'flex' : 'none';
+      quizPlay.style.display = step === 'play' ? 'flex' : 'none';
+    }
+
+    function applyQuizMode() {
+      mcArea.style.display = quizMode === 'mc' ? 'block' : 'none';
+      inputArea.style.display = quizMode === 'mc' ? 'none' : 'block';
+    }
+
+    function startQuiz(isExam) {
+      examMode = isExam;
+      score = 0;
+      attempts = 0;
+      applyQuizMode();
+      newQuizBtn.style.display = isExam ? 'none' : 'block';
+      showQuizStep('play');
+      updateScore();
+      makeQuestion();
+    }
+
+    modeMcBtn.addEventListener('click', () => {
+      quizMode = 'mc';
+      modeMcBtn.classList.add('active');
+      modeInputBtn.classList.remove('active');
+    });
+
+    modeInputBtn.addEventListener('click', () => {
+      quizMode = 'input';
+      modeInputBtn.classList.add('active');
+      modeMcBtn.classList.remove('active');
+    });
+
+    document.getElementById('startPracticeBtn').addEventListener('click', () => startQuiz(false));
+    document.getElementById('startExamBtn').addEventListener('click', () => startQuiz(true));
+    newQuizBtn.addEventListener('click', makeQuestion);
+
+    document.getElementById('quizBackBtn').addEventListener('click', () => {
+      examMode = false;
+      updateScore();
+      showQuizStep('setup');
+    });
+
+    document.getElementById('submitAnswerBtn').addEventListener('click', () => {
+      const value = answerInput.value.trim();
+      if (!value) {
+        resultText.textContent = '정답을 먼저 입력해주세요.';
+        resultText.className = 'result info';
+        return;
+      }
+      checkAnswer(value);
+    });
+
+    answerInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('submitAnswerBtn').click();
+      }
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    document.getElementById('clearRecordsBtn').addEventListener('click', () => {
+      localStorage.removeItem(recordKey);
+      renderRecords();
+    });
+
+    renderElementInfo();
+    renderRecords();
+    updateUnknownUi();
+    setCard(0);
+    updateScore();
+  </script>
+</body>
+</html>
