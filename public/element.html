@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f5f5f7" />
-  <title>원소기호 1~20 암기 카드 & 퀴즈</title>
+  <title>중등 필수 원소 암기 카드 & 퀴즈</title>
   <style>
     :root {
       --canvas: #f5f5f7;
@@ -799,7 +799,7 @@
       </nav>
 
       <section class="panel home-panel app-section active" data-view="info">
-        <div class="rail-label">원소 1~20</div>
+        <div class="rail-label">중등 필수 원소 25종</div>
         <div class="element-info-grid" id="elementInfoGrid"></div>
       </section>
 
@@ -857,7 +857,7 @@
                     <span class="value" id="backConfig">1</span>
                   </div>
                   <div class="item">
-                    <span class="label">원자가전자</span>
+                    <span class="label" id="backValenceLabel">원자가전자</span>
                     <span class="value" id="backValence">1</span>
                   </div>
                   <div class="item">
@@ -995,11 +995,11 @@
       { no: 19, symbol: 'K',  name: '칼륨',     en: 'Potassium', family: '알칼리 금속', tip: 'K는 영어 potassium에서 왔어요.', memo: 'K = 칼륨' },
       { no: 20, symbol: 'Ca', name: '칼슘',     en: 'Calcium',   family: '알칼리 토금속', tip: 'Ca = Calcium. 뼈와 연결해서 기억.', memo: 'Ca = 칼슘' },
       // 전이금속은 1~20번 규칙(2,8,8,2)으로 자동계산이 안 맞아 정확한 값을 직접 지정
-      { no: 26, symbol: 'Fe', name: '철',       en: 'Iron',      family: '전이금속', tip: 'Fe = Ferrum(라틴어). 자석·철분으로 친숙한 금속.', memo: 'Fe = 철(자석)',   shells: [2, 8, 14, 2],         period: 4, group: 8,  valence: 2 },
-      { no: 29, symbol: 'Cu', name: '구리',     en: 'Copper',    family: '전이금속', tip: 'Cu = Cuprum. 전선·10원 동전의 구리.',          memo: 'Cu = 구리(전선)', shells: [2, 8, 18, 1],         period: 4, group: 11, valence: 1 },
-      { no: 30, symbol: 'Zn', name: '아연',     en: 'Zinc',      family: '전이금속', tip: 'Zn = Zinc. 건전지·도금에 쓰이는 아연.',        memo: 'Zn = 아연(건전지)', shells: [2, 8, 18, 2],         period: 4, group: 12, valence: 2 },
-      { no: 47, symbol: 'Ag', name: '은',       en: 'Silver',    family: '전이금속', tip: 'Ag = Argentum. 거울·은수저의 은.',             memo: 'Ag = 은(은수저)', shells: [2, 8, 18, 18, 1],     period: 5, group: 11, valence: 1 },
-      { no: 79, symbol: 'Au', name: '금',       en: 'Gold',      family: '전이금속', tip: 'Au = Aurum. 금반지의 금, 잘 변하지 않아요.',   memo: 'Au = 금(금반지)', shells: [2, 8, 18, 32, 18, 1], period: 6, group: 11, valence: 1 }
+      { no: 26, symbol: 'Fe', name: '철',       en: 'Iron',      family: '전이금속', tip: 'Fe = Ferrum(라틴어). 자석·철분으로 친숙한 금속.', memo: 'Fe = 철(자석)',   shells: [2, 8, 14, 2],         period: 4, group: 8,  ion: 'Fe²⁺, Fe³⁺' },
+      { no: 29, symbol: 'Cu', name: '구리',     en: 'Copper',    family: '전이금속', tip: 'Cu = Cuprum. 전선·10원 동전의 구리.',          memo: 'Cu = 구리(전선)', shells: [2, 8, 18, 1],         period: 4, group: 11, ion: 'Cu²⁺' },
+      { no: 30, symbol: 'Zn', name: '아연',     en: 'Zinc',      family: '전이금속', tip: 'Zn = Zinc. 건전지·도금에 쓰이는 아연.',        memo: 'Zn = 아연(건전지)', shells: [2, 8, 18, 2],         period: 4, group: 12, ion: 'Zn²⁺' },
+      { no: 47, symbol: 'Ag', name: '은',       en: 'Silver',    family: '전이금속', tip: 'Ag = Argentum. 거울·은수저의 은.',             memo: 'Ag = 은(은수저)', shells: [2, 8, 18, 18, 1],     period: 5, group: 11, ion: 'Ag⁺' },
+      { no: 79, symbol: 'Au', name: '금',       en: 'Gold',      family: '전이금속', tip: 'Au = Aurum. 금반지의 금, 잘 변하지 않아요.',   memo: 'Au = 금(금반지)', shells: [2, 8, 18, 32, 18, 1], period: 6, group: 11, ion: 'Au³⁺' }
     ];
 
     // CPK / Jmol colors used in molecular models (carbon darkened for legibility)
@@ -1079,6 +1079,7 @@
     let score = 0;
     let attempts = 0;
     let examMode = false;
+    let quizQueue = [];
     const examTotal = 20;
     const recordKey = 'plantor-element-quiz-records';
     let focusUnknownOnly = false;
@@ -1105,6 +1106,7 @@
     const backGroup = document.getElementById('backGroup');
     const backConfig = document.getElementById('backConfig');
     const backValence = document.getElementById('backValence');
+    const backValenceLabel = document.getElementById('backValenceLabel');
     const backFamily = document.getElementById('backFamily');
     const scoreBadge = document.getElementById('scoreBadge');
     const questionText = document.getElementById('questionText');
@@ -1148,7 +1150,13 @@
       backPeriod.textContent = el.period ?? periodOf(el.no);
       backGroup.textContent = el.group ?? groupOf(el.no);
       backConfig.textContent = (el.shells || electronShells(el.no)).join(', ');
-      backValence.textContent = el.valence ?? valenceOf(el.no);
+      if (el.ion) {
+        backValenceLabel.textContent = '흔한 이온';
+        backValence.textContent = el.ion;
+      } else {
+        backValenceLabel.textContent = '원자가전자';
+        backValence.textContent = el.valence ?? valenceOf(el.no);
+      }
       backFamily.textContent = el.family;
 
       if (isFlipped) {
@@ -1281,18 +1289,21 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function randomElement(excludeNo = null) {
-      const pool = excludeNo === null ? elements : elements.filter(el => el.no !== excludeNo);
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-
     function makeQuestion() {
       if (examMode && attempts >= examTotal) {
         finishExam();
         return;
       }
 
-      const target = randomElement();
+      // 비복원 추출: 셔플된 큐를 소진하며 출제 → 한 회차 안에서 중복 없음.
+      // 연습 모드에서 큐를 다 쓰면 다시 섞고, 직전 문제와 바로 이어지지 않게 보정.
+      if (quizQueue.length === 0) {
+        quizQueue = shuffleArray(elements);
+        if (currentQuestion && quizQueue[quizQueue.length - 1] === currentQuestion.target) {
+          quizQueue.unshift(quizQueue.pop());
+        }
+      }
+      const target = quizQueue.pop();
       const types = [
         'symbolToName',
         'nameToSymbol'
@@ -1524,6 +1535,7 @@
       examMode = isExam;
       score = 0;
       attempts = 0;
+      quizQueue = shuffleArray(elements);
       applyQuizMode();
       newQuizBtn.style.display = isExam ? 'none' : 'block';
       showQuizStep('play');
