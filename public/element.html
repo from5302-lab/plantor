@@ -611,6 +611,13 @@
       gap: 8px;
     }
 
+    .seg3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .seg3 .seg-btn { padding: 10px 4px; font-size: 0.9375rem; }
+
     .seg-btn { background: var(--fill); color: var(--text); }
     .seg-btn:hover { background: var(--fill-press); }
     .seg-btn.active { background: var(--accent); color: #fff; }
@@ -901,14 +908,21 @@
             <button id="modeInputBtn" class="seg-btn">입력형</button>
           </div>
 
+          <div class="setup-label">출제 방향</div>
+          <div class="seg3">
+            <button id="dirSymbolBtn" class="seg-btn active">기호→이름</button>
+            <button id="dirNameBtn" class="seg-btn">이름→기호</button>
+            <button id="dirMixBtn" class="seg-btn">섞기</button>
+          </div>
+
           <div class="setup-label">시작하기</div>
           <button class="start-card" id="startPracticeBtn">
             <strong>연습 모드</strong>
             <span>틀려도 부담 없이 계속 풀어요</span>
           </button>
           <button class="start-card primary" id="startExamBtn">
-            <strong>20문제 시험</strong>
-            <span>20문제를 풀면 기록에 저장돼요</span>
+            <strong>25문제 시험</strong>
+            <span>모든 원소를 한 번씩, 25문제를 풀면 기록에 저장돼요</span>
           </button>
         </div>
 
@@ -1077,12 +1091,13 @@
     let currentIndex = 0;
     let isFlipped = false;
     let quizMode = 'mc';
+    let quizDir = 'symbol';
     let currentQuestion = null;
     let score = 0;
     let attempts = 0;
     let examMode = false;
     let quizQueue = [];
-    const examTotal = 20;
+    const examTotal = 25;
     const recordKey = 'plantor-element-quiz-records';
     let focusUnknownOnly = false;
     let dragStartX = 0;
@@ -1270,7 +1285,7 @@
       testCount.textContent = `${records.length}회`;
 
       if (!records.length) {
-        recordList.innerHTML = '<div class="empty-state">아직 시험 기록이 없습니다.<br>암기퀴즈에서 20문제 시험을 완료해보세요.</div>';
+        recordList.innerHTML = '<div class="empty-state">아직 시험 기록이 없습니다.<br>암기퀴즈에서 25문제 시험을 완료해보세요.</div>';
         return;
       }
 
@@ -1310,11 +1325,9 @@
         }
       }
       const target = quizQueue.pop();
-      const types = [
-        'symbolToName',
-        'nameToSymbol'
-      ];
-      const type = types[Math.floor(Math.random() * types.length)];
+      const type = quizDir === 'symbol' ? 'symbolToName'
+        : quizDir === 'name' ? 'nameToSymbol'
+        : (Math.random() < 0.5 ? 'symbolToName' : 'nameToSymbol');
       currentQuestion = { target, type };
       resultText.textContent = quizMode === 'mc' ? '정답을 골라보세요.' : '정답을 입력해보세요.';
       resultText.className = 'result info';
@@ -1559,6 +1572,19 @@
       quizMode = 'input';
       modeInputBtn.classList.add('active');
       modeMcBtn.classList.remove('active');
+    });
+
+    const dirButtons = {
+      symbol: document.getElementById('dirSymbolBtn'),
+      name: document.getElementById('dirNameBtn'),
+      mix: document.getElementById('dirMixBtn')
+    };
+    Object.entries(dirButtons).forEach(([dir, btn]) => {
+      btn.addEventListener('click', () => {
+        quizDir = dir;
+        Object.values(dirButtons).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
     });
 
     document.getElementById('startPracticeBtn').addEventListener('click', () => startQuiz(false));
