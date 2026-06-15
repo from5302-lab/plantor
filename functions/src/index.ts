@@ -14,4 +14,4 @@ export { onFeedReport } from "./feed";
 export { autoLog } from "./auto-log";
 export { gradeWriting } from "./writing";
 export { class5Library } from "./class5-proxy";
-export { analyzePassage } from "./analyze-passage";
+export { analyzePassage, getM2gosaSheet, getMyM2gosaSheets } from "./analyze-passage";

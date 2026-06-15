@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { CSSProperties } from "react";
 import type {
   Chunk,
@@ -107,7 +108,11 @@ function ChunkView({ chunk }: { chunk: Chunk }) {
 }
 
 function CheckBox({ check }: { check: GrammarCheck }) {
+  const [picked, setPicked] = useState<number | null>(null);
   const parts = check.prompt.split("___");
+  const answered = picked !== null;
+  const correct = picked === check.answer;
+
   return (
     <div
       style={{
@@ -119,46 +124,76 @@ function CheckBox({ check }: { check: GrammarCheck }) {
         background: "#fafafa",
       }}
     >
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 700,
-          color: C.teal,
-          marginBottom: 6,
-        }}
-      >
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.teal, marginBottom: 8 }}>
         CHECK · {check.label}
       </div>
-      <div style={{ fontSize: 14, lineHeight: 1.6, color: C.ink }}>
+      <div style={{ fontSize: 14, lineHeight: 1.9, color: C.ink }}>
         {parts.map((p, i) => (
           <span key={i}>
             {p}
             {i < parts.length - 1 && (
-              <span
-                style={{
-                  display: "inline-block",
-                  margin: "0 4px",
-                  padding: "1px 8px",
-                  borderRadius: 6,
-                  background: "#fff",
-                  border: `1px solid ${C.border}`,
-                  fontWeight: 600,
-                }}
-              >
-                ({check.options[0]} / {check.options[1]})
+              <span style={{ display: "inline-flex", gap: 6, margin: "0 6px", verticalAlign: "middle" }}>
+                {check.options.map((opt, oi) => {
+                  const isAnswer = oi === check.answer;
+                  const isPicked = oi === picked;
+                  let bg = "#fff";
+                  let color = C.ink;
+                  let border = C.border;
+                  if (answered) {
+                    if (isAnswer) {
+                      bg = "#dcfce7";
+                      color = "#15803d";
+                      border = "#86efac";
+                    } else if (isPicked) {
+                      bg = "#fee2e2";
+                      color = "#b91c1c";
+                      border = "#fca5a5";
+                    }
+                  }
+                  return (
+                    <button
+                      key={oi}
+                      onClick={() => !answered && setPicked(oi)}
+                      disabled={answered}
+                      style={{
+                        padding: "3px 12px",
+                        borderRadius: 6,
+                        background: bg,
+                        color,
+                        border: `1px solid ${border}`,
+                        fontWeight: 600,
+                        fontSize: 14,
+                        cursor: answered ? "default" : "pointer",
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
               </span>
             )}
           </span>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: C.teal, marginTop: 6, fontWeight: 600 }}>
-        정답: {check.options[check.answer]}
-      </div>
+      {answered && (
+        <div
+          style={{
+            fontSize: 13,
+            marginTop: 8,
+            fontWeight: 600,
+            color: correct ? "#15803d" : "#b91c1c",
+          }}
+        >
+          {correct
+            ? "정답이에요! 👍"
+            : `아쉬워요. 정답은 "${check.options[check.answer]}"`}
+        </div>
+      )}
     </div>
   );
 }
 
-function SentenceBlock({ s }: { s: Sentence }) {
+function SentenceBlock({ s, showMz }: { s: Sentence; showMz: boolean }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -199,6 +234,27 @@ function SentenceBlock({ s }: { s: Sentence }) {
         <span style={{ color: C.teal, fontWeight: 700, marginRight: 6 }}>해석</span>
         {s.ko}
       </div>
+
+      {showMz && s.mz && (
+        <div
+          style={{
+            fontSize: 14,
+            color: "#9a3412",
+            lineHeight: 1.6,
+            margin: "6px 0 0 28px",
+            paddingLeft: 8,
+            borderLeft: `2px solid #fde0c8`,
+            background: "#fff7ed",
+            borderRadius: "0 6px 6px 0",
+            padding: "4px 8px",
+          }}
+        >
+          <span style={{ color: "#c2410c", fontWeight: 700, marginRight: 6 }}>
+            쉬운 해석
+          </span>
+          {s.mz}
+        </div>
+      )}
 
       {s.notes.length > 0 && (
         <ol
@@ -302,6 +358,8 @@ function FlowCheckView({ flow }: { flow: FlowStage[] }) {
 }
 
 export default function AnalysisView({ data }: { data: PassageAnalysis }) {
+  const hasMz = data.sentences.some((s) => s.mz);
+  const [showMz, setShowMz] = useState(false);
   return (
     <div
       style={{
@@ -373,10 +431,29 @@ export default function AnalysisView({ data }: { data: PassageAnalysis }) {
 
       {/* 문장별 구문분석 */}
       <div style={{ marginBottom: 22 }}>
-        <SectionTitle>지문 분석</SectionTitle>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <SectionTitle>지문 분석</SectionTitle>
+          {hasMz && (
+            <button
+              onClick={() => setShowMz((v) => !v)}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: showMz ? "#fff" : "#c2410c",
+                background: showMz ? "#c2410c" : "#fff7ed",
+                border: "1px solid #f0a36b",
+                borderRadius: 6,
+                padding: "4px 10px",
+                cursor: "pointer",
+              }}
+            >
+              {showMz ? "✓ 쉬운 해석 켜짐" : "쉬운 해석(MZ체) 보기"}
+            </button>
+          )}
+        </div>
         <div style={{ marginTop: 14 }}>
           {data.sentences.map((s) => (
-            <SentenceBlock key={s.num} s={s} />
+            <SentenceBlock key={s.num} s={s} showMz={showMz} />
           ))}
         </div>
       </div>

@@ -46,6 +46,8 @@ export interface Sentence {
   chunks: Chunk[];
   /** 한글 해석 */
   ko: string;
+  /** 쉬운 해석(MZ체) — 문해력이 낮은 학생용, 친근하고 쉬운 말투 */
+  mz?: string;
   /** ①②… 구문 해설 */
   notes: string[];
   /** Grammar+ 심화 설명 박스 (선택) */
@@ -69,6 +71,8 @@ export interface WordEntry {
 
 /** 한 지문에 대한 전체 분석 */
 export interface PassageAnalysis {
+  /** 저장된 분석지 id (공유 링크용, 생성 후에만 존재) */
+  id?: string;
   /** 상단 태그, 예: "목적" / "심경" / "주장" */
   topicTag: string;
   /** 학년 표기, 예: "고2" */

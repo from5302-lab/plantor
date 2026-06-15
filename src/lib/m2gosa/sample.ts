@@ -41,6 +41,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "of our sports center" },
       ],
       ko: "저희 스포츠 센터를 지속적으로 이용해 주셔서 대단히 감사합니다.",
+      mz: "우리 센터 계속 와줘서 개고맙다는 인사임 ㅎㅎ",
       notes: [],
     },
     {
@@ -53,6 +54,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "on our underground parking lot", role: "M", gloss: "지하 주차장에" },
       ],
       ko: "사전에 공지된 바와 같이, 저희는 지하 주차장의 필수 보수 공사를 시행하고자 합니다.",
+      mz: "전에 공지한 그대로임. 지하주차장 꼭 해야 되는 공사 좀 할 거임.",
       notes: [
         "유사관계대명사 as: '사전에 공지된 바와 같이'의 의미로 일반적으로 관용 표현으로 쓰이며, As was previously announced에서 was가 생략된 절로, 주어가 없는 불완전한 절이며 공지된 바이자 선행사는 뒤에 이어지는 주절 전체의 내용이다.",
         "will be -ing: 앞으로 미래에 진행되고 있을 예정임을 부드럽고 공식적으로 나타내기 위해, 단순 미래시제(will+동사원형)가 아닌 미래진행 will be conducting이 쓰였다.",
@@ -79,6 +81,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "from April 1st to April 7th.", role: "M", gloss: "4월 1일부터 4월 7일까지" },
       ],
       ko: "그 결과, 4월 1일부터 4월 7일까지 지하 주차장 시설은 이용 불가합니다.",
+      mz: "그래서 4/1~4/7은 지하주차장 아예 못 씀. 막힘 ㅠ",
       notes: [],
       check: {
         label: "형용사 vs. 부사",
@@ -100,6 +103,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "located across from the main entrance.", role: "M", gloss: "정문 맞은편에 위치한" },
       ],
       ko: "이 기간 동안, 정문 맞은편에 위치한 임시 외부 주차장을 이용해 주시기를 정중히 부탁드립니다.",
+      mz: "그동안은 정문 건너편에 있는 임시 주차장 쓰면 됨. 거기 대줘~",
       notes: [
         "ask+목적어+목적격보어(to부정사): '…에게 ~하도록 요청하다'의 의미를 갖는 5형식 동사 ask는 목적격보어로 to부정사를 취한다. 따라서 ask 뒤에 목적어로 you, 목적격보어로 to use 이하의 to부정사구가 이어지고 있다.",
         "과거분사구: located 이하는 앞의 명사구 the temporary outdoor parking lot을 수식하는 과거분사구로, 수식받는 명사구가 '위치된' 대상이므로 수동 관계를 나타내는 과거분사 located가 쓰였다.",
@@ -121,6 +125,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "as quickly as possible.", role: "M", gloss: "가능한 한 빨리" },
       ],
       ko: "가능한 한 빨리 작업을 마무리하는 데 전념하겠습니다.",
+      mz: "최대한 빨리 끝낼게요. 약속함 ㅇㅇ",
       notes: [
         "be committed to+동명사: '~할 것을 약속하다, ~하는 데 최선을 다하다(전념하다)'의 의미를 갖는 표현으로, 전치사 to의 목적어로 동명사구 completing ~ possible이 쓰였다.",
         "as+형용사/부사+as possible: '가능한 한 ~한/하게'의 의미를 갖는 원급 비교 표현으로, 여기서는 동명사 completing을 수식하는 부사 quickly가 쓰였다. 'as+원급+as+주어+can/could'로 바꿔 쓸 수 있다.",
@@ -143,6 +148,7 @@ export const SAMPLE_18: PassageAnalysis = {
         { text: "your patience and cooperation.", role: "O", gloss: "인내와 협조" },
       ],
       ko: "이로 인해 발생할 수 있는 모든 불편에 대해 진심으로 사과드리며 여러분의 인내와 협조에 감사드립니다.",
+      mz: "불편하게 해서 진짜 미안하고, 참아주고 협조해줘서 ㄱㅅ임.",
       notes: [
         "목적격 관계대명사의 생략: 동사 cause의 목적어가 없는 불완전한 절(this may cause)이 앞의 명사구 any inconvenience를 선행사로 수식하고 있으며, this 앞에 목적격 관계대명사 that 또는 which가 생략되었다.",
       ],
