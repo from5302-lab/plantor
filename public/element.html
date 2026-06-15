@@ -302,7 +302,11 @@
       inset: 0;
       border-radius: var(--r-lg);
       padding: 28px 28px 32px;
+      -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
+      /* iOS Safari leaks composited children (spinning .orbit / z-indexed .nucleus)
+         past backface-visibility, so hard-hide the face at the flip midpoint (90°). */
+      transition: visibility 0s linear .275s;
       overflow: hidden;
       background: var(--surface);
       box-shadow: var(--shadow-card);
@@ -312,6 +316,8 @@
     }
 
     .card-back { transform: rotateY(180deg); }
+    .flashcard.flipped .card-front { visibility: hidden; }
+    .flashcard:not(.flipped) .card-back { visibility: hidden; }
 
     /* Front: fill height, no dead top/bottom space (sides keep padding) */
     .card-front { padding-top: 16px; padding-bottom: 16px; }
