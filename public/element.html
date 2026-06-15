@@ -993,7 +993,13 @@
       { no: 17, symbol: 'Cl', name: '염소',     en: 'Chlorine',  family: '할로젠', tip: 'Cl = Chlorine = 염소.', memo: 'Cl = 염소' },
       { no: 18, symbol: 'Ar', name: '아르곤',   en: 'Argon',     family: '비활성 기체', tip: 'Ar = Argon, 안정적인 비활성 기체.', memo: 'Ar = 아르곤' },
       { no: 19, symbol: 'K',  name: '칼륨',     en: 'Potassium', family: '알칼리 금속', tip: 'K는 영어 potassium에서 왔어요.', memo: 'K = 칼륨' },
-      { no: 20, symbol: 'Ca', name: '칼슘',     en: 'Calcium',   family: '알칼리 토금속', tip: 'Ca = Calcium. 뼈와 연결해서 기억.', memo: 'Ca = 칼슘' }
+      { no: 20, symbol: 'Ca', name: '칼슘',     en: 'Calcium',   family: '알칼리 토금속', tip: 'Ca = Calcium. 뼈와 연결해서 기억.', memo: 'Ca = 칼슘' },
+      // 전이금속은 1~20번 규칙(2,8,8,2)으로 자동계산이 안 맞아 정확한 값을 직접 지정
+      { no: 26, symbol: 'Fe', name: '철',       en: 'Iron',      family: '전이금속', tip: 'Fe = Ferrum(라틴어). 자석·철분으로 친숙한 금속.', memo: 'Fe = 철(자석)',   shells: [2, 8, 14, 2],         period: 4, group: 8,  valence: 2 },
+      { no: 29, symbol: 'Cu', name: '구리',     en: 'Copper',    family: '전이금속', tip: 'Cu = Cuprum. 전선·10원 동전의 구리.',          memo: 'Cu = 구리(전선)', shells: [2, 8, 18, 1],         period: 4, group: 11, valence: 1 },
+      { no: 30, symbol: 'Zn', name: '아연',     en: 'Zinc',      family: '전이금속', tip: 'Zn = Zinc. 건전지·도금에 쓰이는 아연.',        memo: 'Zn = 아연(건전지)', shells: [2, 8, 18, 2],         period: 4, group: 12, valence: 2 },
+      { no: 47, symbol: 'Ag', name: '은',       en: 'Silver',    family: '전이금속', tip: 'Ag = Argentum. 거울·은수저의 은.',             memo: 'Ag = 은(은수저)', shells: [2, 8, 18, 18, 1],     period: 5, group: 11, valence: 1 },
+      { no: 79, symbol: 'Au', name: '금',       en: 'Gold',      family: '전이금속', tip: 'Au = Aurum. 금반지의 금, 잘 변하지 않아요.',   memo: 'Au = 금(금반지)', shells: [2, 8, 18, 32, 18, 1], period: 6, group: 11, valence: 1 }
     ];
 
     // CPK / Jmol colors used in molecular models (carbon darkened for legibility)
@@ -1001,7 +1007,8 @@
       H: '#ffffff', He: '#d9ffff', Li: '#cc80ff', Be: '#c2ff00', B: '#ffb5b5',
       C: '#383838', N: '#3050f8', O: '#ff0d0d', F: '#90e050', Ne: '#b3e3f5',
       Na: '#ab5cf2', Mg: '#8aff00', Al: '#bfa6a6', Si: '#f0c8a0', P: '#ff8000',
-      S: '#ffff30', Cl: '#1ff01f', Ar: '#80d1e3', K: '#8f40d4', Ca: '#3dff00'
+      S: '#ffff30', Cl: '#1ff01f', Ar: '#80d1e3', K: '#8f40d4', Ca: '#3dff00',
+      Fe: '#e06633', Cu: '#c88033', Zn: '#7d80b0', Ag: '#c0c0c0', Au: '#ffd123'
     };
 
     // Real electron-per-shell counts (2, 8, 8, 2 filling — valid for Z = 1..20)
@@ -1044,7 +1051,7 @@
     function renderAtom(el) {
       const color = CPK[el.symbol] || 'var(--accent)';
       const txt = contrastText(CPK[el.symbol] || '#0071e3');
-      const shells = electronShells(el.no);
+      const shells = el.shells || electronShells(el.no);
       const n = shells.length;
       const durations = [22, 30, 38, 46];
       let html = '';
@@ -1138,10 +1145,10 @@
       backName.textContent = el.name;
       backEnglish.textContent = el.en;
       backAtomic.textContent = el.no;
-      backPeriod.textContent = periodOf(el.no);
-      backGroup.textContent = groupOf(el.no);
-      backConfig.textContent = electronShells(el.no).join(', ');
-      backValence.textContent = valenceOf(el.no);
+      backPeriod.textContent = el.period ?? periodOf(el.no);
+      backGroup.textContent = el.group ?? groupOf(el.no);
+      backConfig.textContent = (el.shells || electronShells(el.no)).join(', ');
+      backValence.textContent = el.valence ?? valenceOf(el.no);
       backFamily.textContent = el.family;
 
       if (isFlipped) {
@@ -1165,8 +1172,8 @@
     }
 
     function renderElementInfo() {
-      elementInfoGrid.innerHTML = elements.map(el => `
-        <button class="element-info-card" data-index="${el.no - 1}" title="${el.name} 암기카드 보기">
+      elementInfoGrid.innerHTML = elements.map((el, i) => `
+        <button class="element-info-card" data-index="${i}" title="${el.name} 암기카드 보기">
           <strong>${el.symbol}</strong>
           <span>${el.no}. ${el.name}</span>
         </button>
