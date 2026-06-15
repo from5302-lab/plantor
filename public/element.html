@@ -466,19 +466,6 @@
       color: var(--text);
     }
 
-    .memory-tip {
-      margin-top: 16px;
-      background: var(--fill);
-      border: 0;
-      padding: 14px 16px;
-      border-radius: var(--r-md);
-      color: var(--text-2);
-      line-height: 1.5;
-      font-size: 0.9375rem;
-    }
-
-    .memory-tip strong { color: var(--text); }
-
     /* ---------- Quiz ---------- */
     .section-title {
       display: flex;
@@ -853,10 +840,6 @@
                   <h2 id="frontName">수소</h2>
                 </div>
               </div>
-
-              <div class="memory-tip" id="frontHint">
-                가장 가벼운 원소. H = Hydrogen = 수소.
-              </div>
             </div>
 
             <div class="card-face card-back">
@@ -886,10 +869,6 @@
                     <span class="value" id="backMemo">가장 첫 원소</span>
                   </div>
                 </div>
-              </div>
-
-              <div class="memory-tip" id="backTip">
-                <strong>암기 팁:</strong> 1번은 H, 수소. 주기율표의 시작점!
               </div>
             </div>
           </div>
@@ -1044,7 +1023,6 @@
     const frontAtomic = document.getElementById('frontAtomic');
     const frontSymbol = document.getElementById('frontSymbol');
     const frontName = document.getElementById('frontName');
-    const frontHint = document.getElementById('frontHint');
     const visualSymbol = document.getElementById('visualSymbol');
     const visualName = document.getElementById('visualName');
     const backShort = document.getElementById('backShort');
@@ -1054,7 +1032,6 @@
     const backAtomic = document.getElementById('backAtomic');
     const backFamily = document.getElementById('backFamily');
     const backMemo = document.getElementById('backMemo');
-    const backTip = document.getElementById('backTip');
     const scoreBadge = document.getElementById('scoreBadge');
     const questionText = document.getElementById('questionText');
     const optionsBox = document.getElementById('optionsBox');
@@ -1087,7 +1064,6 @@
       frontAtomic.textContent = `원자번호 ${el.no}`;
       frontSymbol.textContent = el.symbol;
       frontName.textContent = el.name;
-      frontHint.textContent = el.tip;
       visualSymbol.textContent = el.symbol;
       visualName.textContent = el.name;
 
@@ -1098,7 +1074,6 @@
       backAtomic.textContent = el.no;
       backFamily.textContent = el.family;
       backMemo.textContent = el.memo;
-      backTip.innerHTML = `<strong>암기 팁:</strong> ${el.tip}`;
 
       if (isFlipped) {
         flashcard.classList.remove('flipped');
