@@ -31,7 +31,7 @@
     * { box-sizing: border-box; }
 
     html {
-      min-height: 100%;
+      height: 100%;
       overscroll-behavior: none;
       -webkit-text-size-adjust: 100%;
     }
@@ -41,7 +41,9 @@
       font-family: var(--font);
       color: var(--text);
       background: var(--canvas);
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
       letter-spacing: -0.01em;
       -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
@@ -50,7 +52,9 @@
 
     .container {
       width: min(980px, calc(100% - 40px));
-      margin: 0 auto 48px;
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
     }
 
     .hero {
@@ -101,15 +105,19 @@
     }
 
     .app-shell {
-      display: grid;
-      gap: 18px;
-      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      gap: 12px;
+      padding: 8px 0 calc(10px + env(safe-area-inset-bottom));
     }
 
     /* Segmented control — rounded rectangle, never a pill */
     .tabbar {
-      position: sticky;
-      top: 0;
+      position: relative;
+      flex: 0 0 auto;
       z-index: 10;
       display: flex;
       gap: 4px;
@@ -118,7 +126,7 @@
       background: rgba(235,235,240,0.82);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
-      margin-top: 12px;
+      margin-top: 0;
     }
 
     .tab-btn {
@@ -144,7 +152,7 @@
     }
 
     .app-section { display: none; }
-    .app-section.active { display: block; }
+    .app-section.active { display: block; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 
     .panel {
       background: var(--surface);
@@ -161,7 +169,7 @@
       padding: 0;
     }
 
-    .app-section.active.home-panel { display: grid; }
+    .app-section.active.home-panel { display: flex; flex-direction: column; min-height: 0; }
 
     .rail-label {
       margin-top: 4px;
@@ -254,8 +262,7 @@
     .app-section.active[data-view="cards"] {
       display: flex;
       flex-direction: column;
-      height: calc(100svh - 110px);
-      min-height: 420px;
+      min-height: 0;
     }
 
     .card-head {
@@ -586,7 +593,14 @@
     .app-section.active[data-view="quiz"] {
       display: flex;
       flex-direction: column;
-      min-height: calc(100svh - 120px);
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .app-section.active[data-view="records"] {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
 
     .quiz-step {
@@ -658,8 +672,11 @@
     .element-info-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 1fr);
       gap: 10px;
       margin-top: 4px;
+      flex: 1 1 auto;
+      min-height: 0;
     }
 
     .element-info-card {
@@ -731,6 +748,10 @@
       display: grid;
       gap: 10px;
       margin-top: 16px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      align-content: start;
     }
 
     .record-item {
@@ -781,7 +802,7 @@
     }
 
     @media (max-width: 700px) {
-      .container { width: calc(100% - 28px); margin: 0 auto 32px; }
+      .container { width: calc(100% - 28px); margin: 0 auto; }
       .panel { padding: 18px; }
       h1 { font-size: 1.1875rem; white-space: nowrap; }
       .auth-row button { font-size: 0.9375rem; padding: 8px 12px; min-height: 38px; }
