@@ -364,6 +364,11 @@
       backface-visibility: hidden;
     }
 
+    /* Definitive iOS fix: fade the atom out the instant a flip starts, so its
+       composite layer can't cling through the rotation. */
+    .element-visual { transition: opacity .15s linear; }
+    .flashcard.flipped .element-visual { opacity: 0; }
+
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
