@@ -356,6 +356,14 @@
       height: var(--atom);
     }
 
+    /* iOS promotes the spinning orbit / z-indexed nucleus to their own
+       composite layers; give each its own backface so they get culled
+       (not left floating as a flat overlay) mid-flip. */
+    .element-visual, .nucleus, .orbit, .electron {
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+    }
+
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
