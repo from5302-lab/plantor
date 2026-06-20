@@ -815,7 +815,224 @@
       .element-info-card strong { font-size: 1.0625rem; }
       .element-info-card span { font-size: 0.5625rem; line-height: 1.15; }
       .card-face { padding: 18px 20px 24px; }
+      .tab-btn { font-size: 0.82rem; padding: 8px 2px; }
+      .formula-learn { grid-template-columns: 1fr 1fr; gap: 6px; }
     }
+
+    /* ---------- Formula (물질명·화학식 / 이온식) & Model builder ---------- */
+    .app-section.active[data-view="formula"],
+    .app-section.active[data-view="model"] {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .formula-learn {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+      overflow-y: auto;
+      align-content: start;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .formula-pair {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 12px 10px 14px;
+      border-radius: var(--r-md);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .formula-pair .fname { font-size: 0.875rem; font-weight: 600; text-align: center; }
+    .formula-pair .fform { font-size: 1.0625rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+    .fsub { font-size: 0.75rem; color: var(--text-3); font-weight: 500; }
+
+    /* 입체 공-모형 (space-filling) */
+    .mol-stage {
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2px;
+    }
+
+    .mol-inner { position: relative; }
+
+    .atom3d {
+      position: absolute;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.28), inset -2px -3px 5px rgba(0,0,0,0.22), inset 0 0 0 0.5px rgba(0,0,0,0.10);
+    }
+
+    .atom3d i {
+      font-style: normal;
+      font-weight: 700;
+      font-size: 0.62rem;
+      letter-spacing: -0.02em;
+      text-shadow: 0 0.5px 1px rgba(0,0,0,0.28);
+    }
+
+    .ion3d {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      color: #fff;
+      box-shadow: 0 4px 9px rgba(0,0,0,0.22), inset -3px -4px 7px rgba(0,0,0,0.22), inset 2px 2px 6px rgba(255,255,255,0.32);
+    }
+    .ion3d b { font-size: 1rem; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+    .ion3d sup { font-size: 0.8rem; font-weight: 800; margin-left: 1px; }
+
+    .ion-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      padding: 0 2px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--text-2); }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset -1px -2px 3px rgba(0,0,0,0.2); }
+    .legend-dot.cat { background: radial-gradient(circle at 34% 30%, #ffb0b0, #ff5d5d 60%, #c23b3b); }
+    .legend-dot.an { background: radial-gradient(circle at 34% 30%, #a8c8fb, #3f86f5 60%, #2a5fbf); }
+
+    .builder-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .builder-prompt { text-align: center; font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; }
+    .builder-prompt strong { color: var(--accent); }
+    .builder-prompt .sub { display: block; font-size: 0.8125rem; font-weight: 500; color: var(--text-2); margin-top: 4px; }
+
+    .builder-charge {
+      font-size: 1.0625rem;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: var(--r-sm);
+      background: var(--fill);
+    }
+
+    .nucleus .protons { font-size: calc(var(--atom) * 0.048); opacity: 0.85; margin-top: 2px; font-weight: 500; }
+
+    .shell-controls { display: grid; gap: 8px; width: 100%; max-width: 380px; margin: 2px auto 0; }
+
+    .shell-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px 6px 14px;
+      border-radius: var(--r-md);
+      background: var(--fill);
+    }
+
+    .shell-row .slabel { font-size: 0.9375rem; font-weight: 600; }
+    .shell-row .scount { min-width: 30px; text-align: center; font-weight: 700; font-size: 1.125rem; }
+
+    .shell-btn {
+      min-height: 40px;
+      width: 44px;
+      padding: 0;
+      font-size: 1.375rem;
+      line-height: 1;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .shell-btn:hover { background: var(--fill-press); }
+
+    .ion-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 380px; margin: 2px auto 0; }
+    .ion-controls .shell-btn { width: 100%; font-size: 1rem; font-weight: 500; }
+    .builder-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 380px; margin: 6px auto 0; }
+
+    /* ---------- 입자 모형 (원자핵 + 전자) ---------- */
+    .atom-field {
+      position: relative;
+      width: var(--atom);
+      height: var(--atom);
+      border-radius: 50%;
+      border: 1.5px dashed rgba(0,0,0,0.16);
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 46%, rgba(0,113,227,0.05), rgba(0,0,0,0) 70%);
+    }
+
+    .eorbit { position: absolute; border-radius: 50%; }
+    @media (prefers-reduced-motion: no-preference) { .eorbit { animation: spin linear infinite; } }
+
+    .pelectron {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: clamp(10px, calc(var(--atom) * 0.055), 16px);
+      height: clamp(10px, calc(var(--atom) * 0.055), 16px);
+      border-radius: 50%;
+      background: radial-gradient(circle at 34% 30%, #a8c8fb, #3f86f5 60%, #2a5fbf);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 0.5px rgba(0,0,0,0.1);
+    }
+
+    .nuc {
+      position: relative;
+      z-index: 2;
+      width: calc(var(--atom) * 0.42);
+      height: calc(var(--atom) * 0.42);
+      border-radius: 50%;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      align-content: center;
+      gap: 2px;
+      padding: 7%;
+      background: radial-gradient(circle at 38% 30%, #fff6f0, #ffe1d0 55%, #f3c1a3);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.16), inset 0 0 0 1px rgba(0,0,0,0.05);
+    }
+
+    .nuc-solid { flex-direction: column; gap: 0; }
+    .nuc-sym { font-size: calc(var(--atom) * 0.15); font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+    .nuc-cap { font-size: calc(var(--atom) * 0.05); font-weight: 600; opacity: 0.9; margin-top: 3px; }
+
+    .pq {
+      width: clamp(9px, calc(var(--atom) * 0.072), 17px);
+      height: clamp(9px, calc(var(--atom) * 0.072), 17px);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--atom) * 0.044);
+      font-weight: 800;
+      line-height: 1;
+      color: #fff;
+    }
+    .pq-p { background: radial-gradient(circle at 34% 30%, #ff9a9a, #ff4d4d 60%, #d23a3a); }
+    .pq-n { background: radial-gradient(circle at 34% 30%, #dadada, #b6b6b6 60%, #969696); }
+
+    .particle-legend { display: flex; gap: 14px; justify-content: center; margin-top: 2px; }
+    .particle-legend .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.8125rem; font-weight: 600; color: var(--text-2); }
+    .pdot {
+      width: 15px; height: 15px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 800; color: #fff;
+      box-shadow: inset -1px -2px 3px rgba(0,0,0,0.18);
+    }
+    .pdot-p { background: radial-gradient(circle at 34% 30%, #ff9a9a, #ff4d4d 60%, #d23a3a); }
+    .pdot-n { background: radial-gradient(circle at 34% 30%, #dadada, #b6b6b6 60%, #969696); }
+    .pdot-e { background: radial-gradient(circle at 34% 30%, #a8c8fb, #3f86f5 60%, #2a5fbf); }
   </style>
 </head>
 <body>
@@ -824,6 +1041,8 @@
       <nav class="tabbar" aria-label="학습 메뉴">
         <button class="tab-btn active" data-tab="info">홈</button>
         <button class="tab-btn" data-tab="cards">카드</button>
+        <button class="tab-btn" data-tab="formula">화학식</button>
+        <button class="tab-btn" data-tab="model">모형</button>
         <button class="tab-btn" data-tab="quiz">퀴즈</button>
         <button class="tab-btn" data-tab="records">기록</button>
       </nav>
@@ -919,8 +1138,15 @@
           <div class="section-title">
             <div>
               <h2>퀴즈</h2>
-              <div class="small">방식을 고르고 시작하세요.</div>
+              <div class="small">단원과 방식을 고르고 시작하세요.</div>
             </div>
+          </div>
+
+          <div class="setup-label">출제 단원</div>
+          <div class="seg3" id="quizUnitTabs">
+            <button class="seg-btn active" data-unit="element">원소기호</button>
+            <button class="seg-btn" data-unit="substance">물질·화학식</button>
+            <button class="seg-btn" data-unit="ion">이온·이온식</button>
           </div>
 
           <div class="setup-label">출제 방식</div>
@@ -942,8 +1168,8 @@
             <span>틀려도 부담 없이 계속 풀어요</span>
           </button>
           <button class="start-card primary" id="startExamBtn">
-            <strong>25문제 시험</strong>
-            <span>모든 원소를 한 번씩, 25문제를 풀면 기록에 저장돼요</span>
+            <strong id="examStartTitle">25문제 시험</strong>
+            <span id="examStartDesc">모든 원소를 한 번씩, 25문제를 풀면 기록에 저장돼요</span>
           </button>
         </div>
 
@@ -977,6 +1203,101 @@
 
           <div class="play-controls">
             <button id="newQuizBtn" class="secondary">다음 문제</button>
+          </div>
+        </div>
+
+        <!-- STEP 2 (화학식·이온식 단원) — 풀이 -->
+        <div class="quiz-step" id="fqPlay" style="display:none;">
+          <div class="play-head">
+            <button id="fqBack" class="secondary">← 나가기</button>
+            <div class="scoreboard">
+              <span class="badge" id="fqScore">점수 0</span>
+              <span class="badge" id="fqProgress">연습 중</span>
+            </div>
+          </div>
+
+          <div class="quiz-box">
+            <div class="question" id="fqQuestion">문제를 불러오는 중...</div>
+
+            <div id="fqMcArea">
+              <div class="options" id="fqOptions"></div>
+            </div>
+
+            <div id="fqInputArea" style="display:none;">
+              <div class="small">식은 H2O, 이온은 Na+ 처럼 입력해도 돼요</div>
+              <div class="input-row">
+                <input type="text" id="fqInput" placeholder="정답 입력" />
+                <button id="fqSubmit" class="good">확인</button>
+              </div>
+            </div>
+
+            <div class="result info" id="fqResult">정답을 골라보세요.</div>
+          </div>
+
+          <div class="play-controls">
+            <button id="fqNext" class="secondary">다음 문제</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel app-section" data-view="formula">
+        <div class="section-title">
+          <div>
+            <h2 id="fqTitle">물질명과 화학식</h2>
+            <div class="small" id="fqSubtitle">색과 입체 모형으로 익혀요. 문제는 퀴즈 탭에서!</div>
+          </div>
+        </div>
+
+        <div class="setup-label">분류</div>
+        <div class="seg2" id="fqSetTabs">
+          <button class="seg-btn active" data-set="substance">물질 · 화학식</button>
+          <button class="seg-btn" data-set="ion">이온 · 이온식</button>
+        </div>
+
+        <div id="ionLegend" class="ion-legend" style="display:none;">
+          <span class="legend-item"><span class="legend-dot cat"></span>양이온 (＋)</span>
+          <span class="legend-item"><span class="legend-dot an"></span>음이온 (－)</span>
+        </div>
+
+        <div id="formulaLearn" class="formula-learn"></div>
+      </section>
+
+      <section class="panel app-section" data-view="model">
+        <div class="section-title">
+          <div>
+            <h2 id="mbTitle">원자 모형 그리기</h2>
+            <div class="small" id="mbSub">양성자·중성자·전자로 원자를 나타내요.</div>
+          </div>
+        </div>
+
+        <div class="seg2" id="mbTabs">
+          <button class="seg-btn active" data-mb="atom">원자 모형</button>
+          <button class="seg-btn" data-mb="ion">이온 모형</button>
+        </div>
+
+        <div class="builder-stage">
+          <div class="builder-prompt" id="mbPrompt"></div>
+          <div class="element-visual" id="mbVisual"></div>
+
+          <div class="particle-legend">
+            <span class="legend-item"><span class="pdot pdot-p">＋</span>양성자</span>
+            <span class="legend-item"><span class="pdot pdot-n"></span>중성자</span>
+            <span class="legend-item"><span class="pdot pdot-e"></span>전자</span>
+          </div>
+
+          <div class="builder-charge" id="mbInfo">　</div>
+
+          <div id="mbAtomControls" class="shell-controls"></div>
+          <div id="mbIonControls" class="ion-controls" style="display:none;">
+            <button class="shell-btn" id="mbRemoveE">전자 잃기 −</button>
+            <button class="shell-btn" id="mbAddE">전자 얻기 ＋</button>
+          </div>
+
+          <div class="result info" id="mbResult" style="text-align:center;">모형을 완성한 뒤 확인을 눌러요.</div>
+
+          <div class="builder-actions">
+            <button id="mbCheck" class="good">확인</button>
+            <button id="mbNext" class="secondary">새 문제</button>
           </div>
         </div>
       </section>
@@ -1302,7 +1623,8 @@
     function renderRecords() {
       const records = getRecords();
       latestScore.textContent = records[0] ? `${records[0].score}/${records[0].total}` : '-';
-      bestScore.textContent = records.length ? `${Math.max(...records.map(record => record.score))}/${examTotal}` : '-';
+      const best = records.length ? records.reduce((a, b) => (b.percent > a.percent ? b : a), records[0]) : null;
+      bestScore.textContent = best ? `${best.score}/${best.total}` : '-';
       testCount.textContent = `${records.length}회`;
 
       if (!records.length) {
@@ -1564,6 +1886,7 @@
     function showQuizStep(step) {
       quizSetup.style.display = step === 'setup' ? 'flex' : 'none';
       quizPlay.style.display = step === 'play' ? 'flex' : 'none';
+      document.getElementById('fqPlay').style.display = 'none';
     }
 
     function applyQuizMode() {
@@ -1595,21 +1918,57 @@
       modeMcBtn.classList.remove('active');
     });
 
-    const dirButtons = {
-      symbol: document.getElementById('dirSymbolBtn'),
-      name: document.getElementById('dirNameBtn'),
-      mix: document.getElementById('dirMixBtn')
+    // 출제 단원: 원소기호(기존 엔진) / 물질·화학식 · 이온·이온식(FQ 엔진)
+    let quizUnit = 'element';
+    let quizDirPos = 0;
+    const DIR_LABELS = {
+      element: ['기호→이름', '이름→기호', '섞기'],
+      substance: ['이름→식', '식→이름', '섞기'],
+      ion: ['이름→식', '식→이름', '섞기']
     };
-    Object.entries(dirButtons).forEach(([dir, btn]) => {
-      btn.addEventListener('click', () => {
-        quizDir = dir;
-        Object.values(dirButtons).forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      });
-    });
+    const dirBtnEls = [
+      document.getElementById('dirSymbolBtn'),
+      document.getElementById('dirNameBtn'),
+      document.getElementById('dirMixBtn')
+    ];
 
-    document.getElementById('startPracticeBtn').addEventListener('click', () => startQuiz(false));
-    document.getElementById('startExamBtn').addEventListener('click', () => startQuiz(true));
+    function applyUnitUi() {
+      const labels = DIR_LABELS[quizUnit];
+      dirBtnEls.forEach((b, i) => { b.textContent = labels[i]; });
+      const isEl = quizUnit === 'element';
+      document.getElementById('examStartTitle').textContent = isEl ? '25문제 시험' : '20문제 시험';
+      document.getElementById('examStartDesc').textContent = isEl
+        ? '모든 원소를 한 번씩, 25문제를 풀면 기록에 저장돼요'
+        : '20문제를 풀면 기록에 저장돼요';
+    }
+
+    document.querySelectorAll('#quizUnitTabs .seg-btn').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#quizUnitTabs .seg-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      quizUnit = b.dataset.unit;
+      applyUnitUi();
+    }));
+
+    dirBtnEls.forEach((btn, pos) => btn.addEventListener('click', () => {
+      quizDirPos = pos;
+      dirBtnEls.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }));
+
+    function startQuizDispatch(isExam) {
+      if (quizUnit === 'element') {
+        quizDir = ['symbol', 'name', 'mix'][quizDirPos];
+        startQuiz(isExam);
+      } else {
+        FQ.set = quizUnit;
+        FQ.mode = quizMode;
+        FQ.dir = ['n2f', 'f2n', 'mix'][quizDirPos];
+        fqStart(isExam);
+      }
+    }
+
+    document.getElementById('startPracticeBtn').addEventListener('click', () => startQuizDispatch(false));
+    document.getElementById('startExamBtn').addEventListener('click', () => startQuizDispatch(true));
     newQuizBtn.addEventListener('click', makeQuestion);
 
     document.getElementById('quizBackBtn').addEventListener('click', () => {
@@ -1644,11 +2003,543 @@
       renderRecords();
     });
 
+    /* ===================== 물질명·화학식 / 이온식 (단원 2·4) ===================== */
+    const substances = [
+      { name: '물', formula: 'H₂O' },
+      { name: '이산화 탄소', formula: 'CO₂' },
+      { name: '산소', formula: 'O₂' },
+      { name: '수소', formula: 'H₂' },
+      { name: '질소', formula: 'N₂' },
+      { name: '암모니아', formula: 'NH₃' },
+      { name: '메테인', formula: 'CH₄' },
+      { name: '염화 수소', formula: 'HCl' },
+      { name: '일산화 탄소', formula: 'CO' },
+      { name: '이산화 황', formula: 'SO₂' },
+      { name: '과산화 수소', formula: 'H₂O₂' },
+      { name: '염소', formula: 'Cl₂' },
+      { name: '염화 나트륨', formula: 'NaCl' },
+      { name: '산화 마그네슘', formula: 'MgO' },
+      { name: '염화 칼슘', formula: 'CaCl₂' },
+      { name: '수산화 나트륨', formula: 'NaOH' },
+      { name: '탄산 칼슘', formula: 'CaCO₃' },
+      { name: '황산 구리', formula: 'CuSO₄' },
+      { name: '질산 은', formula: 'AgNO₃' },
+      { name: '염화 칼륨', formula: 'KCl' },
+      { name: '산화 구리', formula: 'CuO' },
+      { name: '황산 나트륨', formula: 'Na₂SO₄' }
+    ];
+
+    const ionData = [
+      { name: '수소 이온', formula: 'H⁺' },
+      { name: '나트륨 이온', formula: 'Na⁺' },
+      { name: '칼륨 이온', formula: 'K⁺' },
+      { name: '리튬 이온', formula: 'Li⁺' },
+      { name: '암모늄 이온', formula: 'NH₄⁺' },
+      { name: '은 이온', formula: 'Ag⁺' },
+      { name: '칼슘 이온', formula: 'Ca²⁺' },
+      { name: '마그네슘 이온', formula: 'Mg²⁺' },
+      { name: '구리 이온', formula: 'Cu²⁺' },
+      { name: '아연 이온', formula: 'Zn²⁺' },
+      { name: '철(Ⅱ) 이온', formula: 'Fe²⁺' },
+      { name: '바륨 이온', formula: 'Ba²⁺' },
+      { name: '알루미늄 이온', formula: 'Al³⁺' },
+      { name: '염화 이온', formula: 'Cl⁻' },
+      { name: '수산화 이온', formula: 'OH⁻' },
+      { name: '질산 이온', formula: 'NO₃⁻' },
+      { name: '산화 이온', formula: 'O²⁻' },
+      { name: '황화 이온', formula: 'S²⁻' },
+      { name: '탄산 이온', formula: 'CO₃²⁻' },
+      { name: '황산 이온', formula: 'SO₄²⁻' }
+    ];
+
+    // 아래첨자/위첨자 유니코드를 보통 글자로 바꿔 입력 채점을 너그럽게 (H₂O ↔ "h2o", Na⁺ ↔ "na+")
+    const _sub = { '₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9' };
+    const _sup = { '⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'-' };
+    function asciiFormula(s) { return [...String(s)].map(c => _sub[c] ?? _sup[c] ?? c).join(''); }
+    function normForm(s) { return asciiFormula(s).toLowerCase().replace(/\s+/g, ''); }
+    function normName(s) { return String(s).trim().toLowerCase().replace(/\s+/g, ''); }
+
+    const FQ = {
+      set: 'substance', mode: 'mc', dir: 'n2f', exam: false,
+      queue: [], score: 0, attempts: 0, total: 20, current: null,
+      data() { return this.set === 'substance' ? substances : ionData; },
+      label() { return this.set === 'substance' ? '화학식' : '이온식'; }
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    let learnSet = 'substance';
+    function learnList() { return learnSet === 'substance' ? substances : ionData; }
+
+    function fqApplyTitle() {
+      $('fqTitle').textContent = learnSet === 'substance' ? '물질명과 화학식' : '이온식과 이온 모형';
+      $('fqSubtitle').textContent = learnSet === 'substance'
+        ? '색과 입체 모형으로 익혀요. 문제는 퀴즈 탭에서!'
+        : '양이온은 빨강, 음이온은 파랑. 문제는 퀴즈 탭에서!';
+      $('ionLegend').style.display = learnSet === 'ion' ? 'flex' : 'none';
+    }
+
+    // ---- 3D 구체용 색 보정 ----
+    function _rgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); }
+    function _mix(h, t, amt) { return 'rgb(' + _rgb(h).map(v => Math.round(v + (t - v) * amt)).join(',') + ')'; }
+    function lighten(h, a) { return _mix(h, 255, a); }
+    function darken(h, a) { return _mix(h, 0, a); }
+
+    // 원소별 상대 반지름 (반데르발스 느낌, 시각용)
+    const ATOM_R = { H: 11, He: 12, Li: 16, Be: 13, B: 14, C: 16, N: 15, O: 14, F: 13, Ne: 14,
+      Na: 21, Mg: 18, Al: 17, Si: 17, P: 17, S: 19, Cl: 18, Ar: 18, K: 24, Ca: 22,
+      Fe: 17, Cu: 17, Zn: 17, Ag: 18, Au: 18, Ba: 24 };
+    function atomR(el) { return ATOM_R[el] || 16; }
+
+    function parseFormula(f) {
+      const s = asciiFormula(f).replace(/\d*[+\-]$/, ''); // 전하(부호)만 제거 — 아랫첨자 보존
+      const re = /([A-Z][a-z]?)(\d*)/g;
+      const out = [];
+      let m;
+      while ((m = re.exec(s))) { if (!m[1]) continue; out.push({ el: m[1], n: m[2] ? +m[2] : 1 }); }
+      return out;
+    }
+
+    function centralOf(groups) {
+      const counts = {};
+      groups.forEach(g => { counts[g.el] = g.n; });
+      let key = groups[0].el;
+      groups.forEach(g => {
+        if (g.n < counts[key] || (g.n === counts[key] && atomR(g.el) > atomR(key))) key = g.el;
+      });
+      return key;
+    }
+
+    function anglesFor(n) {
+      if (n <= 0) return [];
+      if (n === 1) return [0];
+      if (n === 2) return [180, 0];
+      if (n === 3) return [-90, 150, 30];
+      if (n === 4) return [45, 135, 225, 315];
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(-90 + i * 360 / n);
+      return out;
+    }
+
+    // 공-모형(space-filling): 중심 원자 + 주변 원자 배치 좌표
+    function buildMolecule(formula) {
+      const groups = parseFormula(formula);
+      if (!groups.length) return [];
+      const centralEl = centralOf(groups);
+      const atoms = [];
+      groups.forEach(g => { for (let i = 0; i < g.n; i++) atoms.push(g.el); });
+      const SC = 1.7;
+      const pos = [];
+      let placedCentral = false;
+      const outer = [];
+      atoms.forEach(el => {
+        if (el === centralEl && !placedCentral) { placedCentral = true; pos.push({ el, x: 0, y: 0, r: atomR(el) * SC / 2 }); }
+        else outer.push(el);
+      });
+      const cR = atomR(centralEl) * SC / 2;
+      const angles = anglesFor(outer.length);
+      outer.forEach((el, i) => {
+        const r = atomR(el) * SC / 2;
+        const dist = (cR + r) * 0.80;
+        const a = angles[i] * Math.PI / 180;
+        pos.push({ el, x: Math.cos(a) * dist, y: Math.sin(a) * dist, r });
+      });
+      return pos;
+    }
+
+    function sphereHtml(el, d, left, top, z) {
+      const base = CPK[el] || '#8a8a8a';
+      const txt = contrastText(base);
+      const label = d > 19 ? `<i style="color:${txt}">${el}</i>` : '';
+      return `<span class="atom3d" style="width:${d}px;height:${d}px;left:${left}px;top:${top}px;z-index:${z};` +
+        `background:radial-gradient(circle at 34% 30%, ${lighten(base, 0.62)} 0%, ${base} 48%, ${darken(base, 0.42)} 100%);">${label}</span>`;
+    }
+
+    function renderMolecule(formula) {
+      const pos = buildMolecule(formula);
+      if (!pos.length) return '<div class="mol-stage"></div>';
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      pos.forEach(p => {
+        minX = Math.min(minX, p.x - p.r); maxX = Math.max(maxX, p.x + p.r);
+        minY = Math.min(minY, p.y - p.r); maxY = Math.max(maxY, p.y + p.r);
+      });
+      const w = maxX - minX, h = maxY - minY;
+      const scale = Math.min(1, 104 / w, 58 / h);
+      const sorted = pos.map((p, i) => ({ p, i })).sort((a, b) => a.p.y - b.p.y);
+      let inner = '';
+      sorted.forEach(({ p, i }) => {
+        const d = p.r * 2 * scale;
+        const left = (p.x - minX) * scale - p.r * scale;
+        const top = (p.y - minY) * scale - p.r * scale;
+        inner += sphereHtml(p.el, d, left, top, i + 1);
+      });
+      return `<div class="mol-stage"><div class="mol-inner" style="width:${w * scale}px;height:${h * scale}px;">${inner}</div></div>`;
+    }
+
+    function ionCharge(f) {
+      const m = asciiFormula(f).match(/(\d*)([+\-])\s*$/);
+      if (!m) return 0;
+      const mag = m[1] ? +m[1] : 1;
+      return m[2] === '+' ? mag : -mag;
+    }
+    function ionCore(f) { return f.replace(/[⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+$/, ''); }
+
+    function renderIonModel(ion) {
+      const ch = ionCharge(ion.formula);
+      const base = ch > 0 ? '#ff5d5d' : '#3f86f5';
+      return `<div class="mol-stage"><span class="ion3d" style="` +
+        `background:radial-gradient(circle at 34% 30%, ${lighten(base, 0.5)} 0%, ${base} 52%, ${darken(base, 0.32)} 100%);">` +
+        `<b>${ionCore(ion.formula)}</b><sup>${ionSup(ch)}</sup></span></div>`;
+    }
+
+    // 카드 배경: 분자의 대표 원소 CPK 색을 옅은 파스텔로
+    function cardTint(formula) {
+      const groups = parseFormula(formula);
+      if (!groups.length) return 'var(--fill)';
+      return _mix(CPK[centralOf(groups)] || '#8a8a8a', 255, 0.84);
+    }
+
+    function fqFillLearn() {
+      const ionMode = learnSet === 'ion';
+      $('formulaLearn').innerHTML = learnList().map(p => {
+        const model = ionMode ? renderIonModel(p) : renderMolecule(p.formula);
+        const tint = ionMode
+          ? (ionCharge(p.formula) > 0 ? 'rgba(255,93,93,0.10)' : 'rgba(63,134,245,0.10)')
+          : cardTint(p.formula);
+        return `<div class="formula-pair" style="background:${tint};">
+          ${model}
+          <span class="fname">${p.name}</span>
+          <span class="fform">${p.formula}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function fqShowStep(step) {
+      quizSetup.style.display = step === 'setup' ? 'flex' : 'none';
+      $('fqPlay').style.display = step === 'play' ? 'flex' : 'none';
+      if (step === 'play') quizPlay.style.display = 'none';
+    }
+
+    function fqDirFor() {
+      return FQ.dir === 'mix' ? (Math.random() < 0.5 ? 'n2f' : 'f2n') : FQ.dir;
+    }
+
+    function fqUpdateScore() {
+      $('fqScore').textContent = `점수 ${FQ.score}`;
+      $('fqProgress').textContent = FQ.exam ? `시험 ${Math.min(FQ.attempts + 1, FQ.total)} / ${FQ.total}` : '연습 중';
+    }
+
+    function fqMake() {
+      if (FQ.exam && FQ.attempts >= FQ.total) { fqFinish(); return; }
+      if (!FQ.queue.length) {
+        FQ.queue = shuffleArray(FQ.data());
+        if (FQ.current && FQ.queue[FQ.queue.length - 1] === FQ.current.target) FQ.queue.unshift(FQ.queue.pop());
+      }
+      const target = FQ.queue.pop();
+      const dir = fqDirFor();
+      FQ.current = { target, dir };
+      $('fqResult').textContent = FQ.mode === 'mc' ? '정답을 골라보세요.' : '정답을 입력해보세요.';
+      $('fqResult').className = 'result info';
+      fqUpdateScore();
+      if (FQ.mode === 'mc') fqRenderMc(target, dir); else fqRenderInput(target, dir);
+    }
+
+    function fqRenderMc(target, dir) {
+      let q, correct, pool;
+      if (dir === 'n2f') {
+        q = `<strong>${target.name}</strong>의 ${FQ.label()}은?`;
+        correct = target.formula; pool = FQ.data().map(d => d.formula);
+      } else {
+        q = `${FQ.label()} <strong>${target.formula}</strong>의 이름은?`;
+        correct = target.name; pool = FQ.data().map(d => d.name);
+      }
+      $('fqQuestion').innerHTML = '문제: ' + q;
+      const wrongs = shuffleArray(pool.filter(x => x !== correct)).slice(0, 3);
+      const opts = shuffleArray([correct, ...wrongs]);
+      $('fqOptions').innerHTML = opts.map(o => `
+        <button class="option-btn" data-answer="${o.replace(/"/g, '&quot;')}">${o}</button>`).join('');
+      $('fqOptions').querySelectorAll('.option-btn').forEach(b => {
+        b.addEventListener('click', () => fqCheck(b.dataset.answer));
+      });
+    }
+
+    function fqRenderInput(target, dir) {
+      const q = dir === 'n2f'
+        ? `<strong>${target.name}</strong>의 ${FQ.label()}을 입력하세요.`
+        : `${FQ.label()} <strong>${target.formula}</strong>의 이름을 입력하세요.`;
+      $('fqQuestion').innerHTML = '문제: ' + q;
+      $('fqInput').value = '';
+      $('fqInput').focus();
+    }
+
+    function fqCheck(ans) {
+      if (!FQ.current) return;
+      const { target, dir } = FQ.current;
+      const ok = dir === 'n2f'
+        ? normForm(ans) === normForm(target.formula)
+        : normName(ans) === normName(target.name);
+      FQ.attempts += 1;
+      if (ok) FQ.score += 1;
+      fqUpdateScore();
+      const r = $('fqResult');
+      if (ok) {
+        r.innerHTML = `정답! <strong>${target.name} = ${target.formula}</strong>`;
+        r.className = 'result good';
+      } else {
+        r.innerHTML = `오답! 정답은 <strong>${target.name} = ${target.formula}</strong>`;
+        r.className = 'result bad';
+      }
+      if (FQ.exam && FQ.attempts >= FQ.total) setTimeout(fqFinish, 900);
+      else setTimeout(fqMake, 1100);
+    }
+
+    function fqFinish() {
+      const total = FQ.attempts || FQ.total;
+      const percent = total ? Math.round((FQ.score / total) * 100) : 0;
+      const records = getRecords();
+      records.unshift({
+        score: FQ.score, total, percent,
+        mode: `${FQ.label()}·${FQ.mode === 'mc' ? '선택형' : '입력형'}`,
+        date: new Date().toLocaleString('ko-KR'),
+        savedAt: Date.now()
+      });
+      saveRecords(records);
+      renderRecords();
+      FQ.exam = false;
+      fqShowStep('setup');
+      switchTab('records');
+    }
+
+    function fqStart(exam) {
+      FQ.exam = exam;
+      FQ.score = 0;
+      FQ.attempts = 0;
+      FQ.queue = shuffleArray(FQ.data());
+      FQ.total = Math.min(20, FQ.data().length);
+      $('fqMcArea').style.display = FQ.mode === 'mc' ? 'block' : 'none';
+      $('fqInputArea').style.display = FQ.mode === 'mc' ? 'none' : 'block';
+      $('fqNext').style.display = exam ? 'none' : 'block';
+      fqShowStep('play');
+      fqUpdateScore();
+      fqMake();
+    }
+
+    // 화학식 탭의 분류 토글 (학습 목록 전용)
+    document.querySelectorAll('#fqSetTabs .seg-btn').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#fqSetTabs .seg-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      learnSet = b.dataset.set;
+      fqApplyTitle();
+      fqFillLearn();
+    }));
+
+    $('fqNext').addEventListener('click', fqMake);
+    $('fqBack').addEventListener('click', () => { FQ.exam = false; fqShowStep('setup'); });
+    $('fqSubmit').addEventListener('click', () => {
+      const v = $('fqInput').value.trim();
+      if (!v) { $('fqResult').textContent = '정답을 먼저 입력해주세요.'; $('fqResult').className = 'result info'; return; }
+      fqCheck(v);
+    });
+    $('fqInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $('fqSubmit').click(); }
+    });
+
+    /* ===================== 모형 빌더 (중2 '물질의 구성' 입자 모형) =====================
+       교과서 수준에 맞춤:
+       · 원자 모형 = 원자핵(양성자＋·중성자) + 전자(－). 양성자 수 = 원소, 양성자 수 = 전자 수(중성)
+       · 이온 모형 = 원자핵은 그대로, 전자만 잃거나 얻어 전하를 띤다 (양이온/음이온)
+       전자껍질 2,8,8 배치 암기는 고교 수준이라 강요하지 않고, 전자는 시각적으로만 분포시킴 */
+
+    // 위첨자 전하 표기 (1→⁺, 2→²⁺, -2→²⁻)
+    function ionSup(charge) {
+      const mag = Math.abs(charge) === 1 ? '' : String(Math.abs(charge)).replace(/\d/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+d]);
+      return mag + (charge > 0 ? '⁺' : '⁻');
+    }
+
+    // 입자 모형 렌더: 원자핵(양성자/중성자) + 전자 분포
+    function renderParticleModel(protons, neutrons, electrons, opts = {}) {
+      // 전자는 시각용으로만 자연스러운 그룹(2,8,8,2)에 나눠 배치 — 라벨/규칙 강요 없음
+      const rings = [];
+      let rem = electrons;
+      for (const c of [2, 8, 8, 2]) { if (rem <= 0) break; rings.push(Math.min(c, rem)); rem -= c; }
+      const durs = [24, 32, 40, 48];
+      let ringHtml = '';
+      rings.forEach((count, i) => {
+        const rad = rings.length <= 1 ? 0.38 : 0.27 + 0.15 * (i / (rings.length - 1));
+        const dia = (rad * 2).toFixed(3);
+        let dots = '';
+        for (let j = 0; j < count; j++) {
+          const ang = (360 / count * j + i * 14).toFixed(2);
+          dots += `<span class="pelectron" style="transform:translate(-50%,-50%) rotate(${ang}deg) translateX(calc(var(--atom) * ${rad.toFixed(3)}));"></span>`;
+        }
+        ringHtml += `<div class="eorbit" style="width:calc(var(--atom) * ${dia});height:calc(var(--atom) * ${dia});animation-duration:${durs[i] || 40}s;animation-direction:${i % 2 ? 'reverse' : 'normal'};">${dots}</div>`;
+      });
+      let nuc;
+      if (opts.core) {
+        const color = opts.color || '#ff7a59';
+        nuc = `<div class="nuc nuc-solid" style="background:radial-gradient(circle at 36% 30%, ${lighten(color, 0.5)}, ${color} 60%, ${darken(color, 0.3)});color:${contrastText(color)};">` +
+          `<div class="nuc-sym">${opts.symbol || ''}</div><div class="nuc-cap">양성자 +${protons}</div></div>`;
+      } else {
+        let d = '';
+        for (let i = 0; i < protons; i++) d += '<span class="pq pq-p">＋</span>';
+        for (let i = 0; i < neutrons; i++) d += '<span class="pq pq-n"></span>';
+        nuc = `<div class="nuc">${d}</div>`;
+      }
+      $('mbVisual').innerHTML = `<div class="atom-field">${ringHtml}${nuc}</div>`;
+    }
+
+    const MB = { mode: 'atom', target: null, ion: null, protons: 0, neutrons: 0, electrons: 0 };
+    // 원자 모형은 핵 입자를 또렷이 셀 수 있는 작은 대표 원소(1~10번)만
+    const ATOM_BUILD = elements.filter(e => e.no <= 10);
+    const NEUTRONS = { 1: 0, 2: 2, 3: 4, 4: 5, 5: 6, 6: 6, 7: 7, 8: 8, 9: 10, 10: 10 };
+    function nameByProtons(p) { const e = elements.find(x => x.no === p); return e ? e.name : null; }
+    function nobleGasName(e) { return e === 2 ? '헬륨(He)' : e === 10 ? '네온(Ne)' : e === 18 ? '아르곤(Ar)' : null; }
+
+    const ION_BUILD = [
+      { symbol: 'Na', name: '나트륨', z: 11, charge: 1 },
+      { symbol: 'K',  name: '칼륨',   z: 19, charge: 1 },
+      { symbol: 'Li', name: '리튬',   z: 3,  charge: 1 },
+      { symbol: 'Mg', name: '마그네슘', z: 12, charge: 2 },
+      { symbol: 'Ca', name: '칼슘',   z: 20, charge: 2 },
+      { symbol: 'Al', name: '알루미늄', z: 13, charge: 3 },
+      { symbol: 'F',  name: '플루오린', z: 9,  charge: -1 },
+      { symbol: 'Cl', name: '염소',   z: 17, charge: -1 },
+      { symbol: 'O',  name: '산소',   z: 8,  charge: -2 },
+      { symbol: 'S',  name: '황',     z: 16, charge: -2 }
+    ];
+
+    function mbResultReset() {
+      const r = $('mbResult');
+      r.textContent = MB.mode === 'atom'
+        ? '양성자와 전자를 채운 뒤 확인을 눌러요.'
+        : '전자를 잃거나 얻어 이온을 만든 뒤 확인을 눌러요.';
+      r.className = 'result info';
+    }
+
+    function mbNewAtom() {
+      MB.mode = 'atom';
+      MB.target = ATOM_BUILD[Math.floor(Math.random() * ATOM_BUILD.length)];
+      MB.protons = 0;
+      MB.electrons = 0;
+      MB.neutrons = NEUTRONS[MB.target.no] ?? 0;
+      $('mbTitle').textContent = '원자 모형 그리기';
+      $('mbSub').textContent = '양성자 수로 원소가 정해지고, 전자 수는 양성자와 같아요(중성).';
+      $('mbPrompt').innerHTML =
+        `<strong>${MB.target.name}</strong>(${MB.target.symbol}) 원자 모형을 완성하세요` +
+        `<span class="sub">양성자 수 = 원소의 종류 · 양성자 수 = 전자 수(중성)</span>`;
+      $('mbAtomControls').style.display = 'grid';
+      $('mbIonControls').style.display = 'none';
+      mbResultReset();
+      mbRenderAtom();
+    }
+
+    function mbRenderAtom() {
+      renderParticleModel(MB.protons, MB.neutrons, MB.electrons);
+      $('mbAtomControls').innerHTML = `
+        <div class="shell-row">
+          <span class="slabel">양성자 <span class="fsub">(빨강 ＋)</span></span>
+          <button class="shell-btn" data-p="p" data-d="-1">−</button>
+          <span class="scount">${MB.protons}</span>
+          <button class="shell-btn" data-p="p" data-d="1">＋</button>
+        </div>
+        <div class="shell-row">
+          <span class="slabel">전자 <span class="fsub">(파랑 －)</span></span>
+          <button class="shell-btn" data-p="e" data-d="-1">−</button>
+          <span class="scount">${MB.electrons}</span>
+          <button class="shell-btn" data-p="e" data-d="1">＋</button>
+        </div>`;
+      $('mbAtomControls').querySelectorAll('.shell-btn').forEach(b => b.addEventListener('click', () => {
+        const d = +b.dataset.d;
+        if (b.dataset.p === 'p') MB.protons = Math.max(0, Math.min(10, MB.protons + d));
+        else MB.electrons = Math.max(0, Math.min(10, MB.electrons + d));
+        mbRenderAtom();
+      }));
+      const nm = nameByProtons(MB.protons);
+      const charge = MB.protons - MB.electrons;
+      const state = MB.protons === 0 ? '' : (charge === 0 ? '중성' : (charge > 0 ? `+${charge}` : `${charge}`));
+      const info = $('mbInfo');
+      info.style.background = 'var(--fill)';
+      info.innerHTML = `양성자 ${MB.protons} → ${nm || '?'} · 전자 ${MB.electrons}${state ? ' · ' + state : ''}`;
+    }
+
+    function mbCheckAtom() {
+      const r = $('mbResult');
+      if (MB.protons !== MB.target.no) {
+        r.innerHTML = `양성자 수가 원소를 정해요. <strong>${MB.target.name}</strong>은 양성자 ${MB.target.no}개 (지금 ${MB.protons}개)`;
+        r.className = 'result bad';
+      } else if (MB.electrons !== MB.protons) {
+        r.innerHTML = `원자는 <strong>중성</strong>! 전자 수를 양성자 수(${MB.protons})와 같게 해요 (지금 ${MB.electrons}개)`;
+        r.className = 'result bad';
+      } else {
+        r.innerHTML = `완성! 양성자 ${MB.protons}개 = 전자 ${MB.protons}개라 전기적으로 <strong>중성</strong>인 ${MB.target.name} 원자예요`;
+        r.className = 'result good';
+      }
+    }
+
+    function mbNewIon() {
+      MB.mode = 'ion';
+      MB.ion = ION_BUILD[Math.floor(Math.random() * ION_BUILD.length)];
+      MB.protons = MB.ion.z;
+      MB.neutrons = 0;
+      MB.electrons = MB.ion.z; // 중성 원자에서 시작
+      const verb = MB.ion.charge > 0 ? '잃어 양이온이' : '얻어 음이온이';
+      $('mbTitle').textContent = '이온 모형 그리기';
+      $('mbSub').textContent = '원자핵(양성자)은 그대로, 전자만 잃거나 얻어 전하를 띠어요.';
+      $('mbPrompt').innerHTML =
+        `<strong>${MB.ion.name}</strong>(${MB.ion.symbol}) 원자가 전자를 ${verb} 되게 하세요` +
+        `<span class="sub">원자핵은 변하지 않아요 · 전자를 잃으면 ＋, 얻으면 －</span>`;
+      $('mbAtomControls').style.display = 'none';
+      $('mbIonControls').style.display = 'grid';
+      mbResultReset();
+      mbRenderIon();
+    }
+
+    function mbRenderIon() {
+      const color = CPK[MB.ion.symbol] || '#ff7a59';
+      renderParticleModel(MB.protons, 0, MB.electrons, { core: true, symbol: MB.ion.symbol, color });
+      const charge = MB.protons - MB.electrons;
+      const moved = MB.ion.z - MB.electrons;
+      const movedTxt = moved > 0 ? `전자 ${moved}개 잃음` : moved < 0 ? `전자 ${-moved}개 얻음` : '중성 원자';
+      const state = charge === 0 ? '중성' : (charge > 0 ? `양이온 +${charge}` : `음이온 ${charge}`);
+      const info = $('mbInfo');
+      info.innerHTML = `${movedTxt} · 전하 ${charge > 0 ? '+' + charge : charge < 0 ? charge : '0'} · ${state}`;
+      info.style.background = charge > 0 ? 'rgba(255,77,77,0.12)' : charge < 0 ? 'rgba(63,134,245,0.12)' : 'var(--fill)';
+    }
+
+    function mbCheckIon() {
+      const target = MB.ion.z - MB.ion.charge;
+      const r = $('mbResult');
+      if (MB.electrons === target) {
+        const ng = nobleGasName(target);
+        r.innerHTML = `완성! <strong>${MB.ion.symbol}${ionSup(MB.ion.charge)}</strong> (${MB.ion.name} 이온)! ` +
+          `전자를 ${Math.abs(MB.ion.charge)}개 ${MB.ion.charge > 0 ? '잃어' : '얻어'} ${ng ? ng + '과 같은 ' : ''}안정한 상태가 됐어요`;
+        r.className = 'result good';
+      } else {
+        const need = MB.electrons > target ? '더 잃어야' : '더 얻어야';
+        r.innerHTML = `아직이에요. 전자를 ${need} <strong>${MB.ion.symbol}${ionSup(MB.ion.charge)}</strong>(${MB.ion.name} 이온)가 돼요`;
+        r.className = 'result bad';
+      }
+    }
+
+    document.querySelectorAll('#mbTabs .seg-btn').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#mbTabs .seg-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      if (b.dataset.mb === 'atom') mbNewAtom(); else mbNewIon();
+    }));
+
+    $('mbAddE').addEventListener('click', () => { MB.electrons = Math.min(20, MB.electrons + 1); mbRenderIon(); });
+    $('mbRemoveE').addEventListener('click', () => { MB.electrons = Math.max(0, MB.electrons - 1); mbRenderIon(); });
+    $('mbCheck').addEventListener('click', () => MB.mode === 'atom' ? mbCheckAtom() : mbCheckIon());
+    $('mbNext').addEventListener('click', () => MB.mode === 'atom' ? mbNewAtom() : mbNewIon());
+
     renderElementInfo();
     renderRecords();
     updateUnknownUi();
     setCard(0);
     updateScore();
+    fqApplyTitle();
+    fqFillLearn();
+    mbNewAtom();
   </script>
 </body>
 </html>
