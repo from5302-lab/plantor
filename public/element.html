@@ -616,7 +616,7 @@
       color: var(--text-3);
       text-transform: uppercase;
       letter-spacing: 0.02em;
-      margin: 6px 2px -2px;
+      margin: 16px 2px 8px;
     }
 
     .seg2 {
@@ -855,11 +855,11 @@
 
     /* 입체 공-모형 (space-filling) */
     .mol-stage {
-      height: 62px;
+      height: 76px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
 
     .mol-inner { position: relative; }
@@ -2026,7 +2026,14 @@
       { name: '질산 은', formula: 'AgNO₃' },
       { name: '염화 칼륨', formula: 'KCl' },
       { name: '산화 구리', formula: 'CuO' },
-      { name: '황산 나트륨', formula: 'Na₂SO₄' }
+      { name: '황산 나트륨', formula: 'Na₂SO₄' },
+      { name: '황산', formula: 'H₂SO₄' },
+      { name: '질산', formula: 'HNO₃' },
+      { name: '산화 칼슘', formula: 'CaO' },
+      { name: '염화 마그네슘', formula: 'MgCl₂' },
+      { name: '질산 칼륨', formula: 'KNO₃' },
+      { name: '탄산 나트륨', formula: 'Na₂CO₃' },
+      { name: '탄산수소 나트륨', formula: 'NaHCO₃' }
     ];
 
     const ionData = [
@@ -2049,7 +2056,13 @@
       { name: '산화 이온', formula: 'O²⁻' },
       { name: '황화 이온', formula: 'S²⁻' },
       { name: '탄산 이온', formula: 'CO₃²⁻' },
-      { name: '황산 이온', formula: 'SO₄²⁻' }
+      { name: '황산 이온', formula: 'SO₄²⁻' },
+      { name: '탄산수소 이온', formula: 'HCO₃⁻' },
+      { name: '철(Ⅲ) 이온', formula: 'Fe³⁺' },
+      { name: '납 이온', formula: 'Pb²⁺' },
+      { name: '플루오린화 이온', formula: 'F⁻' },
+      { name: '브로민화 이온', formula: 'Br⁻' },
+      { name: '아이오딘화 이온', formula: 'I⁻' }
     ];
 
     // 아래첨자/위첨자 유니코드를 보통 글자로 바꿔 입력 채점을 너그럽게 (H₂O ↔ "h2o", Na⁺ ↔ "na+")
@@ -2164,7 +2177,7 @@
         minY = Math.min(minY, p.y - p.r); maxY = Math.max(maxY, p.y + p.r);
       });
       const w = maxX - minX, h = maxY - minY;
-      const scale = Math.min(1, 104 / w, 58 / h);
+      const scale = Math.min(1, 104 / w, 68 / h);
       const sorted = pos.map((p, i) => ({ p, i })).sort((a, b) => a.p.y - b.p.y);
       let inner = '';
       sorted.forEach(({ p, i }) => {
