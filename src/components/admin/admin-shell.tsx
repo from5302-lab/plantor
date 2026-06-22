@@ -3,22 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, type User } from "firebase/auth";
-import { addDoc, arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, increment, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, Timestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, Timestamp } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
-import { SERVICES, SITE } from "@/data/site";
+import { SERVICES } from "@/data/site";
 import { formatDateTime, formatWon, tsToDate } from "@/lib/format";
-import type { MemberFamily, MemberChild, Subscription as MemberSub, Signup, SignupStatus, SignupChild, RenewalRequest, Referral, WalletCoupon } from "@/lib/types";
-import { convertSignupToFamily } from "@/lib/families";
+import type { MemberFamily, MemberChild, Subscription as MemberSub, Signup, SignupStatus, SignupChild, RenewalRequest } from "@/lib/types";
+
 import { useAuth } from "@/lib/auth-context";
 import { T } from "@/lib/design-tokens";
 import { CenterMsg } from "@/components/ui/center-msg";
+import { SendToastProvider, useSendToast } from "@/lib/send-toast";
 import { SignupRow } from "./signup-row";
 import { MembersTab } from "./members-tab";
-import { LearningTab } from "./learning-tab";
-import { CouponTab } from "./coupon-tab";
-import { ReferralsTab } from "./referrals-tab";
-import { PlanTab } from "./plan-tab";
+
 import { LessonJournalTab } from "./lesson-journal-tab";
+import { MessagesTab } from "./messages-tab";
 
 
 function RenewalApproveButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
@@ -62,13 +61,18 @@ export function AdminShell() {
     );
   }
 
-  return <Dashboard user={user} />;
+  return (
+    <SendToastProvider>
+      <Dashboard user={user} />
+    </SendToastProvider>
+  );
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ user }: { user: User }) {
-  const [activeTab, setActiveTab] = useState<"members" | "learning" | "plan" | "coupons" | "referrals" | "journal">("members");
+  const { startTask } = useSendToast();
+  const [activeTab, setActiveTab] = useState<"members" | "journal" | "messages">("members");
   const [showSignups, setShowSignups] = useState(false);
   const [showRenewals, setShowRenewals] = useState(false);
   const [signups, setSignups] = useState<Signup[]>([]);
@@ -79,8 +83,6 @@ function Dashboard({ user }: { user: User }) {
   const [allChildren, setAllChildren] = useState<MemberChild[]>([]);
   const [allSubs, setAllSubs] = useState<MemberSub[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
-  const [referrals, setReferrals] = useState<Referral[]>([]);
-  const [approvingFamilyId, setApprovingFamilyId] = useState<string | null>(null);
 
   // 회원 데이터 로드 (항상)
   useEffect(() => {
@@ -124,7 +126,7 @@ function Dashboard({ user }: { user: User }) {
         setAllSubs(snap.docs.map((d) => {
           const data = d.data();
           return { id: d.id, familyId: data.familyId ?? "", childId: data.childId ?? "", serviceSlug: data.serviceSlug ?? "", monthlyPrice: data.monthlyPrice ?? 0, status: data.status ?? "active", startDate: tsToDate(data.startDate), endDate: tsToDate(data.endDate), discount: data.discount ?? 0, agencyFee: data.agencyFee ?? 0 };
-        }));
+        }).filter((s) => s.status !== "transferred"));
         setMembersLoading(false);
       });
     });
@@ -166,30 +168,6 @@ function Dashboard({ user }: { user: User }) {
         };
       })),
       (err) => { alert("연장신청 로딩 오류: " + err.message); }
-    );
-  }, []);
-
-  // 추천 로드
-  useEffect(() => {
-    return onSnapshot(
-      query(collection(db, "referrals"), orderBy("createdAt", "desc")),
-      (snap) => setReferrals(snap.docs.map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          referrerId: data.referrerId ?? "",
-          referrerName: data.referrerName ?? "",
-          referralCode: data.referralCode ?? "",
-          refereeSignupId: data.refereeSignupId ?? "",
-          refereeName: data.refereeName ?? "",
-          refereeFamilyId: data.refereeFamilyId ?? null,
-          referralDiscount: data.referralDiscount ?? 0,
-          rewardAmount: data.rewardAmount ?? 0,
-          status: data.status ?? "pending",
-          createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : null,
-          rewardedAt: data.rewardedAt ? (data.rewardedAt as Timestamp).toDate() : null,
-        };
-      }))
     );
   }, []);
 
@@ -240,18 +218,6 @@ function Dashboard({ user }: { user: User }) {
 
   async function deleteSignup(id: string) {
     try {
-      const snap = await getDoc(doc(db, "signups", id));
-      if (snap.exists()) {
-        const data = snap.data();
-        // 승인 완료된 신청이었다면 쿠폰 사용 복구
-        if (data.couponCode && data.convertedFamilyId) {
-          const phone = (data.phone ?? "").replace(/-/g, "");
-          await updateDoc(doc(db, "coupons", (data.couponCode as string).toUpperCase()), {
-            useCount: increment(-1),
-            usedPhones: arrayRemove(phone),
-          }).catch(() => {});
-        }
-      }
       await deleteDoc(doc(db, "signups", id));
     } catch (err) { alert(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다."); }
   }
@@ -305,126 +271,29 @@ function Dashboard({ user }: { user: User }) {
     } catch (err) { alert(err instanceof Error ? `변경 실패: ${err.message}` : "오류"); }
   }
 
-  /** 기존 가족 카드에 구독 병합 (만료일 연장 + 없는 서비스 신규 추가) */
-  async function mergeIntoExistingFamily(signup: Signup, familyId: string) {
-    const now = new Date();
-    let extendedCount = 0;
-    let addedCount = 0;
-
-    for (const signupChild of signup.children) {
-      let childId: string | null = null;
-      if (signupChild.loginId) {
-        const snap = await getDocs(query(collection(db, "children"), where("familyId", "==", familyId), where("loginId", "==", signupChild.loginId)));
-        if (!snap.empty) childId = snap.docs[0].id;
-      }
-      if (!childId) {
-        const snap = await getDocs(query(collection(db, "children"), where("familyId", "==", familyId), where("name", "==", signupChild.name)));
-        if (!snap.empty) childId = snap.docs[0].id;
-      }
-      if (!childId) {
-        const ref = await addDoc(collection(db, "children"), {
-          familyId, userId: signup.userId ?? null,
-          name: signupChild.name, grade: signupChild.grade,
-          loginId: signupChild.loginId, createdAt: serverTimestamp(),
-        });
-        childId = ref.id;
-      }
-
-      for (const slug of signupChild.selectedServices) {
-        const subSnap = await getDocs(query(collection(db, "subscriptions"), where("childId", "==", childId), where("serviceSlug", "==", slug)));
-        if (!subSnap.empty) {
-          const sub = subSnap.docs[0];
-          const currentEnd = (sub.data().endDate as Timestamp)?.toDate();
-          const base = currentEnd && currentEnd > now ? currentEnd : now;
-          const newEnd = new Date(base);
-          newEnd.setDate(newEnd.getDate() + 30);
-          await updateDoc(sub.ref, { endDate: Timestamp.fromDate(newEnd), status: "active" });
-          extendedCount++;
-        } else {
-          const svc = SERVICES.find((s) => s.slug === slug);
-          const newEnd = new Date(now);
-          newEnd.setDate(newEnd.getDate() + 30);
-          await addDoc(collection(db, "subscriptions"), {
-            familyId, childId, serviceSlug: slug,
-            monthlyPrice: svc?.pricePerMonth ?? 0,
-            agencyFee: svc?.agencyFee ?? 0,
-            status: "active",
-            startDate: Timestamp.fromDate(now),
-            endDate: Timestamp.fromDate(newEnd),
-            discount: 0,
-            createdAt: serverTimestamp(),
-          });
-          addedCount++;
-        }
-      }
-    }
-
-    // 쿠폰 useCount/usedPhones는 approveSignup CF에서 이미 처리됨
-    await updateDoc(doc(db, "signups", signup.id), { status: "confirmed", convertedFamilyId: familyId });
-    const parts = [];
-    if (extendedCount > 0) parts.push(`구독 ${extendedCount}건 만료일 연장`);
-    if (addedCount > 0) parts.push(`신규 서비스 ${addedCount}건 추가`);
-    alert(`✅ 기존 회원 카드 업데이트 완료\n${parts.join(" · ")}`);
-    setShowSignups(false);
-  }
-
   async function approveAsFamily(signup: Signup) {
     if (signup.convertedFamilyId) { alert(`이미 가족으로 등록되어 있습니다 (familyId: ${signup.convertedFamilyId})`); return; }
-    try {
-      const { httpsCallable } = await import("firebase/functions");
 
-      // momsaipack 포함 시 만료일 미리 계산 (당월 말일 기준)
-      const hasAiPack = signup.parentServices?.includes("momsaipack") ?? false;
-      const aiEndDate = hasAiPack ? (() => {
-        const d = new Date();
-        return toLocalDateStr(new Date(d.getFullYear(), d.getMonth() + 2, 0));
-      })() : undefined;
+    // momsaipack 포함 시 만료일 미리 계산 (당월 말일 기준)
+    const hasAiPack = signup.parentServices?.includes("momsaipack") ?? false;
+    const aiEndDate = hasAiPack ? (() => {
+      const d = new Date();
+      return toLocalDateStr(new Date(d.getFullYear(), d.getMonth() + 2, 0));
+    })() : undefined;
 
-      const approveFn = httpsCallable<{ signupId: string; momsaipackEndDate?: string }, { success: boolean; parentUid: string }>(functions, "approveSignup");
-      const cfResult = await approveFn({ signupId: signup.id, ...(aiEndDate ? { momsaipackEndDate: aiEndDate } : {}) });
-      const uid = cfResult.data.parentUid;
-
-      const existingSnap = await getDocs(query(collection(db, "families"), where("userId", "==", uid)));
-      if (!existingSnap.empty) {
-        await mergeIntoExistingFamily({ ...signup, userId: uid }, existingSnap.docs[0].id);
-        return;
-      }
-
-      // convertSignupToFamily 내부 batch에서 status="confirmed" + convertedFamilyId 처리
-      // 쿠폰 useCount/usedPhones는 approveSignup CF에서 이미 처리됨
-      const result = await convertSignupToFamily({
-        ...signup, userId: uid,
-        parentId: signup.parentId,
-        referralCode: signup.referralCode,
-        referrerId: signup.referrerId,
-        referralDiscount: signup.referralDiscount,
-      });
-      if (signup.referrerId && signup.referralCode) {
-        try {
-          const referrerName = families.find((f) => f.id === signup.referrerId)?.parentName ?? "";
-          await addDoc(collection(db, "families", signup.referrerId, "couponWallet"), {
-            discountPercent: 10, note: `${signup.parentName} 추천 보상`, used: false, createdAt: serverTimestamp(),
-          });
-          await addDoc(collection(db, "referrals"), {
-            referrerId: signup.referrerId, referrerName, referralCode: signup.referralCode,
-            refereeSignupId: signup.id, refereeName: signup.parentName, refereeFamilyId: result.familyId,
-            referralDiscount: signup.referralDiscount ?? 0, rewardAmount: 0,
-            status: "rewarded", createdAt: serverTimestamp(), rewardedAt: serverTimestamp(),
-          });
-        } catch { /* 추천 보상 실패해도 승인은 완료 */ }
-      }
-      if (hasAiPack && aiEndDate) {
-        // SMS는 approveSignup에서 이미 포함 발송 — DB만 업데이트
-        try {
-          await updateDoc(doc(db, "families", result.familyId), { aiPackageEndDate: aiEndDate });
-          if (uid) {
-            await updateDoc(doc(db, "users", uid), { aiPackageEndDate: aiEndDate });
-          }
-        } catch { /* aiPackageEndDate 설정 실패해도 승인은 완료 */ }
-      }
-      alert(`✅ 승인 완료\n계정 생성 + 가족 등록 완료\n자녀 ${result.childIds.length}명`);
-      setShowSignups(false);
-    } catch (err) { alert(err instanceof Error ? `승인 실패: ${err.message}` : "승인 중 오류가 발생했습니다."); }
+    setShowSignups(false);
+    startTask({
+      label: `${signup.parentName} 가입 승인`,
+      successText: "승인 완료",
+      task: async () => {
+        const { httpsCallable } = await import("firebase/functions");
+        const approveFn = httpsCallable<
+          { signupId: string; momsaipackEndDate?: string },
+          { success: boolean; parentUid: string; familyId: string; childIds: string[]; isNewFamily: boolean }
+        >(functions, "approveSignup");
+        await approveFn({ signupId: signup.id, ...(aiEndDate ? { momsaipackEndDate: aiEndDate } : {}) });
+      },
+    });
   }
 
   function toLocalDateStr(d: Date): string {
@@ -445,25 +314,43 @@ function Dashboard({ user }: { user: User }) {
       const { httpsCallable: hc } = await import("firebase/functions");
       const confirmFn = hc(functions, "confirmAiPackagePayment");
       const endDateStr = toLocalDateStr(newEnd);
-      await confirmFn({ familyId: req.familyId, endDate: endDateStr });
+      await confirmFn({ familyId: req.familyId, endDate: endDateStr, silent: true });
       await updateDoc(doc(db, "renewalRequests", req.id), { status: "approved" });
     } else {
       let childId = req.childId || null;
 
-      // 신규 자녀: children 문서 생성 + approveSignup으로 Auth 계정 생성
+      // 신규 자녀: CF로 Auth + Firestore 동시 생성
       if (req.isNewChild && req.newChildLoginId) {
-        const childDoc = await addDoc(collection(db, "children"), {
+        const { httpsCallable: hc2 } = await import("firebase/functions");
+        const createChildFn = hc2<
+          { familyId: string; name: string; grade: string; loginId: string },
+          { success: boolean; childId: string; childUid: string }
+        >(functions, "createChildAccount");
+        const result = await createChildFn({
           familyId: req.familyId,
           name: req.childName,
           grade: req.newChildGrade ?? "",
-          loginId: req.newChildLoginId.toLowerCase(),
-          createdAt: serverTimestamp(),
+          loginId: req.newChildLoginId,
         });
-        childId = childDoc.id;
+        childId = result.data.childId;
       }
 
-      if (req.subscriptionId) {
-        await updateDoc(doc(db, "subscriptions", req.subscriptionId), { endDate: Timestamp.fromDate(newEnd), status: "active" });
+      // 학부모 서비스(childId=null) 안전망: 신청 doc에 subscriptionId가 없어도
+      // 기존 학부모 sub가 있으면 신규 생성 대신 그 sub를 연장. 중복 sub 방지.
+      let targetSubId = req.subscriptionId as string | undefined;
+      if (!targetSubId && (req.isParentService || !childId)) {
+        const existingSnap = await getDocs(query(
+          collection(db, "subscriptions"),
+          where("familyId", "==", req.familyId),
+          where("serviceSlug", "==", req.serviceSlug),
+          where("childId", "==", null),
+          where("status", "==", "active"),
+        ));
+        if (!existingSnap.empty) targetSubId = existingSnap.docs[0].id;
+      }
+
+      if (targetSubId) {
+        await updateDoc(doc(db, "subscriptions", targetSubId), { endDate: Timestamp.fromDate(newEnd), status: "active" });
       } else {
         const svc = SERVICES.find((s) => s.slug === req.serviceSlug);
         await addDoc(collection(db, "subscriptions"), {
@@ -488,27 +375,60 @@ function Dashboard({ user }: { user: User }) {
     }
   }
 
-  async function approveRenewalGroup(familyId: string, reqs: RenewalRequest[]) {
+  function approveRenewalGroup(familyId: string, reqs: RenewalRequest[]) {
     const family = families.find((f) => f.id === familyId);
-    const total = reqs.reduce((s, r) => s + r.finalAmount, 0);
-    if (!confirm(`${family?.parentName ?? ""}님 · ${reqs.length}건 총 ${formatWon(total)} 입금 확인하시겠습니까?`)) return;
-    setApprovingFamilyId(familyId);
-    try {
-      for (const req of reqs) await approveRenewalCore(req);
-      const { httpsCallable } = await import("firebase/functions");
-      const smsFn = httpsCallable(functions, "sendRenewalConfirmationSms");
-      const services = reqs.map((req) => {
-        const svc = SERVICES.find((s) => s.slug === req.serviceSlug);
-        const newEnd = calcNewEndDate(req.currentEndDate, req.months);
-        return {
-          childName: req.childName,
-          serviceName: svc?.name ?? req.serviceName,
-          newEndDate: newEnd.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }),
-        };
-      });
-      await smsFn({ familyId, services }).catch(() => {/* SMS 실패해도 승인은 완료 */});
-    } catch (err) { alert(err instanceof Error ? err.message : "승인 오류"); }
-    finally { setApprovingFamilyId(null); }
+    // (childId, serviceSlug) 기준 dedup된 항목으로 합계/카운트/SMS payload 계산
+    // (Firestore에 중복 doc이 있어도 화면/금액/SMS는 한 번만 반영)
+    const seen = new Set<string>();
+    const dedupedReqs = reqs.filter((r) => {
+      const key = `${r.childId ?? "parent"}|${r.serviceSlug}`;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    const total = dedupedReqs.reduce((s, r) => s + r.finalAmount, 0);
+    const parentName = family?.parentName ?? "";
+    if (!confirm(`${parentName}님 · ${dedupedReqs.length}건 총 ${formatWon(total)} 입금 확인하시겠습니까?`)) return;
+    startTask({
+      label: `${parentName} 연장 승인`,
+      successText: "연장 완료",
+      task: async () => {
+        // 중복 doc 포함 전체에 대해 approve (모두 pending에서 제거)
+        for (const req of reqs) await approveRenewalCore(req);
+        const { httpsCallable } = await import("firebase/functions");
+        const smsFn = httpsCallable(functions, "sendRenewalConfirmationSms");
+        const services = dedupedReqs.map((req) => {
+          const svc = SERVICES.find((s) => s.slug === req.serviceSlug);
+          const newEnd = calcNewEndDate(req.currentEndDate, req.months);
+          return {
+            childName: req.childName,
+            serviceName: svc?.name ?? req.serviceName,
+            newEndDate: newEnd.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }),
+          };
+        });
+        await smsFn({ familyId, services }).catch(() => {/* SMS 실패해도 승인은 완료 */});
+
+        // 가계부 수입 자동 기록 (어드민 개인 가계부) — 중복 방지
+        if (total > 0) {
+          const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }); // YYYY-MM-DD
+          const paymentKey = `renewal_${familyId}_${today}_${total}`;
+          const dup = await getDocs(query(collection(db, "vaultEntries"), where("paymentKey", "==", paymentKey)));
+          if (dup.empty) {
+            await addDoc(collection(db, "vaultEntries"), {
+              date: today,
+              type: "income",
+              amount: total,
+              category: "수업료",
+              memo: `${parentName} 구독연장`,
+              receiptUrl: null,
+              recurringId: null,
+              paymentKey,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            }).catch(() => {/* 가계부 기록 실패해도 승인은 완료 */});
+          }
+        }
+      },
+    });
   }
 
   function exportCsv() {
@@ -533,14 +453,48 @@ function Dashboard({ user }: { user: User }) {
     : pendingSignups;
   const pendingRenewals = renewalRequests;
 
+  // 24시간 경과 미입금 — 운영자가 직접 정리할 수 있게 알림
+  const overdueCutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const overdueSignups = signups.filter(
+    (s) => s.status === "pending" && s.createdAt != null && s.createdAt.getTime() < overdueCutoff
+  );
+  const overdueRenewals = pendingRenewals.filter(
+    (r) => r.createdAt != null && r.createdAt.getTime() < overdueCutoff
+  );
+  const overdueTotal = overdueSignups.length + overdueRenewals.length;
+
   return (
     <div className="min-h-screen bg-p-bg">
       <main className="mx-auto max-w-[1100px] px-6 py-7 max-[600px]:px-3 max-[600px]:py-4">
+        {/* 24시간 경과 미입금 알림 */}
+        {overdueTotal > 0 && (
+          <div className="mb-4 rounded-xl border border-[rgba(200,0,0,0.18)] bg-[#fff5f5] px-4 py-3.5 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-[13px] leading-relaxed text-[#a01818]">
+              <strong className="font-bold">⏰ 24시간 경과 미입금 {overdueTotal}건</strong>
+              <span className="text-[#c05858]"> (신규 {overdueSignups.length} · 연장 {overdueRenewals.length})</span>
+              <br />
+              입금이 확인되지 않은 신청이에요. 확인 후 취소 처리해 주세요.
+            </div>
+            <div className="flex gap-2">
+              {overdueSignups.length > 0 && (
+                <button onClick={() => setShowSignups(true)} className="rounded-md border border-[rgba(200,0,0,0.25)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#a01818] cursor-pointer">
+                  신규 {overdueSignups.length} 보기
+                </button>
+              )}
+              {overdueRenewals.length > 0 && (
+                <button onClick={() => setShowRenewals(true)} className="rounded-md border border-[rgba(200,0,0,0.25)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#a01818] cursor-pointer">
+                  연장 {overdueRenewals.length} 보기
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 헤더 */}
         <div className="mb-5 flex items-center gap-2.5 flex-wrap">
           {/* 탭 — 모바일 가로 스크롤 */}
           <div className="flex gap-[3px] bg-p-bg rounded-lg p-[3px] max-[600px]:overflow-x-auto max-[600px]:w-full no-scrollbar">
-            {(["members", "learning", "journal", "plan", "coupons", "referrals"] as const).map((tab) => (
+            {(["members", "journal", "messages"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -551,7 +505,7 @@ function Dashboard({ user }: { user: User }) {
                   boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
                 }}
               >
-                {tab === "members" ? "회원" : tab === "learning" ? "학습" : tab === "journal" ? "수업일지" : tab === "plan" ? "계획" : tab === "coupons" ? "쿠폰" : "추천"}
+                {tab === "members" ? "회원" : tab === "journal" ? "수업일지" : "발송현황"}
               </button>
             ))}
           </div>
@@ -561,13 +515,8 @@ function Dashboard({ user }: { user: User }) {
         {activeTab === "members" && (
           <MembersTab families={families} allChildren={allChildren} allSubs={allSubs} membersLoading={membersLoading} onResetByFamily={handleResetByFamily} onResetDirectClass={handleResetDirectClass} onResetAttendance={handleResetAttendance} pendingSignupCount={pendingCount} pendingRenewalCount={pendingRenewals.length} onShowSignups={() => setShowSignups(true)} onShowRenewals={() => setShowRenewals(true)} />
         )}
-        {activeTab === "learning" && (
-          <LearningTab allChildren={allChildren} allSubs={allSubs} onResetAttendance={handleResetAttendance} />
-        )}
         {activeTab === "journal" && <LessonJournalTab />}
-        {activeTab === "plan" && <PlanTab allChildren={allChildren} allSubs={allSubs} />}
-        {activeTab === "coupons" && <CouponTab />}
-        {activeTab === "referrals" && <ReferralsTab referrals={referrals} families={families} />}
+        {activeTab === "messages" && <MessagesTab families={families} allChildren={allChildren} />}
       </main>
 
       {/* 대기중 신청 드로어 */}
@@ -640,15 +589,28 @@ function Dashboard({ user }: { user: User }) {
               const grouped = pendingRenewals.reduce<Record<string, RenewalRequest[]>>((acc, r) => {
                 (acc[r.familyId] ??= []).push(r); return acc;
               }, {});
+              // 가족별로 (childId, serviceSlug) 기준 dedup — query가 createdAt desc 정렬이라
+              // 먼저 만난 것(최신)만 keep. 숨겨진 중복 doc도 approve 대상에 포함시키려면
+              // approveRenewalGroup에 reqs 그대로 전달.
+              const dedupedByFamily: Record<string, RenewalRequest[]> = {};
+              for (const [fid, reqs] of Object.entries(grouped)) {
+                const seen = new Set<string>();
+                dedupedByFamily[fid] = reqs.filter((r) => {
+                  const key = `${r.childId ?? "parent"}|${r.serviceSlug}`;
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+              }
               return (
                 <div className="flex flex-col gap-3.5">
                   {Object.entries(grouped).map(([familyId, reqs]) => {
+                    const displayReqs = dedupedByFamily[familyId];
                     const family = families.find((f) => f.id === familyId);
-                    const totalFinal = reqs.reduce((s, r) => s + r.finalAmount, 0);
-                    const totalOrig = reqs.reduce((s, r) => s + r.amount, 0);
+                    const totalFinal = displayReqs.reduce((s, r) => s + r.finalAmount, 0);
+                    const totalOrig = displayReqs.reduce((s, r) => s + r.amount, 0);
                     const hasDiscount = totalFinal < totalOrig;
-                    const isLoading = approvingFamilyId === familyId;
-                    const createdAt = reqs[0]?.createdAt;
+                    const createdAt = displayReqs[0]?.createdAt;
                     return (
                       <div
                         key={familyId}
@@ -671,15 +633,15 @@ function Dashboard({ user }: { user: User }) {
                           </div>
                         </div>
 
-                        {/* 서비스 행 목록 */}
+                        {/* 서비스 행 목록 (중복은 표시에서 제외, 승인 시는 reqs 전체로 처리) */}
                         <div className="flex flex-col gap-1.5 mb-3">
-                          {reqs.map((req) => {
+                          {displayReqs.map((req) => {
                             const svc = SERVICES.find((s) => s.slug === req.serviceSlug);
                             const newEnd = calcNewEndDate(req.currentEndDate, req.months);
                             return (
                               <div key={req.id} className="bg-p-bg rounded-lg px-3 py-2">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-[13px] font-semibold text-black/95">{req.childName} · {svc?.name ?? req.serviceName}</span>
+                                  <span className="text-[13px] font-semibold text-black/95">{(req.childName && req.childName !== "null") ? req.childName : "학부모"} · {svc?.name ?? req.serviceName}</span>
                                   <span className="text-[13px] font-bold text-black/95">
                                     {req.months}개월 ·{" "}
                                     {req.finalAmount < req.amount
@@ -695,20 +657,13 @@ function Dashboard({ user }: { user: User }) {
                                     <span className="ml-1.5 rounded-full px-1.5 py-px text-[10px] font-bold bg-[#fff5f5] text-[#c00000] border border-[rgba(200,0,0,0.2)]">만료재신청</span>
                                   )}
                                 </div>
-                                {(req.couponCode || req.referralCode || req.walletDiscount > 0) && (
-                                  <div className="text-[11px] text-[#1a7f4b] mt-0.5">
-                                    {req.couponCode && `쿠폰 [${req.couponCode}${req.couponNote ? ` · ${req.couponNote}` : ""}] −${formatWon(req.couponDiscount)} `}
-                                    {req.referralCode && `추천 −${formatWon(req.referralDiscount)} `}
-                                    {req.walletDiscount > 0 && `쿠폰함 −${formatWon(req.walletDiscount)}`}
-                                  </div>
-                                )}
                               </div>
                             );
                           })}
                         </div>
 
                         {/* 가족 단위 승인 버튼 하나 */}
-                        <RenewalApproveButton loading={isLoading} onClick={() => approveRenewalGroup(familyId, reqs)} />
+                        <RenewalApproveButton loading={false} onClick={() => approveRenewalGroup(familyId, reqs)} />
                       </div>
                     );
                   })}

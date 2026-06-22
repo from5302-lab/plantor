@@ -5,7 +5,6 @@ export const SITE = {
   tagline: "Plan + Mentor",
   description:
     "학원이 쓰는 검증된 학습 프로그램을, 학원 없이 가정에 직접 연결합니다.",
-  kakaoOpenChat: "https://open.kakao.com/o/gntJzE4h",
   email: "from5302@gmail.com",
   // ⚠️ 입금 안내 메시지에 자동으로 들어가는 계좌 정보입니다.
   // 운영자(본인)만 보고 편집하세요. 사이트 페이지에는 노출되지 않습니다.
@@ -63,6 +62,12 @@ export const CORE_VALUES: CoreValue[] = [
 // ──────────────────────────────────────────────
 // 서비스 라인업
 // ──────────────────────────────────────────────
+export type ServicePart = {
+  slug: string;
+  name: string;
+  category?: string;  // 상위 카테고리 (파닉스, 무비, 리딩, 라이팅 등)
+};
+
 export type Service = {
   slug: string;
   emoji: string;
@@ -84,6 +89,8 @@ export type Service = {
   signupUrl?: string;  // 신청 버튼 커스텀 링크 (없으면 /signup)
   studentUrl?: string; // 학생 접속 링크
   parentUrl?: string;  // 학부모 접속 링크
+  parts?: ServicePart[];          // 서비스 내 학습 파트
+  progressLabel?: boolean;        // true면 파트 대신 진도 라벨 (n권 n유닛) 사용
 };
 
 export const SERVICES: Service[] = [
@@ -107,6 +114,10 @@ export const SERVICES: Service[] = [
     agencyFee: 22000,
     studentUrl: "https://www.dailykor.com/front",
     parentUrl: "https://www.dailykor.com/academy",
+    parts: [
+      { slug: "daily", name: "오늘의 학습" },
+      { slug: "vocab-center", name: "어휘력 센터" },
+    ],
   },
   {
     slug: "autovoca",
@@ -127,12 +138,26 @@ export const SERVICES: Service[] = [
     brandColor: "#417cd8",
     agencyFee: 0,
     studentUrl: "https://www.autovoca.co.kr/",
+    parts: [
+      { slug: "vol-1", name: "[1권] 240단어" },
+      { slug: "vol-2", name: "[2권] 240단어" },
+      { slug: "vol-3", name: "[3권] 480단어" },
+      { slug: "vol-4", name: "[4권] 480단어" },
+      { slug: "vol-5", name: "[5권] 480단어" },
+      { slug: "vol-6", name: "[6권] 480단어" },
+      { slug: "vol-7", name: "[7권] 480단어" },
+      { slug: "vol-8", name: "[8권] 480단어" },
+      { slug: "vol-9", name: "[9권] 750단어" },
+      { slug: "vol-10", name: "[10권] 750단어 (준비중)" },
+      { slug: "vol-11", name: "[11권] 750단어 (준비중)" },
+      { slug: "vol-12", name: "[12권] 750단어 (준비중)" },
+    ],
   },
   {
     slug: "class5",
     emoji: "🎯",
     iconUrl: "/service-icons/class5.png",
-    name: "초등 클래스5",
+    name: "클래스5",
     hook: "아이가 즐거운 아웃풋 영어",
     pricePerMonth: 15000,
     priceLabel: "₩15,000/월",
@@ -149,12 +174,19 @@ export const SERVICES: Service[] = [
     agencyFee: 6000,
     studentUrl: "https://play.class5.co.kr/",
     parentUrl: "https://www.class5.co.kr/login",
+    parts: [
+      { slug: "phonics", name: "Phonics" },
+      { slug: "song", name: "Song" },
+      { slug: "movie", name: "Movie" },
+      { slug: "reading", name: "Reading" },
+      { slug: "writing", name: "Writing" },
+    ],
   },
   {
     slug: "classcard-middle",
     emoji: "🏆",
     iconUrl: "/service-icons/classcard.png",
-    name: "중등 클래스카드",
+    name: "클래스카드",
     hook: "내신대비 어휘, 문법, 듣기, 독해 완벽 마스터.",
     pricePerMonth: 15000,
     priceLabel: "₩15,000/월",
@@ -169,6 +201,12 @@ export const SERVICES: Service[] = [
     brandColor: "#7fd132",
     agencyFee: 4000,
     studentUrl: "https://www.classcard.net/",
+    parts: [
+      { slug: "listening", name: "듣기훈련" },
+      { slug: "grammar", name: "문법훈련" },
+      { slug: "exam-prep", name: "내신대비" },
+      { slug: "vocab", name: "어휘암기" },
+    ],
   },
   {
     slug: "vibe-coding",
@@ -206,22 +244,6 @@ export const SERVICES: Service[] = [
     ],
     externalUrl: "https://greatbooksclub.web.app/",
     agencyFee: 0,
-  },
-  {
-    slug: "mom-webinar",
-    emoji: "🙋‍♀️",
-    name: "[Mom&] 맘이랑 금요웨비나",
-    externalUrl: "https://open.kakao.com/o/gntJzE4h",
-    hook: "매주 금요일 밤 열시, 깨어있는 엄마들끼리",
-    pricePerMonth: 0,
-    priceLabel: "무료",
-    targetGrades: "학부모",
-    category: "community",
-    bullets: [
-      "AI · 교육 · 테크 · 정보 · 소통",
-      "고전독서모임 · 바이브코딩 등 커뮤니티 참여",
-      "Plantor 신규 프로그램 선공개",
-    ],
   },
   {
     slug: "coming-soon-math-science",
@@ -262,19 +284,15 @@ export const FAQS: Faq[] = [
   },
   {
     q: "결제는 어떻게 진행되나요?",
-    a: "신청 완료 후 문자로 계좌 정보를 안내해 드려요. 입금이 확인되면 학습 계정 정보(ID/PW)를 바로 전달드립니다.",
+    a: "신청 완료 후 카카오톡으로 계좌 정보를 안내해 드려요. 입금이 확인되면 학습 계정 정보(ID/PW)를 바로 전달드립니다. 신규·연장 모두 신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 자동으로 취소될 수 있으니, 입금이 어려우시면 편하게 말씀해 주세요.",
   },
   {
     q: "환불 정책이 어떻게 되나요?",
-    a: "학습 시작 전이라면 전액 환불해 드립니다. 학습 시작 후 2주 이내라면 남은 기간만큼 일할 계산으로 환불해 드려요. 다만 2주 이상 학습이 진행된 경우에는 환불이 어렵습니다. 궁금한 점은 문자나 카카오 오픈채팅으로 편하게 문의해 주세요.",
+    a: "학습 시작 전이라면 전액 환불해 드립니다. 학습 시작 후 2주 이내라면 남은 기간만큼 일할 계산으로 환불해 드려요. 다만 2주 이상 학습이 진행된 경우에는 환불이 어렵습니다. 궁금한 점은 카카오 오픈채팅으로 편하게 문의해 주세요.",
   },
   {
     q: "자녀가 둘인데 따로 신청해야 하나요?",
     a: "한 번에 함께 신청하시면 됩니다. 자녀별로 학습 계정이 따로 발급되고, 부모님은 하나의 화면에서 모든 자녀의 학습 현황을 확인하실 수 있어요.",
-  },
-  {
-    q: "금요웨비나는 정말 무료인가요?",
-    a: "네, 완전 무료입니다. 카카오 오픈채팅에 참여하시면 매주 금요일 밤에 알림을 받으실 수 있어요. 별도 신청서나 사전 등록은 필요 없습니다.",
   },
   {
     q: "아이가 실제로 학습하고 있는지 확인할 수 있나요?",

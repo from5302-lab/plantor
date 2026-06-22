@@ -3,9 +3,11 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import {
   solapiApiKey, solapiApiSecret, gmailUser, gmailAppPassword,
-  SERVICE_META, SITE_URL, BANK_NAME, BANK_ACCOUNT, BANK_HOLDER,
+  SITE_URL, BANK_NAME, BANK_ACCOUNT, BANK_HOLDER,
 } from "./config";
-import { sendSms, sendAdminEmail, serviceIconHtml, fmtWon, fmtDate, db } from "./utils";
+import { sendAlimtalk, sendAdminEmail, fmtWon, fmtDate, db } from "./utils";
+import { KAKAO_TEMPLATES } from "./config";
+import { loadServiceMeta, iconHtmlFromInfo } from "./service-meta-loader";
 
 // ─── 신청 접수 시 입금 안내 SMS ───────────────────────────────────────────────
 export const notifyNewSignup = onDocumentCreated(
@@ -32,6 +34,8 @@ export const notifyNewSignup = onDocumentCreated(
 
     if (!phone) return;
 
+    const meta = await loadServiceMeta();
+
     const lines: string[] = [
       `[플랜토] ${parentName}님, 신청해 주셔서 감사합니다 🌱`,
       ``,
@@ -40,13 +44,13 @@ export const notifyNewSignup = onDocumentCreated(
 
     (children ?? []).forEach((c) => {
       const svcNames = (c.selectedServices ?? [])
-        .map((slug) => SERVICE_META[slug]?.name ?? slug)
+        .map((slug) => meta.get(slug)?.name ?? slug)
         .join(", ");
       lines.push(`· ${c.name} (${c.grade}) — ${svcNames}`);
     });
 
     (parentServices ?? []).forEach((slug) => {
-      lines.push(`· ${SERVICE_META[slug]?.name ?? slug} (학부모)`);
+      lines.push(`· ${meta.get(slug)?.name ?? slug} (학부모)`);
     });
 
     const base = estimatedMonthly ?? 0;
@@ -72,15 +76,34 @@ export const notifyNewSignup = onDocumentCreated(
       `${BANK_ACCOUNT} (${BANK_HOLDER})`,
       ``,
       `입금 확인 후 안내드리겠습니다.`,
+      ``,
+      `※ 신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 자동으로 취소될 수 있어요. 입금이 어려우시면 편하게 말씀해 주세요 🌱`,
     );
 
     const smsText = lines.join("\n");
-    const normalizedPhone = phone.replace(/-/g, "");
+    const normalizedPhone = phone.replace(/\D/g, "");
+
+    // 알림톡 변수 구성
+    const detailLines: string[] = [];
+    (children ?? []).forEach((c) => {
+      const svcNames = (c.selectedServices ?? []).map((slug) => meta.get(slug)?.name ?? slug).join(", ");
+      detailLines.push(`· ${c.name} (${c.grade}) — ${svcNames}`);
+    });
+    (parentServices ?? []).forEach((slug) => {
+      detailLines.push(`· ${meta.get(slug)?.name ?? slug} (학부모)`);
+    });
 
     try {
-      await sendSms(normalizedPhone, smsText, solapiApiKey.value(), solapiApiSecret.value());
+      await sendAlimtalk(
+        normalizedPhone,
+        KAKAO_TEMPLATES.SIGNUP_PAYMENT,
+        { "#{parentName}": parentName, "#{details}": detailLines.join("\n"), "#{amount}": won },
+        smsText,
+        solapiApiKey.value(),
+        solapiApiSecret.value()
+      );
     } catch (e) {
-      console.error(`[notifyNewSignup] SMS 발송 실패 (${phone}):`, e);
+      console.error(`[notifyNewSignup] 발송 실패 (${phone}):`, e);
     }
 
     // 쿠폰 사용 즉시 처리 — 신청 접수 시점에 useCount/usedPhones 업데이트
@@ -114,11 +137,13 @@ export const notifyAdminOnSignup = onDocumentCreated(
       parentServices?: string[];
     };
 
+    const meta = await loadServiceMeta();
+
     const childRows = (children ?? []).map((c) => {
       const svcIcons = (c.selectedServices ?? []).map((slug: string) => {
-        const meta = SERVICE_META[slug];
+        const info = meta.get(slug);
         return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px">
-          ${serviceIconHtml(slug)}<span style="font-size:13px">${meta?.name ?? slug}</span></span>`;
+          ${iconHtmlFromInfo(info)}<span style="font-size:13px">${info?.name ?? slug}</span></span>`;
       }).join("");
       return `<div style="padding:10px 12px;background:#f5f5f5;border-radius:8px;margin-bottom:8px">
         <b>${c.name}</b> <span style="color:#888;font-size:13px">${c.grade}</span>
@@ -131,7 +156,7 @@ export const notifyAdminOnSignup = onDocumentCreated(
           <b style="color:#6b46c1">학부모 서비스</b>
           <div style="margin-top:6px">${(parentServices ?? []).map((slug) =>
             `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px">
-              <span style="font-size:13px">${SERVICE_META[slug]?.name ?? slug}</span></span>`
+              <span style="font-size:13px">${meta.get(slug)?.name ?? slug}</span></span>`
           ).join("")}</div>
         </div>`
       : "";
@@ -162,6 +187,30 @@ export const notifyAdminOnRenewal = onDocumentCreated(
     const familyId = req.familyId as string;
     if (!familyId) return;
 
+    // 동일 (familyId, childId, serviceSlug, status=pending) 중복 doc 청소.
+    // 같은 키의 pending이 여러 개면, 이 새 doc보다 오래된 것을 삭제하여
+    // 어드민 페이지 중복 표시 + 이메일 중복 항목을 방지.
+    try {
+      const requestId = event.params.requestId;
+      const myCreatedMs = (req.createdAt as admin.firestore.Timestamp | undefined)?.toMillis?.();
+      const childIdVal = req.childId ?? null;
+      const dupSnap = await db.collection("renewalRequests")
+        .where("familyId", "==", familyId)
+        .where("childId", "==", childIdVal)
+        .where("serviceSlug", "==", req.serviceSlug as string)
+        .where("status", "==", "pending")
+        .get();
+      for (const d of dupSnap.docs) {
+        if (d.id === requestId) continue;
+        const otherMs = (d.data().createdAt as admin.firestore.Timestamp | undefined)?.toMillis?.();
+        if (myCreatedMs != null && otherMs != null && otherMs < myCreatedMs) {
+          await d.ref.delete();
+        }
+      }
+    } catch (e) {
+      console.error(`[notifyAdminOnRenewal] 중복 doc 청소 실패 (family=${familyId}):`, e);
+    }
+
     // 중복 방지: 2분 이내 동일 familyId 메일 이미 발송됐으면 스킵
     const lockRef = db.doc(`renewalEmailLocks/${familyId}`);
     try {
@@ -183,7 +232,7 @@ export const notifyAdminOnRenewal = onDocumentCreated(
     try {
       const snap = await db.collection("families").doc(familyId).get();
       parentName = snap.data()?.parentName ?? familyId;
-      familyPhone = (snap.data()?.phone as string ?? "").replace(/-/g, "");
+      familyPhone = (snap.data()?.phone as string ?? "").replace(/\D/g, "");
     } catch { /* 무시 */ }
 
     // 쿠폰 사용 카운트 — 연장 신청 접수 시점에 즉시 반영 (admin 권한)
@@ -211,7 +260,7 @@ export const notifyAdminOnRenewal = onDocumentCreated(
     if (reqsSnap.empty) return;
 
     type ReqData = {
-      childName: string; serviceSlug: string; months: number;
+      childName: string; serviceSlug: string; serviceName?: string; months: number;
       finalAmount: number; totalPrice?: number;
       couponCode?: string; couponNote?: string; couponDiscount?: number;
       walletDiscount?: number; referralCode?: string; referralDiscount?: number;
@@ -223,9 +272,13 @@ export const notifyAdminOnRenewal = onDocumentCreated(
       year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
+    const meta = await loadServiceMeta();
+
     const rows = items.map((item) => {
-      const icon = serviceIconHtml(item.serviceSlug);
-      const name = SERVICE_META[item.serviceSlug]?.name ?? item.serviceSlug;
+      const info = meta.get(item.serviceSlug);
+      const icon = iconHtmlFromInfo(info);
+      // serviceOverrides 기반 동적 이름 우선, 그 다음 doc에 저장된 snapshot (rename 전 보호), 마지막 slug
+      const name = info?.name || item.serviceName || item.serviceSlug;
       const endStr = item.endDate ? fmtDate(item.endDate) : "";
       const newEndStr = item.newEndDate ? `<span style="color:#38a848;font-weight:600">${fmtDate(item.newEndDate)}</span>` : "";
       const dateRow = endStr ? `<div style="font-size:12px;color:#888;margin-top:4px">${endStr} → ${newEndStr}</div>` : "";
@@ -238,10 +291,12 @@ export const notifyAdminOnRenewal = onDocumentCreated(
       if (item.walletDiscount) discountParts.push(`쿠폰함 −${fmtWon(item.walletDiscount)}`);
       const discountRow = discountParts.length > 0
         ? `<div style="font-size:11px;color:#1a7f4b;margin-top:4px">${discountParts.join("  ")}</div>` : "";
+      const hasChild = !!item.childName && item.childName !== "null";
+      const label = hasChild ? `${item.childName} · ${name}` : `학부모 · ${name}`;
       return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px;background:#f5f7fa;border-radius:8px;margin-bottom:8px">
           <div>
-            <div style="font-size:14px;font-weight:600">${icon}${item.childName} · ${name}</div>
+            <div style="font-size:14px;font-weight:600">${icon}${label}</div>
             ${dateRow}
             ${discountRow}
           </div>
@@ -354,7 +409,14 @@ export async function sendDirectClassExpiryNotice(
         bankInfo: `3333 36 972 5919\n카카오뱅크 이충선`,
       });
 
-      await sendSms(parentPhone, text, apiKey, apiSecret);
+      await sendAlimtalk(
+        parentPhone,
+        KAKAO_TEMPLATES.DIRECT_CLASS_EXPIRY,
+        { "#{childNames}": studentNames, "#{amount}": tuition.toLocaleString("ko-KR") },
+        text,
+        apiKey,
+        apiSecret
+      );
     } catch {
       // 한 건 실패해도 계속
     }
@@ -433,14 +495,14 @@ export async function sendSubscriptionExpiryNotice(
   if (matching.length === 0) return 0;
 
   // familyId 기준 그룹핑
-  const grouped = new Map<string, Array<{ childId: string; serviceSlug: string; endDate: admin.firestore.Timestamp; docId: string }>>();
+  const grouped = new Map<string, Array<{ childId: string | null; serviceSlug: string; endDate: admin.firestore.Timestamp; docId: string }>>();
   for (const d of matching) {
     const data = d.data();
     const fid = data.familyId as string | undefined;
     if (!fid) continue; // familyId 없으면 스킵
     if (!grouped.has(fid)) grouped.set(fid, []);
     grouped.get(fid)!.push({
-      childId: data.childId as string,
+      childId: (data.childId as string | null | undefined) ?? null,
       serviceSlug: data.serviceSlug as string,
       endDate: data.endDate as admin.firestore.Timestamp,
       docId: d.id,
@@ -448,6 +510,7 @@ export async function sendSubscriptionExpiryNotice(
   }
 
   const tpl = await loadTemplate(`subscription_d${daysAhead}`, SUBSCRIPTION_FALLBACK);
+  const meta = await loadServiceMeta();
   let sentCount = 0;
 
   for (const [familyId, subs] of grouped) {
@@ -455,7 +518,7 @@ export async function sendSubscriptionExpiryNotice(
       const familySnap = await db.collection("families").doc(familyId).get();
       if (!familySnap.exists) continue;
       const family = familySnap.data()!;
-      const phone = (family.phone as string | undefined)?.replace(/-/g, "");
+      const phone = (family.phone as string | undefined)?.replace(/\D/g, "");
       if (!phone) continue;
 
       const parentName = (family.parentName as string) ?? "";
@@ -466,7 +529,11 @@ export async function sendSubscriptionExpiryNotice(
         parentId = (userSnap.data()?.plantor_id as string) ?? "";
       }
 
-      const childIds = [...new Set(subs.map((s) => s.childId))];
+      // childId가 null(학부모 본인 서비스)이거나 빈 문자열이면 children 조회 스킵.
+      // 과거 데이터 호환을 위해 "__parent__" sentinel도 함께 거름 (마이그레이션 완료 후 제거 가능).
+      const childIds = [...new Set(
+        subs.map((s) => s.childId).filter((c): c is string => typeof c === "string" && c.length > 0 && c !== "__parent__")
+      )];
       const childNames: string[] = [];
       for (const cid of childIds) {
         const cSnap = await db.collection("children").doc(cid).get();
@@ -474,7 +541,7 @@ export async function sendSubscriptionExpiryNotice(
       }
 
       const serviceNames = subs
-        .map((s) => SERVICE_META[s.serviceSlug]?.name ?? s.serviceSlug)
+        .map((s) => meta.get(s.serviceSlug)?.name ?? s.serviceSlug)
         .join(", ");
 
       const endDate = subs[0].endDate.toDate().toLocaleDateString("ko-KR");
@@ -490,10 +557,24 @@ export async function sendSubscriptionExpiryNotice(
         siteUrl: SITE_URL,
       });
 
-      await sendSms(phone, text, apiKey, apiSecret);
+      await sendAlimtalk(
+        phone,
+        KAKAO_TEMPLATES.SUBSCRIPTION_EXPIRY,
+        {
+          "#{parentName}": parentName,
+          "#{childNames}": childNames.filter(Boolean).join(", "),
+          "#{serviceNames}": serviceNames,
+          "#{endDate}": endDate,
+          "#{parentId}": parentId,
+        },
+        text,
+        apiKey,
+        apiSecret
+      );
       sentCount++;
-    } catch {
-      // 한 가족 실패해도 계속
+    } catch (e) {
+      // 한 가족 실패해도 계속 — 단, 추적 가능하도록 로깅
+      console.error(`[D${daysAhead}] family=${familyId} 발송 실패:`, (e as Error)?.message ?? e);
     }
   }
   return sentCount;
@@ -543,11 +624,19 @@ export const notifyParentOnScreenshot = onDocumentCreated(
     const phone = familySnap.data()!.phone as string | undefined;
     if (!phone) return;
 
-    const serviceName = SERVICE_META[log.serviceSlug as string]?.name ?? (log.serviceSlug as string);
+    const meta = await loadServiceMeta();
+    const serviceName = meta.get(log.serviceSlug as string)?.name ?? (log.serviceSlug as string);
     const smsText = `[플랜토] ${childName}이(가) ${serviceName} 학습을 완료했어요! 📚\n확인하기 👉 ${SITE_URL}/parent`;
 
     try {
-      await sendSms(phone, smsText, solapiApiKey.value(), solapiApiSecret.value());
-    } catch { /* SMS 실패해도 로그는 유지 */ }
+      await sendAlimtalk(
+        phone,
+        KAKAO_TEMPLATES.LEARNING_COMPLETE,
+        { "#{childName}": childName, "#{serviceName}": serviceName },
+        smsText,
+        solapiApiKey.value(),
+        solapiApiSecret.value()
+      );
+    } catch { /* 발송 실패해도 로그는 유지 */ }
   }
 );

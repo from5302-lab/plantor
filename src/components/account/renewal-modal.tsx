@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addDoc, collection, doc, getDoc, increment, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { SITE, SERVICES } from "@/data/site";
 import type { Service } from "@/data/site";
@@ -22,15 +22,6 @@ const RENEWAL_OPTIONS = [
   { months: 6, label: "6개월" },
   { months: 12, label: "12개월" },
 ];
-
-type CouponInfo = { code: string; discountType: "fixed" | "percent"; discountAmount: number; note: string };
-type ReferralInfo = { code: string; referrerId: string; referrerName: string };
-
-function calcDiscount(base: number, coupon: CouponInfo | null): number {
-  if (!coupon || base === 0) return 0;
-  if (coupon.discountType === "fixed") return Math.min(coupon.discountAmount, base);
-  return Math.round(base * coupon.discountAmount / 100);
-}
 
 function calcSubRenewalPrice(sub: Subscription, months: number): { base: number; orig: number } {
   const full = sub.monthlyPrice;
@@ -86,13 +77,6 @@ export function RenewalModal({
   const [monthsMap, setMonthsMap] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [codeValidating, setCodeValidating] = useState(false);
-  const [couponInfo, setCouponInfo] = useState<CouponInfo | null>(null);
-  const [referralInfo, setReferralInfo] = useState<ReferralInfo | null>(null);
-  const [codeError, setCodeError] = useState("");
-  const [walletOpen, setWalletOpen] = useState(false);
-  const [selectedWalletIds, setSelectedWalletIds] = useState<Set<string>>(new Set());
   const [newChildren, setNewChildren] = useState<NewChildEntry[]>([]);
   const [showNewChildForm, setShowNewChildForm] = useState(false);
   const [newChildError, setNewChildError] = useState("");
@@ -115,14 +99,6 @@ export function RenewalModal({
       return next;
     });
   }
-
-  const unusedWallet = walletCoupons.filter((c) => !c.used);
-  const selectedWalletPercent = Math.min(
-    Array.from(selectedWalletIds).reduce((sum, id) => {
-      return sum + (unusedWallet.find((c) => c.id === id)?.discountPercent ?? 0);
-    }, 0),
-    50
-  );
 
   const bankLine = `${SITE.bank.name} ${SITE.bank.account} (예금주: ${SITE.bank.holder})`;
 
@@ -193,10 +169,7 @@ export function RenewalModal({
   }
 
   const { base: baseAmount, orig: origAmount } = calcTotal();
-  const couponDiscount = calcDiscount(baseAmount, couponInfo);
-  const referralDiscount = referralInfo ? Math.round(baseAmount * 0.1) : 0;
-  const walletDiscount = Math.round(baseAmount * selectedWalletPercent / 100);
-  const finalAmount = baseAmount - couponDiscount - referralDiscount - walletDiscount;
+  const finalAmount = baseAmount;
   const newChildChecked = newChildren.reduce((s, nc) => s + nc.selectedServices.length, 0);
   const totalChecked = Array.from(checkedMap.values()).reduce((s, set) => s + set.size, 0) + checkedParent.size + newChildChecked;
 
@@ -218,32 +191,6 @@ export function RenewalModal({
     return totalChecked > 0;
   })();
 
-  async function handleValidateCode() {
-    const raw = codeInput.trim();
-    if (!raw) return;
-    setCodeValidating(true); setCodeError(""); setCouponInfo(null); setReferralInfo(null);
-    try {
-      const couponSnap = await getDoc(doc(db, "coupons", raw.toUpperCase()));
-      if (couponSnap.exists()) {
-        const data = couponSnap.data();
-        if (data.usedBy) { setCodeError("이미 사용된 쿠폰이에요."); return; }
-        if (data.maxUses && (data.useCount ?? 0) >= data.maxUses) { setCodeError("최대 사용 횟수에 도달한 쿠폰이에요."); return; }
-        if (data.expiresAt && (data.expiresAt as Timestamp).toDate() < new Date()) { setCodeError("쿠폰 사용기간이 만료되었습니다."); return; }
-        setCouponInfo({ code: raw.toUpperCase(), discountType: data.discountType, discountAmount: data.discountAmount, note: data.note ?? "" });
-        return;
-      }
-      const refSnap = await getDoc(doc(db, "referralCodes", raw.toLowerCase()));
-      if (refSnap.exists()) {
-        const data = refSnap.data();
-        if (data.familyId === target.familyId) { setCodeError("본인의 추천코드는 사용할 수 없어요."); return; }
-        setReferralInfo({ code: raw.toLowerCase(), referrerId: data.familyId ?? "", referrerName: data.referrerName ?? "" });
-        return;
-      }
-      setCodeError("존재하지 않는 코드예요.");
-    } catch (err) { setCodeError(err instanceof Error ? err.message : "코드 확인 중 오류가 발생했습니다."); }
-    finally { setCodeValidating(false); }
-  }
-
   async function handleSubmit() {
     if (!allMonthsSelected || submitting) return;
     for (let i = 0; i < newChildren.length; i++) {
@@ -257,18 +204,10 @@ export function RenewalModal({
     }
     setSubmitting(true);
     try {
-      const totalBase = baseAmount;
-      const walletIds = Array.from(selectedWalletIds);
-
       function makeRequest(base: number, overrides: Record<string, unknown>) {
-        const ratio = totalBase > 0 ? base / totalBase : 0;
         return addDoc(collection(db, "renewalRequests"), {
           familyId: target.familyId, amount: base,
-          couponCode: couponInfo?.code ?? null, couponNote: couponInfo?.note ?? null,
-          couponDiscount: Math.round(couponDiscount * ratio),
-          referralCode: referralInfo?.code ?? null, referralDiscount: Math.round(referralDiscount * ratio),
-          walletCouponIds: walletIds, walletDiscount: Math.round(walletDiscount * ratio),
-          finalAmount: base - Math.round(couponDiscount * ratio) - Math.round(referralDiscount * ratio) - Math.round(walletDiscount * ratio),
+          finalAmount: base,
           status: "pending", createdAt: serverTimestamp(),
           ...overrides,
         });
@@ -291,11 +230,14 @@ export function RenewalModal({
       checkedParent.forEach((slug) => {
         const months = getMonths(`parent:${slug}`)!;
         const svc = activeServices.find((s) => s.slug === slug);
-        const base = (svc?.pricePerMonth ?? 0) * months;
+        // 기존 학부모 sub 조회 (childId가 null/없음 + 같은 slug). 있으면 연장으로, 없으면 신규로.
+        const parentSub = target.allSubs.find((s) => !s.childId && s.serviceSlug === slug);
+        const base = parentSub ? calcSubRenewalPrice(parentSub, months).base : (svc?.pricePerMonth ?? 0) * months;
         requests.push(makeRequest(base, {
-          childId: null, subscriptionId: null, childName: null,
+          childId: null, subscriptionId: parentSub?.id ?? null, childName: null,
           serviceName: svc?.name ?? slug, serviceSlug: slug, months,
-          currentEndDate: null, isNew: true, isParentService: true,
+          currentEndDate: parentSub?.endDate ? Timestamp.fromDate(parentSub.endDate) : null,
+          isNew: !parentSub, isParentService: true,
         }));
       });
       newChildren.forEach((nc, idx) => {
@@ -311,8 +253,6 @@ export function RenewalModal({
         });
       });
       await Promise.all(requests);
-
-      // 쿠폰 사용 카운트는 Cloud Function(notifyAdminOnRenewal)에서 admin 권한으로 처리
 
       setDone(true);
     } catch (err) {
@@ -550,97 +490,6 @@ export function RenewalModal({
                   </div>
                 )}
 
-                {/* 할인코드 */}
-                <div>
-                  <div className="text-[11px] font-semibold text-p-muted mb-1.5 tracking-[0.06em]">할인코드</div>
-                  <div className="flex gap-1.5">
-                    <input
-                      value={codeInput}
-                      onChange={(e) => { setCodeInput(e.target.value); setCouponInfo(null); setReferralInfo(null); setCodeError(""); }}
-                      onKeyDown={(e) => e.key === "Enter" && handleValidateCode()}
-                      disabled={!!(couponInfo || referralInfo)}
-                      className="flex-1 px-2.5 py-2 rounded-[7px] text-[13px] font-mono outline-none bg-white box-border"
-                      style={{ border: (couponInfo || referralInfo) ? "1.5px solid #1a7f4b" : "1px solid rgba(0,0,0,0.1)" }}
-                    />
-                    {(couponInfo || referralInfo) ? (
-                      <button onClick={() => { setCouponInfo(null); setReferralInfo(null); setCodeInput(""); setCodeError(""); }} className="h-9 px-3 rounded-[7px] border border-black/10 bg-white text-[12px] text-p-muted cursor-pointer whitespace-nowrap">취소</button>
-                    ) : (
-                      <button
-                        onClick={handleValidateCode}
-                        disabled={!codeInput.trim() || codeValidating}
-                        className="h-9 px-3 rounded-[7px] border-0 bg-p-green text-white text-[12px] font-semibold whitespace-nowrap"
-                        style={{ cursor: !codeInput.trim() ? "default" : "pointer", opacity: !codeInput.trim() ? 0.5 : 1 }}
-                      >
-                        {codeValidating ? "확인 중…" : "적용"}
-                      </button>
-                    )}
-                  </div>
-                  {codeError && <div className="text-[12px] mt-[5px]" style={{ color: "#c00000" }}>{codeError}</div>}
-                  {couponInfo && <div className="mt-[5px] text-[12px] font-semibold" style={{ color: "#1a7f4b" }}>✓ 쿠폰 {couponInfo.discountType === "fixed" ? formatWon(couponInfo.discountAmount) : `${couponInfo.discountAmount}%`} 할인 적용됨</div>}
-                  {referralInfo && <div className="mt-[5px] text-[12px] font-semibold" style={{ color: "#1a7f4b" }}>✓ 추천인 {referralInfo.referrerName} — 10% 할인 적용됨</div>}
-                </div>
-
-                {/* 쿠폰함 */}
-                <div>
-                  <button
-                    onClick={() => unusedWallet.length > 0 && setWalletOpen((v) => !v)}
-                    className="w-full flex items-center justify-between px-3 py-[9px]"
-                    style={{
-                      borderRadius: walletOpen ? "8px 8px 0 0" : 8,
-                      border: walletOpen ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
-                      background: walletOpen ? "#f0f7ff" : "#f6f5f4",
-                      cursor: unusedWallet.length > 0 ? "pointer" : "default",
-                    }}
-                  >
-                    <span className="text-[12px] font-semibold" style={{ color: unusedWallet.length === 0 ? "#a39e98" : walletOpen ? "#38a848" : "#615d59" }}>
-                      🎟 쿠폰함
-                      {unusedWallet.length === 0
-                        ? <span className="ml-1.5 font-normal">보유 쿠폰 없음</span>
-                        : <span className="ml-1.5">{unusedWallet.length}장 보유{selectedWalletIds.size > 0 && <span className="ml-1.5" style={{ color: "#1a7f4b" }}>· −{selectedWalletPercent}% 적용 중</span>}</span>
-                      }
-                    </span>
-                    {unusedWallet.length > 0 && (
-                      <svg width="10" height="9" viewBox="0 0 10 9" style={{ color: "#a39e98", flexShrink: 0, transform: walletOpen ? "none" : "rotate(180deg)", transition: "transform 0.15s" }}>
-                        <polygon points="5,0 10,9 0,9" fill="currentColor" />
-                      </svg>
-                    )}
-                  </button>
-                  {walletOpen && unusedWallet.length > 0 && (
-                    <div className="border border-black/10 border-t-0 rounded-b-lg px-3 py-2 flex flex-col gap-1.5">
-                      <div className="text-[11px] text-p-muted mb-0.5">한 번에 최대 50%까지 적용 가능해요.</div>
-                      {unusedWallet.map((c) => {
-                        const isSelected = selectedWalletIds.has(c.id);
-                        const currentTotal = Array.from(selectedWalletIds).reduce((s, id) => s + (unusedWallet.find((w) => w.id === id)?.discountPercent ?? 0), 0);
-                        const wouldExceed = !isSelected && currentTotal + c.discountPercent > 50;
-                        return (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              if (wouldExceed) return;
-                              setSelectedWalletIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
-                                return next;
-                              });
-                            }}
-                            className="flex items-center gap-2 px-1 py-1.5"
-                            style={{ cursor: wouldExceed ? "default" : "pointer", opacity: wouldExceed ? 0.4 : 1 }}
-                          >
-                            <div
-                              className="flex items-center justify-center shrink-0"
-                              style={{ width: 16, height: 16, borderRadius: 4, border: isSelected ? "none" : "2px solid #a39e98", backgroundColor: isSelected ? "#38a848" : "transparent" }}
-                            >
-                              {isSelected && <span className="text-white text-[9px] font-extrabold">✓</span>}
-                            </div>
-                            <span className="flex-1 text-[12px] text-black/95">{c.note || "추천 보상 쿠폰"}</span>
-                            <span className="text-[12px] font-bold text-p-green">{c.discountPercent}% 할인</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
                 {/* 입금 안내 + 총액 */}
                 <div className="bg-p-bg rounded-lg px-[14px] py-3">
                   <div className="text-[11px] font-semibold text-p-muted mb-1 tracking-[0.06em]">입금 계좌</div>
@@ -650,21 +499,6 @@ export function RenewalModal({
                       {origAmount > baseAmount && (
                         <div className="flex justify-between text-[12px] text-p-muted">
                           <span>정가 합계</span><span className="line-through">{formatWon(origAmount)}</span>
-                        </div>
-                      )}
-                      {couponDiscount > 0 && (
-                        <div className="flex justify-between text-[12px]" style={{ color: "#1a7f4b" }}>
-                          <span>쿠폰 할인</span><span>−{formatWon(couponDiscount)}</span>
-                        </div>
-                      )}
-                      {referralDiscount > 0 && (
-                        <div className="flex justify-between text-[12px]" style={{ color: "#1a7f4b" }}>
-                          <span>추천인 할인 (10%)</span><span>−{formatWon(referralDiscount)}</span>
-                        </div>
-                      )}
-                      {walletDiscount > 0 && (
-                        <div className="flex justify-between text-[12px]" style={{ color: "#1a7f4b" }}>
-                          <span>쿠폰함 할인 ({selectedWalletPercent}%)</span><span>−{formatWon(walletDiscount)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-base font-extrabold text-p-green mt-0.5">
@@ -677,6 +511,8 @@ export function RenewalModal({
 
               <p className="text-[12px] text-p-muted text-center mb-1 leading-relaxed">
                 입금 확인 후 1~2영업일 내에 구독이 연장됩니다.
+                <br />
+                신청 후 24시간 이내 입금이 확인되지 않으면 신청이 취소될 수 있어요 🌱
               </p>
               <button
                 onClick={handleSubmit}

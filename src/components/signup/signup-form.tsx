@@ -5,16 +5,16 @@ import { T } from "@/lib/design-tokens";
 import { ChildInputRow, Field } from "./child-input-row";
 import { useSignupForm } from "./hooks/useSignupForm";
 import { useServices } from "@/lib/services-context";
+import { AuthModal } from "@/components/auth/auth-modal";
 
 export function SignupForm() {
   const { signupServices } = useServices();
+  const [loginOpen, setLoginOpen] = useState(false);
 
   const {
-    form, setForm, submitting, error, done,
-    codeInput, setCodeInput, codeValidating, couponInfo, referralInfo, codeError,
-    setCouponInfo, setReferralInfo, setCodeError,
+    form, setForm, submitting, error, existingMember, done,
     estimatedTotal, updateChild, toggleChildService, toggleParentService, addChild, removeChild,
-    handleValidateCode, handleSubmit,
+    handleSubmit,
   } = useSignupForm();
 
   const parentOnlyServices = signupServices.filter(
@@ -42,6 +42,11 @@ export function SignupForm() {
           입금자명은 신청 시 입력하신 부모님 성함과 동일하게 보내주세요.
           <br />
           학습은 신청 다음 달 1일부터 시작됩니다.
+        </p>
+        <p className="mt-4 rounded-lg bg-[#fffaf0] border border-[rgba(180,120,0,0.15)] px-4 py-3 text-xs leading-[1.7] text-[#8a6d00]">
+          신청 후 <strong>24시간 이내</strong>에 입금이 확인되지 않으면 신청이 자동으로 취소될 수 있어요.
+          <br />
+          입금이 어려우시면 편하게 말씀해 주세요 🌱
         </p>
       </div>
     );
@@ -156,55 +161,9 @@ export function SignupForm() {
 
           {estimatedTotal > 0 && (
             <div className="mt-3 rounded-lg bg-p-bg px-3.5 py-2.5 text-[13px] text-p-secondary">
-              {(() => {
-                const couponDisc = couponInfo
-                  ? couponInfo.discountType === "fixed" ? Math.min(couponInfo.discountAmount, estimatedTotal) : Math.round(estimatedTotal * couponInfo.discountAmount / 100)
-                  : 0;
-                const refDisc = referralInfo ? Math.round(estimatedTotal * 0.1) : 0;
-                const totalDisc = couponDisc + refDisc;
-                const final = estimatedTotal - totalDisc;
-                return <>
-                  예상 월 결제액 합계:{" "}
-                  {totalDisc > 0 ? <>
-                    <span className="line-through text-p-muted">₩{estimatedTotal.toLocaleString()}</span>
-                    {" "}<strong className="text-[#1a7f4b] font-bold">₩{final.toLocaleString()}</strong>
-                    {couponDisc > 0 && <span className="text-[11px] text-[#1a7f4b]"> (−₩{couponDisc.toLocaleString()} 쿠폰 할인)</span>}
-                    {refDisc > 0 && <span className="text-[11px] text-[#1a7f4b]"> (−₩{refDisc.toLocaleString()} 추천 할인)</span>}
-                  </> : <strong className="text-black/95 font-bold">₩{estimatedTotal.toLocaleString()}</strong>}
-                </>;
-              })()}
+              예상 월 결제액 합계: <strong className="text-black/95 font-bold">₩{estimatedTotal.toLocaleString()}</strong>
             </div>
           )}
-
-          {/* 할인코드 / 추천인 */}
-          {(() => {
-            const applied = !!couponInfo || !!referralInfo;
-            return (
-              <div className="mt-3">
-                <label className="text-[10px] font-bold tracking-[0.1em] uppercase text-p-muted block mb-1.5">할인코드</label>
-                <div className="flex gap-1.5">
-                  <input
-                    value={codeInput}
-                    onChange={(e) => { setCodeInput(e.target.value); setCouponInfo(null); setReferralInfo(null); setCodeError(""); }}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleValidateCode())}
-                    disabled={applied}
-                    className="flex-1 px-2.5 py-[9px] rounded-md text-[13px] font-mono outline-none bg-white box-border"
-                    style={{ border: applied ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.15)" }}
-                  />
-                  {applied ? (
-                    <button type="button" onClick={() => { setCouponInfo(null); setReferralInfo(null); setCodeInput(""); setCodeError(""); }} className="h-[38px] px-3 rounded-md border border-black/[0.15] bg-white text-xs text-p-secondary cursor-pointer">취소</button>
-                  ) : (
-                    <button type="button" onClick={handleValidateCode} disabled={!codeInput.trim() || codeValidating} className="h-[38px] px-3.5 rounded-md border-none bg-p-green text-white text-xs font-semibold" style={{ cursor: !codeInput.trim() ? "default" : "pointer", opacity: !codeInput.trim() ? 0.5 : 1 }}>
-                      {codeValidating ? "확인 중…" : "적용"}
-                    </button>
-                  )}
-                </div>
-                {codeError && <div className="text-xs text-[#c00000] mt-1.5">{codeError}</div>}
-                {couponInfo && <div className="text-xs text-[#1a7f4b] font-semibold mt-1.5">✓ {couponInfo.discountType === "fixed" ? `₩${couponInfo.discountAmount.toLocaleString()}` : `${couponInfo.discountAmount}%`} 할인 쿠폰이 적용되었습니다.</div>}
-                {referralInfo && <div className="text-xs text-[#1a7f4b] font-semibold mt-1.5">✓ {referralInfo.referrerName}님 추천 · 10% 할인 적용</div>}
-              </div>
-            );
-          })()}
         </fieldset>
 
         <div className="my-6 h-px bg-black/[0.07]" />
@@ -229,6 +188,15 @@ export function SignupForm() {
         {error && (
           <div className="mt-4 rounded bg-[#fff5f5] border border-[rgba(200,0,0,0.15)] px-3.5 py-2.5 text-[13px] text-[#c00000]">
             {error}
+            {existingMember && (
+              <button
+                type="button"
+                onClick={() => setLoginOpen(true)}
+                className="mt-2.5 w-full rounded bg-p-green py-2.5 text-[13px] font-bold text-white border-none cursor-pointer"
+              >
+                로그인하고 연장신청하기
+              </button>
+            )}
           </div>
         )}
 
@@ -241,6 +209,7 @@ export function SignupForm() {
           {submitting ? "신청 중…" : "신청하기"}
         </button>
       </form>
+      {loginOpen && <AuthModal onClose={() => setLoginOpen(false)} />}
     </>
   );
 }
