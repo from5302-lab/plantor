@@ -45,7 +45,7 @@ export function buildPaymentGuide(signup: Pick<Signup,
   lines.push("");
   lines.push("입금 확인 후 안내드리겠습니다.");
   lines.push("");
-  lines.push("※ 신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 자동으로 취소될 수 있어요. 입금이 어려우시면 편하게 말씀해 주세요 🌱");
+  lines.push("※ 신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 취소될 수 있어요.");
   lines.push("멤버십 오픈톡방: https://open.kakao.com/o/gs9aP64h");
 
   return lines.join("\n");

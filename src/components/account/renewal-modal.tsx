@@ -512,7 +512,7 @@ export function RenewalModal({
               <p className="text-[12px] text-p-muted text-center mb-1 leading-relaxed">
                 입금 확인 후 1~2영업일 내에 구독이 연장됩니다.
                 <br />
-                신청 후 24시간 이내 입금이 확인되지 않으면 신청이 취소될 수 있어요 🌱
+                신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 취소될 수 있어요.
               </p>
               <button
                 onClick={handleSubmit}

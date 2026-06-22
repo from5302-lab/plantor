@@ -44,9 +44,7 @@ export function SignupForm() {
           학습은 신청 다음 달 1일부터 시작됩니다.
         </p>
         <p className="mt-4 rounded-lg bg-[#fffaf0] border border-[rgba(180,120,0,0.15)] px-4 py-3 text-xs leading-[1.7] text-[#8a6d00]">
-          신청 후 <strong>24시간 이내</strong>에 입금이 확인되지 않으면 신청이 자동으로 취소될 수 있어요.
-          <br />
-          입금이 어려우시면 편하게 말씀해 주세요 🌱
+          신청 후 <strong>24시간 이내</strong>에 입금이 확인되지 않으면 신청이 취소될 수 있어요.
         </p>
       </div>
     );
