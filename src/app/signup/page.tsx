@@ -4,7 +4,7 @@ import { SignupForm } from "@/components/signup/signup-form";
 export const metadata: Metadata = {
   title: "신청하기 — Plantor",
   description:
-    "Plantor 학습 프로그램 신청 폼. 부모/자녀 정보와 원하는 서비스를 선택하면 문자로 안내드립니다.",
+    "Plantor 학습 프로그램 신청 폼. 부모/자녀 정보와 원하는 서비스를 선택하면 카카오톡으로 안내드립니다.",
 };
 
 export default function SignupPage() {

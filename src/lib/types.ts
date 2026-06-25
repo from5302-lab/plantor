@@ -9,6 +9,7 @@ export type SignupChild = {
   grade: string;
   loginId: string;
   selectedServices: string[];
+  serviceMonths?: Record<string, number>;
 };
 
 export type Signup = {
@@ -29,6 +30,8 @@ export type Signup = {
   referrerId?: string | null;
   referralDiscount?: number;
   parentServices?: string[];
+  parentServiceMonths?: Record<string, number>;
+  depositTotal?: number;
 };
 
 // ── 가족 / 자녀 / 구독 ────────────────────────────────────────────────────────
@@ -43,7 +46,8 @@ export type Child = {
 export type Subscription = {
   id: string;
   familyId?: string;
-  childId: string;
+  /** 자녀 ID. null이면 학부모 본인 서비스 (great-books 등). */
+  childId: string | null;
   serviceSlug: string;
   monthlyPrice: number;
   status: string;
@@ -201,9 +205,14 @@ export type Task = {
   id: string;
   childId: string;
   serviceSlug: string;
+  partSlug: string | null;       // 서비스 내 세부 파트 (null이면 서비스 전체)
   title: string;
   scheduleDays: number[];        // 0=월 ~ 6=일
   externalUrl: string | null;
+  progressLabel: string | null;  // 오토보카용 "3권 12유닛" 등
+  level: number | null;          // 클래스5 레벨 (Lv.1~7)
+  setName: string | null;        // 클래스5 세트명 (교재)
+  deleteRequested: boolean;      // 학생 삭제 요청
   order: number;
   active: boolean;
   createdBy: "student" | "admin";
@@ -212,3 +221,37 @@ export type Task = {
   createdAt: Date | null;
   confirmedAt: Date | null;
 };
+
+// ── 과제 검사 결과 (co-work 에이전트 + 학생 사유) ─────────────────────────────
+
+export type TaskCheckStatus = "done" | "not_done" | "error";
+
+export type TaskCheck = {
+  id: string;
+  taskId: string;
+  childId: string;
+  date: string;                  // YYYY-MM-DD
+  status: TaskCheckStatus;
+  detail: string | null;         // 에이전트가 남기는 메모
+  reason: string | null;         // 6Hdl slug (미완료 시 학생 선택)
+  reasonNote: string | null;     // 추가 메모 (선택)
+  checkedBy: "agent" | "student" | "admin";
+  checkedAt: Date | null;
+};
+
+// ── 6Hdl self-assessment ──────────────────────────────────────────────────────
+
+export type Reason6Hdl = {
+  slug: string;
+  name: string;
+  icon: string;
+};
+
+export const REASONS_6HDL: Reason6Hdl[] = [
+  { slug: "goal", name: "목표의식", icon: "🎯" },
+  { slug: "desire", name: "욕구통제", icon: "🎮" },
+  { slug: "time", name: "시간관리", icon: "⏰" },
+  { slug: "health", name: "건강관리", icon: "💪" },
+  { slug: "environment", name: "학습환경", icon: "🏠" },
+  { slug: "relation", name: "인간관계", icon: "👥" },
+];

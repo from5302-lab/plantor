@@ -1,9 +1,73 @@
 import * as admin from "firebase-admin";
+import * as functions from "firebase-functions/v2";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { solapiApiKey, solapiApiSecret, SITE_URL } from "./config";
-import { assertAdmin, idToEmail, sendSms, db, auth } from "./utils";
+import { solapiApiKey, solapiApiSecret, SITE_URL, KAKAO_TEMPLATES, ADMIN_EMAILS } from "./config";
+import { assertAdmin, idToEmail, sendAlimtalk, sendSms, db, auth } from "./utils";
 
-// 학부모 + 자녀 계정 생성 + SMS 발송 (승인 시)
+// ─────────────────────────────────────────────────────────
+// claimAdminRole — 부트스트랩용 self-bootstrap claim 부여.
+//   - 이미 token.admin === true 면 그대로 ok (멱등).
+//   - 그 외에는 ADMIN_EMAILS 에 포함된 이메일로 인증된 사용자만 자기 자신에게 admin claim 부여 가능.
+//   - 클라이언트는 호출 후 firebaseUser.getIdToken(true) 로 강제 새로고침해야 claim 반영됨.
+// 점진 전환이 끝나 ADMIN_EMAILS 가 비워지면 이 함수도 제거하고,
+// 이후 신규 admin 추가는 기존 admin 이 호출하는 별도 onCall 로 옮긴다.
+// ─────────────────────────────────────────────────────────
+export const claimAdminRole = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  if (request.auth.token.admin === true) {
+    return { ok: true, already: true };
+  }
+  const email = request.auth.token.email ?? "";
+  if (!ADMIN_EMAILS.includes(email)) {
+    throw new HttpsError("permission-denied", "관리자 이메일이 아닙니다.");
+  }
+  await auth.setCustomUserClaims(request.auth.uid, { admin: true });
+  functions.logger.info("[claimAdminRole] admin claim 부여 완료", { uid: request.auth.uid, email });
+  return { ok: true, already: false };
+});
+
+// 서비스 가격 정보 (서버 사이드 — site.ts와 동기화 필요)
+const SERVICE_PRICING: Record<string, { pricePerMonth: number; agencyFee: number }> = {
+  dailykor: { pricePerMonth: 33000, agencyFee: 22000 },
+  autovoca: { pricePerMonth: 5000, agencyFee: 0 },
+  class5: { pricePerMonth: 15000, agencyFee: 6000 },
+  "classcard-middle": { pricePerMonth: 15000, agencyFee: 4000 },
+  "vibe-coding": { pricePerMonth: 150000, agencyFee: 0 },
+  "great-books": { pricePerMonth: 11000, agencyFee: 0 },
+};
+
+/** 구독 종료일 = base(또는 now) 기준 +months개월의 말일. 연장(calcNewEndDate)과 동일 로직. */
+function monthsEndDate(currentEndDate: Date | null, months: number, now: Date): Date {
+  const base = currentEndDate && currentEndDate > now ? currentEndDate : now;
+  return new Date(base.getFullYear(), base.getMonth() + months + 1, 0);
+}
+
+function toDateStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Auth 계정 생성 또는 기존 계정 조회. 실패 시 throw. */
+async function getOrCreateAuthUser(
+  email: string, password: string, displayName: string
+): Promise<string> {
+  try {
+    const user = await auth.createUser({ email, password, displayName });
+    return user.uid;
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err.code === "auth/email-already-exists") {
+      const existing = await auth.getUserByEmail(email);
+      return existing.uid;
+    }
+    throw e;
+  }
+}
+
+// 학부모 + 자녀 계정 생성 + 가족/구독 생성 + SMS 발송 (승인 시)
+// Auth + Firestore를 원자적으로 처리하여 불일치 방지
 export const approveSignup = onCall(
   { secrets: [solapiApiKey, solapiApiSecret] },
   async (request) => {
@@ -14,62 +78,101 @@ export const approveSignup = onCall(
     if (!snap.exists) throw new HttpsError("not-found", "신청서를 찾을 수 없습니다.");
 
     const signup = snap.data()!;
-    const { parentId, password, parentName, phone, children, parentServices } = signup as {
+    // 이중 승인 방지: 이미 승인된 신청서면 중단 (가족/자녀/구독 중복 생성 차단)
+    if (signup.status === "confirmed") {
+      throw new HttpsError("failed-precondition", "이미 승인된 신청서입니다.");
+    }
+    const { parentId, password, parentName, phone, children, parentServices, parentServiceMonths } = signup as {
       parentId: string;
       password: string;
       parentName: string;
       phone: string;
-      children: Array<{ name: string; loginId: string; grade: string; selectedServices: string[] }>;
+      children: Array<{ name: string; loginId: string; grade: string; selectedServices: string[]; serviceMonths?: Record<string, number> }>;
       parentServices?: string[];
+      parentServiceMonths?: Record<string, number>;
     };
 
-    // 학부모 계정 생성
-    let parentUid: string;
-    try {
-      const parentUser = await auth.createUser({
-        email: idToEmail(parentId),
-        password,
-        displayName: parentName,
-      });
-      parentUid = parentUser.uid;
-    } catch (e: unknown) {
-      const err = e as { code?: string };
-      if (err.code === "auth/email-already-exists") {
-        const existing = await auth.getUserByEmail(idToEmail(parentId));
-        parentUid = existing.uid;
-      } else {
-        throw e;
-      }
+    // ── 1. Auth 계정 생성 (실패 시 즉시 중단) ──
+    const parentUid = await getOrCreateAuthUser(
+      idToEmail(parentId), password, parentName
+    );
+
+    const childAuthUids: Array<{ loginId: string; uid: string; name: string; grade: string; selectedServices: string[]; serviceMonths?: Record<string, number> }> = [];
+    for (const child of children) {
+      const childUid = await getOrCreateAuthUser(
+        idToEmail(child.loginId), "012345", child.name
+      );
+      childAuthUids.push({ ...child, uid: childUid });
     }
 
-    await db.collection("users").doc(parentUid).set({
+    // ── 2. Firestore 일괄 생성 (batch로 원자적 처리) ──
+    const batch = db.batch();
+
+    // 2-1. users 문서 (parent)
+    batch.set(db.collection("users").doc(parentUid), {
       name: parentName,
       plantor_id: parentId.toLowerCase(),
       role: "parent",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    // 자녀 계정 생성
-    for (const child of children) {
-      let childUid: string;
-      try {
-        const childUser = await auth.createUser({
-          email: idToEmail(child.loginId),
-          password,
-          displayName: child.name,
-        });
-        childUid = childUser.uid;
-      } catch (e: unknown) {
-        const err = e as { code?: string };
-        if (err.code === "auth/email-already-exists") {
-          const existing = await auth.getUserByEmail(idToEmail(child.loginId));
-          childUid = existing.uid;
-        } else {
-          throw e;
-        }
-      }
+    // 2-2. 기존 가족 확인 (머지 케이스)
+    const existingFamilySnap = await db.collection("families")
+      .where("userId", "==", parentUid).limit(1).get();
+    const isNewFamily = existingFamilySnap.empty;
+    let familyId: string;
 
-      await db.collection("users").doc(childUid).set({
+    if (isNewFamily) {
+      // 2-3. families 문서 생성 (결정적 ID = parentUid → 동시 이중승인 시 중복 차단)
+      const familyRef = db.collection("families").doc(parentUid);
+      familyId = familyRef.id;
+      batch.set(familyRef, {
+        parentName,
+        phone,
+        signupId,
+        userId: parentUid,
+        parentPlantorId: parentId.toLowerCase(),
+        couponCode: signup.couponCode ?? null,
+        couponDiscount: signup.couponDiscount ?? 0,
+        referralCode: signup.referralCode ?? null,
+        referrerId: signup.referrerId ?? null,
+        referralDiscount: signup.referralDiscount ?? 0,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // referralCodes 문서
+      if (parentId) {
+        batch.set(db.collection("referralCodes").doc(parentId.toLowerCase()), {
+          familyId,
+          referrerName: parentName,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    } else {
+      familyId = existingFamilySnap.docs[0].id;
+    }
+
+    const now = new Date();
+
+    // AI 패키지 endDate — admin이 momsaipackEndDate를 넘기면 그대로, 없으면 개월수 기반 계산
+    const hasAiPack = (parentServices ?? []).includes("momsaipack");
+    if (hasAiPack) {
+      const aiEnd = momsaipackEndDate ?? toDateStr(monthsEndDate(null, parentServiceMonths?.momsaipack ?? 1, now));
+      batch.update(db.collection("families").doc(familyId), { aiPackageEndDate: aiEnd });
+      batch.set(db.collection("users").doc(parentUid), { aiPackageEndDate: aiEnd }, { merge: true });
+    }
+
+    // 2-4. children + users + subscriptions
+    const childIds: string[] = [];
+    const loginIdToChildRef = new Map<string, string>();
+    let mergeCache: {
+      childByLoginId: Map<string, FirebaseFirestore.QueryDocumentSnapshot>;
+      subsByChildAndSlug: Map<string, FirebaseFirestore.QueryDocumentSnapshot>;
+    } | null = null;
+
+    for (const child of childAuthUids) {
+      // users 문서 (child)
+      batch.set(db.collection("users").doc(child.uid), {
         name: child.name,
         plantor_id: child.loginId.toLowerCase(),
         role: "student",
@@ -78,42 +181,215 @@ export const approveSignup = onCall(
         selectedServices: child.selectedServices,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
+
+      if (isNewFamily) {
+        const normalizedId = child.loginId.toLowerCase();
+        let childDocId = loginIdToChildRef.get(normalizedId);
+
+        if (!childDocId) {
+          // children 문서 — authUid 포함
+          const childRef = db.collection("children").doc(child.uid);
+          childDocId = childRef.id;
+          loginIdToChildRef.set(normalizedId, childDocId);
+          batch.set(childRef, {
+            familyId,
+            userId: parentUid,
+            authUid: child.uid,
+            name: child.name,
+            grade: child.grade,
+            loginId: normalizedId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        childIds.push(childDocId);
+
+        // subscriptions
+        for (const slug of child.selectedServices) {
+          const pricing = SERVICE_PRICING[slug];
+          if (!pricing) continue;
+          const subEnd = monthsEndDate(null, child.serviceMonths?.[slug] ?? 1, now);
+          const subRef = db.collection("subscriptions").doc(`${childDocId}_${slug}`);
+          batch.set(subRef, {
+            familyId,
+            childId: childDocId,
+            serviceSlug: slug,
+            monthlyPrice: pricing.pricePerMonth,
+            agencyFee: pricing.agencyFee,
+            status: "active",
+            startDate: admin.firestore.Timestamp.fromDate(now),
+            endDate: admin.firestore.Timestamp.fromDate(subEnd),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      } else {
+        // 머지 케이스: 기존 자녀/구독을 한 번에 조회 (첫 자녀에서만)
+        if (!mergeCache) {
+          const [childrenSnap, subsSnap] = await Promise.all([
+            db.collection("children").where("familyId", "==", familyId).get(),
+            db.collection("subscriptions").where("familyId", "==", familyId).get(),
+          ]);
+          mergeCache = {
+            childByLoginId: new Map(childrenSnap.docs.map(d => [d.data().loginId as string, d])),
+            subsByChildAndSlug: new Map(subsSnap.docs.map(d => [`${d.data().childId}:${d.data().serviceSlug}`, d])),
+          };
+        }
+
+        const normalizedId = child.loginId.toLowerCase();
+        const existingChild = mergeCache.childByLoginId.get(normalizedId);
+
+        let childDocId: string;
+        if (existingChild) {
+          childDocId = existingChild.id;
+          batch.update(db.collection("children").doc(childDocId), { authUid: child.uid });
+        } else {
+          const childRef = db.collection("children").doc(child.uid);
+          childDocId = childRef.id;
+          batch.set(childRef, {
+            familyId,
+            userId: parentUid,
+            authUid: child.uid,
+            name: child.name,
+            grade: child.grade,
+            loginId: normalizedId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        childIds.push(childDocId);
+
+        for (const slug of child.selectedServices) {
+          const existingSub = mergeCache.subsByChildAndSlug.get(`${childDocId}:${slug}`);
+          const months = child.serviceMonths?.[slug] ?? 1;
+
+          if (existingSub) {
+            const currentEnd = (existingSub.data().endDate as admin.firestore.Timestamp)?.toDate() ?? null;
+            const newEnd = monthsEndDate(currentEnd, months, now);
+            batch.update(existingSub.ref, {
+              endDate: admin.firestore.Timestamp.fromDate(newEnd),
+              status: "active",
+            });
+          } else {
+            const pricing = SERVICE_PRICING[slug];
+            if (!pricing) continue;
+            const subEnd = monthsEndDate(null, months, now);
+            const subRef = db.collection("subscriptions").doc(`${childDocId}_${slug}`);
+            batch.set(subRef, {
+              familyId,
+              childId: childDocId,
+              serviceSlug: slug,
+              monthlyPrice: pricing.pricePerMonth,
+              agencyFee: pricing.agencyFee,
+              status: "active",
+              startDate: admin.firestore.Timestamp.fromDate(now),
+              endDate: admin.firestore.Timestamp.fromDate(subEnd),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
     }
 
-    // 비밀번호 즉시 삭제 (보안) + 승인 시각 기록
-    await db.collection("signups").doc(signupId).update({
+    // 학부모 서비스 구독 (childId: null). momsaipack은 위에서 aiPackageEndDate로 처리하므로 제외.
+    for (const slug of (parentServices ?? [])) {
+      if (slug === "momsaipack") continue;
+      const pricing = SERVICE_PRICING[slug];
+      if (!pricing) continue;
+      const months = parentServiceMonths?.[slug] ?? 1;
+
+      // 머지 케이스: 기존 학부모 sub(childId=null, 같은 slug)가 있으면 연장
+      let existingParentSub: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      if (!isNewFamily) {
+        const snap = await db.collection("subscriptions")
+          .where("familyId", "==", familyId)
+          .where("serviceSlug", "==", slug)
+          .where("childId", "==", null)
+          .limit(1).get();
+        if (!snap.empty) existingParentSub = snap.docs[0];
+      }
+
+      if (existingParentSub) {
+        const currentEnd = (existingParentSub.data().endDate as admin.firestore.Timestamp)?.toDate() ?? null;
+        const newEnd = monthsEndDate(currentEnd, months, now);
+        batch.update(existingParentSub.ref, {
+          endDate: admin.firestore.Timestamp.fromDate(newEnd),
+          status: "active",
+        });
+      } else {
+        const subEnd = monthsEndDate(null, months, now);
+        const subRef = db.collection("subscriptions").doc();
+        batch.set(subRef, {
+          familyId,
+          childId: null,
+          serviceSlug: slug,
+          monthlyPrice: pricing.pricePerMonth,
+          agencyFee: pricing.agencyFee,
+          status: "active",
+          startDate: admin.firestore.Timestamp.fromDate(now),
+          endDate: admin.firestore.Timestamp.fromDate(subEnd),
+          discount: 0,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    // 추천 보상
+    if (signup.referrerId && signup.referralCode) {
+      const referrerFamilySnap = await db.collection("families").doc(signup.referrerId as string).get();
+      const referrerName = referrerFamilySnap.exists ? (referrerFamilySnap.data()!.parentName ?? "") : "";
+      const walletRef = db.collection("families").doc(signup.referrerId as string)
+        .collection("couponWallet").doc(signupId);
+      batch.set(walletRef, {
+        discountPercent: 10,
+        note: `${parentName} 추천 보상`,
+        used: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      const referralRef = db.collection("referrals").doc(signupId);
+      batch.set(referralRef, {
+        referrerId: signup.referrerId,
+        referrerName,
+        referralCode: signup.referralCode,
+        refereeSignupId: signupId,
+        refereeName: parentName,
+        refereeFamilyId: familyId,
+        referralDiscount: signup.referralDiscount ?? 0,
+        rewardAmount: 0,
+        status: "rewarded",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        rewardedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 2-5. signup 상태 갱신
+    batch.update(db.collection("signups").doc(signupId), {
+      status: "confirmed",
+      convertedFamilyId: familyId,
       password: admin.firestore.FieldValue.delete(),
       confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // 쿠폰 useCount/usedPhones는 notifyNewSignup 트리거에서 신청 접수 시점에 이미 처리됨
+    // ── 3. Batch 커밋 (원자적) ──
+    await batch.commit();
 
-    // 서비스별 접속 링크 조회
+    // ── 4. SMS 발송 (실패해도 OK — 위 batch는 이미 커밋됨) ──
+    const DEFAULT_URLS: Record<string, { name: string; studentUrl?: string; parentUrl?: string }> = {
+      "dailykor": { name: "매일국어", studentUrl: "https://www.dailykor.com/front", parentUrl: "https://www.dailykor.com/academy" },
+      "autovoca": { name: "오토보카", studentUrl: "https://www.autovoca.co.kr/" },
+      "class5": { name: "클래스5", studentUrl: "https://play.class5.co.kr/", parentUrl: "https://www.class5.co.kr/login" },
+      "classcard-middle": { name: "클래스카드", studentUrl: "https://www.classcard.net/" },
+      "vibe-coding": { name: "바이브코딩", studentUrl: "https://coken-vibe.web.app/" },
+    };
     const allSlugs = [...new Set(children.flatMap((c) => c.selectedServices))];
     const svcDocs = await Promise.all(
       allSlugs.map((slug) => db.collection("serviceOverrides").doc(slug).get())
     );
     const svcMap: Record<string, { name?: string; studentUrl?: string; parentUrl?: string }> = {};
-    svcDocs.forEach((d, i) => {
-      if (d.exists) svcMap[allSlugs[i]] = d.data() as { name?: string; studentUrl?: string; parentUrl?: string };
+    allSlugs.forEach((slug, i) => {
+      const defaults = DEFAULT_URLS[slug] ?? {};
+      const overrides = svcDocs[i].exists ? svcDocs[i].data() as Record<string, string> : {};
+      svcMap[slug] = { ...defaults, ...overrides };
     });
 
-    // 자녀별 아이디 + 서비스 접속 링크
-    const childBlocks = children.map((c) => {
-      const lines = [`자녀 아이디: ${c.loginId}`];
-      const urlSet = new Map<string, { studentUrl?: string; parentUrl?: string; name?: string }>();
-      c.selectedServices.forEach((slug) => {
-        const svc = svcMap[slug];
-        if (svc?.studentUrl || svc?.parentUrl) urlSet.set(slug, svc);
-      });
-      urlSet.forEach((svc) => {
-        if (svc.studentUrl) lines.push(`학생 접속: ${svc.studentUrl}`);
-        if (svc.parentUrl) lines.push(`학부모 접속: ${svc.parentUrl}`);
-      });
-      return lines.join("\n");
-    });
-
-    const hasAiPack = (parentServices ?? []).includes("momsaipack");
+    const hasClass5 = children.some((c) => c.selectedServices.includes("class5"));
     const aiPackBlock: string[] = hasAiPack ? (() => {
       const lines = [
         ``,
@@ -124,32 +400,112 @@ export const approveSignup = onCall(
         const [y, m, d] = momsaipackEndDate.split("-");
         lines.push(`이용 기간: ~${y}.${m}.${d}`);
       }
-      lines.push(``, `👉 ${SITE_URL} 로그인 후`, `상단 [AI 패키지] 탭을 확인해 주세요!`);
+      lines.push(``, `👉 로그인 후 상단 [AI 패키지] 탭을 확인해 주세요!`);
       return lines;
     })() : [];
 
-    const smsLines = [
+    const extraLines: string[] = [];
+    if (hasClass5) {
+      extraLines.push(
+        `클래스5 레벨테스트를 먼저 해보시고 결과를 공유해주시면 추천진도를 짜드립니다!`,
+        `https://www.alist.co.kr/leveltest/all_skill.asp`,
+      );
+    }
+    if (aiPackBlock.length > 0) extraLines.push(...aiPackBlock);
+    extraLines.push(
+      ``,
+      `📢 카카오톡 '플랜토' 채널을 추가해 주세요!`,
+      `추가하시면 학습 알림과 만료 안내를 카카오톡으로 편하게 받아보실 수 있어요.`,
+      `https://pf.kakao.com/_xlxgxdTX`,
+    );
+    extraLines.push(``, `[Mom&] 맘이랑 멤버십 오픈톡방`, `https://open.kakao.com/o/gs9aP64h`);
+
+    const smsText = [
       `[플랜토] ${parentName}님, 가입이 승인됐어요!`,
-      ``,
-      `학부모 아이디: ${parentId}`,
-      `비밀번호: ${password}`,
-      ...(childBlocks.length > 0 ? [``, ...childBlocks] : []),
-      ...aiPackBlock,
-      ``,
-      `[Mom&] 맘이랑 멤버십 오픈톡방`,
-      `https://open.kakao.com/o/gs9aP64h`,
-    ];
-    const smsText = smsLines.join("\n");
+      ``, `👉 ${SITE_URL}`, `아이디: ${parentId} / 비번: 012345`,
+      ``, `로그인 후 학습 사이트 접속과 자녀 학습 현황을 확인하실 수 있어요.`,
+      ...extraLines,
+    ].join("\n");
 
     try {
-      await sendSms(phone, smsText, solapiApiKey.value(), solapiApiSecret.value());
-    } catch {
-      // SMS 실패해도 승인은 완료
+      await sendSms(
+        phone,
+        smsText,
+        solapiApiKey.value(),
+        solapiApiSecret.value()
+      );
+    } catch (e) {
+      functions.logger.warn("승인 SMS 발송 실패", { signupId, error: String(e) });
     }
 
-    return { success: true, parentUid };
+    return { success: true, parentUid, familyId, childIds, isNewFamily };
   }
 );
+
+// 연장 시 신규 자녀 Auth + Firestore 계정 동시 생성
+export const createChildAccount = onCall(async (request) => {
+  await assertAdmin(request.auth);
+
+  const { familyId, name, grade, loginId } = request.data as {
+    familyId: string; name: string; grade: string; loginId: string;
+  };
+  if (!familyId || !loginId) {
+    throw new HttpsError("invalid-argument", "familyId와 loginId가 필요합니다.");
+  }
+
+  const normalizedLoginId = loginId.toLowerCase();
+
+  // 가족 정보에서 parentUid 가져오기
+  const familySnap = await db.collection("families").doc(familyId).get();
+  if (!familySnap.exists) throw new HttpsError("not-found", "가족 정보를 찾을 수 없습니다.");
+  const parentUid = familySnap.data()!.userId as string | null;
+
+  // Auth 계정 생성
+  const childUid = await getOrCreateAuthUser(
+    idToEmail(normalizedLoginId), "012345", name
+  );
+
+  // 멱등성: 같은 (familyId, loginId) 자녀가 이미 있으면 재사용 (이중 제출 중복 차단)
+  const existingChild = await db.collection("children")
+    .where("familyId", "==", familyId)
+    .where("loginId", "==", normalizedLoginId)
+    .limit(1)
+    .get();
+
+  // Firestore 일괄 생성
+  const batch = db.batch();
+
+  let childId: string;
+  if (existingChild.empty) {
+    const childRef = db.collection("children").doc(childUid); // 결정적 ID → 동시호출 중복 차단
+    childId = childRef.id;
+    batch.set(childRef, {
+      familyId,
+      userId: parentUid,
+      authUid: childUid,
+      name,
+      grade,
+      loginId: normalizedLoginId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else {
+    childId = existingChild.docs[0].id;
+    batch.set(existingChild.docs[0].ref, { authUid: childUid, name, grade }, { merge: true });
+  }
+
+  batch.set(db.collection("users").doc(childUid), {
+    name,
+    plantor_id: normalizedLoginId,
+    role: "student",
+    grade,
+    parentUid,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  await batch.commit();
+
+  return { success: true, childId, childUid };
+});
 
 // 비밀번호 리셋 (어드민 전용)
 export const resetPassword = onCall(
@@ -207,7 +563,9 @@ export const resetPassword = onCall(
       try {
         const parentUser = await auth.getUserByEmail(idToEmail(parentId));
         await auth.updateUser(parentUser.uid, { password: newPassword });
-      } catch { /* 계정 없으면 무시 */ }
+      } catch (e) {
+        functions.logger.warn("비밀번호 리셋 실패 (parent)", { parentId, error: String(e) });
+      }
     }
 
     for (const loginId of childLoginIds) {
@@ -215,13 +573,25 @@ export const resetPassword = onCall(
       try {
         const childUser = await auth.getUserByEmail(idToEmail(loginId));
         await auth.updateUser(childUser.uid, { password: newPassword });
-      } catch { /* 계정 없으면 무시 */ }
+      } catch (e) {
+        functions.logger.warn("비밀번호 리셋 실패 (child)", { loginId, error: String(e) });
+      }
     }
 
     const smsText = `[플랜토] ${parentName}님, 비밀번호가 초기화됐어요.\n\n새 비밀번호: ${newPassword}\n\n👉 plantor.web.app`;
     try {
-      await sendSms(phone, smsText, solapiApiKey.value(), solapiApiSecret.value());
-    } catch { /* SMS 실패해도 리셋은 완료 */ }
+      // 알림톡 우선 (승인 전/실패 시 smsText로 문자 fallback)
+      await sendAlimtalk(
+        phone,
+        KAKAO_TEMPLATES.PASSWORD_RESET,
+        { "#{parentName}": parentName as string, "#{password}": newPassword },
+        smsText,
+        solapiApiKey.value(),
+        solapiApiSecret.value()
+      );
+    } catch (e) {
+      functions.logger.warn("비밀번호 리셋 발송 실패", { phone, error: String(e) });
+    }
 
     return { success: true };
   }
@@ -246,7 +616,9 @@ export const updateParentName = onCall(async (request) => {
   if (userId) {
     try {
       await auth.updateUser(userId, { displayName: newName.trim() });
-    } catch { /* Auth 계정 없으면 무시 */ }
+    } catch (e) {
+      functions.logger.warn("학부모 Auth displayName 업데이트 실패", { userId, error: String(e) });
+    }
   }
 
   return { success: true };
@@ -264,14 +636,19 @@ export const updateChildName = onCall(async (request) => {
   const childSnap = await db.collection("children").doc(childId).get();
   if (!childSnap.exists) throw new HttpsError("not-found", "학생 정보를 찾을 수 없습니다.");
 
-  const userId = childSnap.data()!.userId as string | undefined;
+  // authUid 우선, 없으면 loginId로 조회
+  const authUid = childSnap.data()!.authUid as string | undefined;
+  const loginId = (childSnap.data()!.loginId as string | undefined)?.toLowerCase();
 
   await db.collection("children").doc(childId).update({ name: newName.trim() });
 
-  if (userId) {
+  const uidToUpdate = authUid ?? (loginId ? await auth.getUserByEmail(idToEmail(loginId)).then((u) => u.uid).catch(() => null) : null);
+  if (uidToUpdate) {
     try {
-      await auth.updateUser(userId, { displayName: newName.trim() });
-    } catch { /* Auth 계정 없으면 무시 */ }
+      await auth.updateUser(uidToUpdate, { displayName: newName.trim() });
+    } catch (e) {
+      functions.logger.warn("학생 Auth displayName 업데이트 실패", { childId, error: String(e) });
+    }
   }
 
   return { success: true };
@@ -293,7 +670,10 @@ export const sendRenewalConfirmationSms = onCall(
     const { parentName, phone } = familySnap.data()!;
     if (!phone) throw new HttpsError("failed-precondition", "전화번호가 없습니다.");
 
-    const serviceLines = services.map((s) => `· ${s.childName} · ${s.serviceName} → ${s.newEndDate}까지`).join("\n");
+    const serviceLines = services.map((s) => {
+      const who = (s.childName && s.childName !== "null") ? s.childName : "학부모";
+      return `· ${who} · ${s.serviceName} → ${s.newEndDate}까지`;
+    }).join("\n");
     const smsText = [
       `[플랜토] ${parentName}님, 입금이 확인되었습니다 ✅`,
       ``,
@@ -303,7 +683,14 @@ export const sendRenewalConfirmationSms = onCall(
       `감사합니다 🌱`,
     ].join("\n");
 
-    await sendSms(phone, smsText, solapiApiKey.value(), solapiApiSecret.value());
+    await sendAlimtalk(
+      phone,
+      KAKAO_TEMPLATES.RENEWAL_CONFIRM,
+      { "#{parentName}": parentName as string, "#{details}": serviceLines },
+      smsText,
+      solapiApiKey.value(),
+      solapiApiSecret.value()
+    );
     return { success: true };
   }
 );
@@ -314,7 +701,7 @@ export const confirmAiPackagePayment = onCall(
   async (request) => {
     await assertAdmin(request.auth);
 
-    const { familyId, endDate } = request.data as { familyId: string; endDate: string };
+    const { familyId, endDate, silent } = request.data as { familyId: string; endDate: string; silent?: boolean };
     if (!familyId || !endDate) throw new HttpsError("invalid-argument", "familyId와 endDate가 필요합니다.");
 
     const familySnap = await db.collection("families").doc(familyId).get();
@@ -326,19 +713,126 @@ export const confirmAiPackagePayment = onCall(
       await db.collection("users").doc(userId).update({ aiPackageEndDate: endDate });
     }
 
-    const [y, m, d] = endDate.split("-");
-    const formatted = `${y}.${m}.${d}`;
-    const smsText = `[플랜토] ${parentName}님, Mom& AI 패키지 입금이 확인되었어요! ✅\n\nChatGPT · 제미나이 · 캔바 공유 계정을 이용하실 수 있습니다.\n\n이용 기간: ~${formatted}\n\n👉 plantor.web.app 에서 학부모 계정으로 로그인하시면 상단 메뉴에 [AI 패키지] 탭이 생성됩니다.`;
+    // silent=true(연장 일괄승인 흐름): 알림톡은 sendRenewalConfirmationSms가 통합 발송하므로 생략
+    if (!silent) {
+      const [y, m, d] = endDate.split("-");
+      const formatted = `${y}.${m}.${d}`;
+      const smsText = `[플랜토] ${parentName}님, Mom& AI 패키지 입금이 확인되었어요! ✅\n\nChatGPT · 제미나이 · 캔바 공유 계정을 이용하실 수 있습니다.\n\n이용 기간: ~${formatted}\n\n👉 plantor.web.app 에서 학부모 계정으로 로그인하시면 상단 메뉴에 [AI 패키지] 탭이 생성됩니다.`;
 
-    try {
-      await sendSms(phone, smsText, solapiApiKey.value(), solapiApiSecret.value());
-    } catch {
-      // SMS 실패해도 활성화는 완료
+      try {
+        // 알림톡 우선 (승인 전/실패 시 smsText로 문자 fallback)
+        await sendAlimtalk(
+          phone,
+          KAKAO_TEMPLATES.AI_PACKAGE_CONFIRM,
+          { "#{parentName}": parentName as string, "#{endDate}": formatted },
+          smsText,
+          solapiApiKey.value(),
+          solapiApiSecret.value()
+        );
+      } catch (e) {
+        functions.logger.warn("AI패키지 발송 실패", { familyId, error: String(e) });
+      }
     }
 
     return { success: true };
   }
 );
+
+// 직강 학생 계정 자동 생성 (어드민 전용)
+// studentLoginId가 있지만 Auth 계정이 없는 학생에 대해 Auth + users + children 문서 생성
+export const ensureDirectClassAccounts = onCall(async (request) => {
+  await assertAdmin(request.auth);
+
+  const { classId } = request.data as { classId: string };
+  if (!classId) throw new HttpsError("invalid-argument", "classId가 필요합니다.");
+
+  const classSnap = await db.collection("directClasses").doc(classId).get();
+  if (!classSnap.exists) throw new HttpsError("not-found", "수업 정보를 찾을 수 없습니다.");
+
+  const cls = classSnap.data()!;
+  const students = (cls.students ?? []) as Array<{
+    name: string;
+    studentLoginId?: string;
+    parentLoginId?: string;
+    parentPhone?: string;
+    serviceSlugs?: string[];
+  }>;
+  const grades = (cls.grades ?? []) as string[];
+
+  let created = 0;
+  let parentUid: string | null = null;
+
+  for (const student of students) {
+    // 학부모 계정
+    if (student.parentLoginId) {
+      const parentId = student.parentLoginId.toLowerCase();
+      const parentName = cls.parentName ?? (student.name ? `${student.name}맘` : cls.name);
+      parentUid = await getOrCreateAuthUser(idToEmail(parentId), "012345", parentName);
+      await db.collection("users").doc(parentUid).set({
+        name: parentName,
+        plantor_id: parentId,
+        role: "parent",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      created++;
+    }
+
+    // 학생 계정
+    if (student.studentLoginId) {
+      const loginId = student.studentLoginId.toLowerCase();
+      const uid = await getOrCreateAuthUser(idToEmail(loginId), "012345", student.name);
+      await db.collection("users").doc(uid).set({
+        name: student.name,
+        plantor_id: loginId,
+        role: "student",
+        parentUid: parentUid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // children 문서도 생성 (이미 있으면 스킵)
+      const existingChild = await db.collection("children")
+        .where("loginId", "==", loginId).limit(1).get();
+      if (existingChild.empty) {
+        await db.collection("children").doc().set({
+          familyId: classId,
+          userId: parentUid,
+          authUid: uid,
+          name: student.name,
+          grade: grades[0] ?? "",
+          loginId,
+          directClassId: classId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // authUid 보강
+        await existingChild.docs[0].ref.update({ authUid: uid });
+      }
+      created++;
+    }
+  }
+
+  return { success: true, created };
+});
+
+// 기존 전체 학생 비밀번호 012345로 통일 (어드민 전용, 1회성)
+export const resetAllStudentPasswords = onCall(async (request) => {
+  await assertAdmin(request.auth);
+
+  const usersSnap = await db.collection("users").where("role", "==", "student").get();
+  let updated = 0;
+  let skipped = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    try {
+      await auth.updateUser(userDoc.id, { password: "012345" });
+      updated++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  return { success: true, updated, skipped };
+});
 
 // childId가 null 또는 빈 문자열인 orphan 구독 삭제 (어드민 전용)
 export const cleanupOrphanSubscriptions = onCall(async (request) => {
@@ -353,34 +847,51 @@ export const cleanupOrphanSubscriptions = onCall(async (request) => {
   return { success: true, deleted: nullSnap.size + emptySnap.size };
 });
 
-// users 문서 복구 — children 컬렉션 기반으로 role/plantor_id 동기화
+// 전수 복구 — Auth 누락 시 생성, users 문서 복구, children에 authUid 보강
 export const repairUserDocs = onCall(async (request) => {
   await assertAdmin(request.auth);
 
   const childrenSnap = await db.collection("children").get();
   let fixed = 0;
+  let authCreated = 0;
+  let skipped = 0;
 
   for (const childDoc of childrenSnap.docs) {
     const data = childDoc.data();
     const loginId = (data.loginId as string | undefined)?.toLowerCase();
-    if (!loginId) continue;
+    if (!loginId) { skipped++; continue; }
+
+    let uid: string;
     try {
-      const userRecord = await auth.getUserByEmail(idToEmail(loginId));
-      await db.collection("users").doc(userRecord.uid).set({
-        name: data.name ?? "",
-        plantor_id: loginId,
-        role: "student",
-        grade: data.grade ?? "",
-        parentUid: data.userId ?? null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-      fixed++;
-    } catch {
-      // Auth 계정 없으면 무시
+      // Auth 계정 있으면 가져오고, 없으면 새로 생성
+      uid = await getOrCreateAuthUser(idToEmail(loginId), "012345", data.name ?? "");
+    } catch (e) {
+      functions.logger.warn("repairUserDocs: Auth 생성 실패", { loginId, error: String(e) });
+      skipped++;
+      continue;
     }
+
+    // 새로 생성된 건지 기존 건지 확인
+    if (!data.authUid) {
+      authCreated++;
+    }
+
+    // children 문서에 authUid 보강
+    await db.collection("children").doc(childDoc.id).update({ authUid: uid });
+
+    // users 문서 복구
+    await db.collection("users").doc(uid).set({
+      name: data.name ?? "",
+      plantor_id: loginId,
+      role: "student",
+      grade: data.grade ?? "",
+      parentUid: data.userId ?? null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    fixed++;
   }
 
-  return { success: true, fixed };
+  return { success: true, fixed, authCreated, skipped };
 });
 
 // ID/전화번호 중복 체크 (비인증 허용 — 회원가입 폼에서 호출)
@@ -415,6 +926,130 @@ export const checkIdAvailability = onCall({ invoker: "public" }, async (request)
   }
 });
 
+// 1:1 직강 수업일지 조회 — 본인 자녀 일지만 부모에게 반환 (lessonLogs는 어드민 전용 컬렉션)
+export const getStudentLessonLogs = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const { childId } = request.data as { childId: string };
+  if (!childId) throw new HttpsError("invalid-argument", "childId가 필요합니다.");
+
+  // 소유권 검증: child → family.userId === 호출자 uid
+  const childSnap = await db.collection("children").doc(childId).get();
+  if (!childSnap.exists) throw new HttpsError("not-found", "자녀를 찾을 수 없습니다.");
+  const child = childSnap.data()!;
+  const familyId = child.familyId as string | undefined;
+  if (!familyId) throw new HttpsError("permission-denied", "가족 정보가 없습니다.");
+  const familySnap = await db.collection("families").doc(familyId).get();
+  if (!familySnap.exists || familySnap.data()!.userId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "본인 자녀만 조회할 수 있습니다.");
+  }
+
+  const loginId = ((child.loginId as string | undefined) ?? "").toLowerCase();
+  if (!loginId) return { logs: [] };
+
+  // 이 자녀가 속한 활성 직강 반 찾기 → (classId, studentName) 수집
+  const dcSnap = await db.collection("directClasses").where("status", "==", "active").get();
+  const targets: { classId: string; studentName: string }[] = [];
+  for (const dc of dcSnap.docs) {
+    const students = (dc.data().students ?? []) as Array<{ name?: string; studentLoginId?: string }>;
+    for (const s of students) {
+      if ((s.studentLoginId ?? "").toLowerCase() === loginId && s.name) {
+        targets.push({ classId: dc.id, studentName: s.name });
+      }
+    }
+  }
+  if (targets.length === 0) return { logs: [] };
+
+  // 각 (classId, studentName) 별 수업일지 조회 후 병합
+  const logSnaps = await Promise.all(
+    targets.map((t) =>
+      db.collection("lessonLogs").where("classId", "==", t.classId).where("studentName", "==", t.studentName).get()
+    )
+  );
+  const logs = logSnaps
+    .flatMap((snap) => snap.docs.map((d) => d.data()))
+    .map((l) => ({
+      date: (l.date as string) ?? "",
+      attendance: (l.attendance as string) ?? "",
+      checkInTime: (l.checkInTime as string | null) ?? null,
+      content: (l.content as string) ?? "",
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  return { logs };
+});
+
+// 학부모 기준 직강 수업일지 — 본인의 직강 자녀 전부를 묶어서 반환 (직강 전용 학부모도 동작)
+export const getParentLessonLogs = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const { targetUid, targetPlantorId } = request.data as { targetUid?: string; targetPlantorId?: string };
+
+  let uid: string | null = request.auth.uid;
+  let plantorId: string;
+  if (targetPlantorId) {
+    // 어드민이 계정 없는 직강 학부모를 loginId로 조회 (uid·users 문서 불필요)
+    await assertAdmin(request.auth);
+    plantorId = targetPlantorId.toLowerCase();
+    uid = null;
+  } else {
+    if (targetUid && targetUid !== uid) {
+      await assertAdmin(request.auth); // 어드민만 타인(미리보기) 조회 가능
+      uid = targetUid;
+    }
+    const userSnap = await db.collection("users").doc(uid).get();
+    plantorId = ((userSnap.data()?.plantor_id as string | undefined) ?? "").toLowerCase();
+  }
+
+  // 구독 가족 자녀의 loginId 수집 (자녀가 직강도 듣는 경우 매칭용) — uid 있을 때만
+  const childLoginIds = new Set<string>();
+  if (uid) {
+    const famSnap = await db.collection("families").where("userId", "==", uid).limit(1).get();
+    if (!famSnap.empty) {
+      const kidsSnap = await db.collection("children").where("familyId", "==", famSnap.docs[0].id).get();
+      kidsSnap.docs.forEach((d) => {
+        const lid = ((d.data().loginId as string | undefined) ?? "").toLowerCase();
+        if (lid) childLoginIds.add(lid);
+      });
+    }
+  }
+
+  // 활성 직강에서 이 학부모의 학생 수집 (parentLoginId 매칭 또는 자녀 loginId 매칭)
+  const dcSnap = await db.collection("directClasses").where("status", "==", "active").get();
+  const targets: { classId: string; studentName: string; grade: string }[] = [];
+  for (const dc of dcSnap.docs) {
+    const students = (dc.data().students ?? []) as Array<{ name?: string; grade?: string; studentLoginId?: string; parentLoginId?: string }>;
+    for (const s of students) {
+      if (!s.name) continue;
+      const sParent = (s.parentLoginId ?? "").toLowerCase();
+      const sLogin = (s.studentLoginId ?? "").toLowerCase();
+      const matched = (plantorId && sParent === plantorId) || (sLogin && childLoginIds.has(sLogin));
+      if (matched) targets.push({ classId: dc.id, studentName: s.name, grade: s.grade ?? "" });
+    }
+  }
+  if (targets.length === 0) return { students: [] };
+
+  // 학생별 수업일지 조회
+  const logSnaps = await Promise.all(
+    targets.map((t) =>
+      db.collection("lessonLogs").where("classId", "==", t.classId).where("studentName", "==", t.studentName).get()
+    )
+  );
+  const students = targets.map((t, i) => ({
+    studentName: t.studentName,
+    grade: t.grade,
+    logs: logSnaps[i].docs
+      .map((d) => d.data())
+      .map((l) => ({
+        date: (l.date as string) ?? "",
+        attendance: (l.attendance as string) ?? "",
+        checkInTime: (l.checkInTime as string | null) ?? null,
+        content: (l.content as string) ?? "",
+      }))
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+  }));
+
+  return { students };
+});
+
 // 가족 전체 삭제 — Firestore + Auth 계정 완전 제거 (어드민 전용)
 export const deleteFamily = onCall(async (request) => {
   await assertAdmin(request.auth);
@@ -440,7 +1075,9 @@ export const deleteFamily = onCall(async (request) => {
         const userRecord = await auth.getUserByEmail(idToEmail(loginId));
         await auth.deleteUser(userRecord.uid);
         batch.delete(db.collection("users").doc(userRecord.uid));
-      } catch { /* Auth 계정 없으면 무시 */ }
+      } catch (e) {
+        functions.logger.info("deleteFamily: 자녀 Auth 없음 (정상)", { loginId });
+      }
     }
     batch.delete(db.collection("studentProfiles").doc(childDoc.id));
     batch.delete(childDoc.ref);
@@ -456,7 +1093,9 @@ export const deleteFamily = onCall(async (request) => {
     familyPhone = (familyData.phone as string) ?? "";
     const userId = familyData.userId as string | undefined;
     if (userId) {
-      try { await auth.deleteUser(userId); } catch { /* Auth 계정 없으면 무시 */ }
+      try { await auth.deleteUser(userId); } catch (e) {
+        functions.logger.info("deleteFamily: 학부모 Auth 없음 (정상)", { userId });
+      }
       batch.delete(db.collection("users").doc(userId));
     }
     batch.delete(familySnap.ref);

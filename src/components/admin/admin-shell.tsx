@@ -183,6 +183,7 @@ function Dashboard({ user }: { user: User }) {
             name: String(c?.name ?? ""), grade: String(c?.grade ?? ""),
             loginId: String(c?.loginId ?? ""),
             selectedServices: Array.isArray(c?.selectedServices) ? (c.selectedServices as string[]) : [],
+            serviceMonths: (c?.serviceMonths ?? {}) as Record<string, number>,
           }));
         } else {
           children = [{ name: String(data.childName ?? ""), grade: String(data.childGrade ?? ""), loginId: "", selectedServices: Array.isArray(data.selectedServices) ? data.selectedServices : [] }];
@@ -205,6 +206,8 @@ function Dashboard({ user }: { user: User }) {
           referrerId: data.referrerId ?? null,
           referralDiscount: data.referralDiscount ?? 0,
           parentServices: Array.isArray(data.parentServices) ? data.parentServices as string[] : [],
+          parentServiceMonths: (data.parentServiceMonths ?? {}) as Record<string, number>,
+          depositTotal: data.depositTotal ?? 0,
         };
       }));
       setLoading(false);
@@ -274,12 +277,11 @@ function Dashboard({ user }: { user: User }) {
   async function approveAsFamily(signup: Signup) {
     if (signup.convertedFamilyId) { alert(`이미 가족으로 등록되어 있습니다 (familyId: ${signup.convertedFamilyId})`); return; }
 
-    // momsaipack 포함 시 만료일 미리 계산 (당월 말일 기준)
+    // momsaipack 포함 시 만료일 미리 계산 (선택 개월수 기준)
     const hasAiPack = signup.parentServices?.includes("momsaipack") ?? false;
-    const aiEndDate = hasAiPack ? (() => {
-      const d = new Date();
-      return toLocalDateStr(new Date(d.getFullYear(), d.getMonth() + 2, 0));
-    })() : undefined;
+    const aiEndDate = hasAiPack
+      ? toLocalDateStr(calcNewEndDate(null, signup.parentServiceMonths?.momsaipack ?? 1))
+      : undefined;
 
     setShowSignups(false);
     startTask({

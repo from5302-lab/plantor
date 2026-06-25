@@ -13,6 +13,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState(false);
 
   // 로그인 후 role이 확정되면 리다이렉트
@@ -77,15 +78,24 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             autoComplete="username"
             style={INPUT_STYLE}
           />
-          <input
-            type="password"
-            placeholder="비밀번호"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={INPUT_STYLE}
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPw ? "text" : "password"}
+              placeholder="비밀번호"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              style={{ ...INPUT_STYLE, paddingRight: 40 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, fontSize: 13, color: "#a39e98", lineHeight: 1 }}
+            >
+              {showPw ? "숨김" : "보기"}
+            </button>
+          </div>
 
           {error && (
             <div style={{ borderRadius: 4, backgroundColor: "#fff5f5", border: "1px solid rgba(200,0,0,0.15)", padding: "8px 12px", fontSize: 12, color: "#c00000" }}>

@@ -70,28 +70,6 @@ export function Hero() {
           >
             서비스 보기
           </a>
-          <a
-            href={SITE.kakaoOpenChat}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary"
-            style={{
-              flex: 1,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: 48,
-              borderRadius: 4,
-              backgroundColor: "transparent",
-              border: "1px solid rgba(0,0,0,0.15)",
-              color: T.textPrimary,
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            🙋‍♀️ 무료 웨비나 신청
-          </a>
         </div>
       </div>
     </section>

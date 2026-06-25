@@ -337,10 +337,14 @@ function ServiceFormModal({
                       disabled={uploading}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (!file || !form.slug) { if (!form.slug) setError("slug를 먼저 입력해주세요."); return; }
+                        if (!file) return;
+                        const slug = form.slug.trim()
+                          || `${form.name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "") || "service"}-${Date.now()}`;
+                        if (!slug || slug === `service-${Date.now()}`) { setError("서비스명을 먼저 입력해주세요."); return; }
+                        if (!form.slug.trim()) setForm((p) => ({ ...p, slug }));
                         setUploading(true); setError("");
                         try {
-                          const storageRef = ref(storage, `serviceIcons/${form.slug}/icon`);
+                          const storageRef = ref(storage, `serviceIcons/${slug}/icon`);
                           await uploadBytes(storageRef, file);
                           const url = await getDownloadURL(storageRef);
                           setForm((p) => ({ ...p, iconUrl: url }));

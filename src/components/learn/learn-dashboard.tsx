@@ -4,13 +4,13 @@ import { useState, useCallback, useEffect } from "react";
 import {
   collection,
   addDoc, doc, serverTimestamp,
-  getDocs, query, where, deleteDoc, Timestamp,
+  getDocs, query, where, deleteDoc, Timestamp, onSnapshot, orderBy,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
 import { T } from "@/lib/design-tokens";
-import type { LearningLog, AutoStatus } from "@/lib/types";
+import type { LearningLog, AutoStatus, Task, TaskCheck } from "@/lib/types";
 import { useChildData } from "@/lib/hooks/useChildData";
 import { useAttendanceSession } from "@/lib/hooks/useAttendanceSession";
 import { useWindowTracking } from "@/lib/hooks/useWindowTracking";
@@ -18,7 +18,7 @@ import { todayStr, getWeekDates, formatDateHeader, calcStreak } from "@/lib/lear
 import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
-import { ServiceChecklist } from "./service-checklist";
+import { TaskChecklist } from "./task-checklist";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
@@ -53,11 +53,17 @@ export function LearnDashboard({
   userName,
   userEmail,
   isDemo = false,
+  readOnly = false,
+  previewChildId,
+  previewLoginId,
 }: {
   userId: string;
   userName: string | null;
   userEmail?: string | null;
   isDemo?: boolean;
+  readOnly?: boolean;
+  previewChildId?: string;
+  previewLoginId?: string;
 }) {
   const {
     childId, childName, childGrade, childLoginId, subscriptions,
@@ -67,12 +73,76 @@ export function LearnDashboard({
     userId,
     userEmail,
     isDemo,
+    previewChildId,
+    previewLoginId,
     demoData: isDemo ? {
       subscriptions: DEMO_SUBSCRIPTIONS,
       logs: [{ id: "demo-log-0-a", serviceSlug: "class5", date: todayStr() }],
       allLogs: buildDemoLogs(),
     } : undefined,
   });
+
+  // 태스크 + 체크 상태
+  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
+  const [todayTaskChecks, setTodayTaskChecks] = useState<TaskCheck[]>([]);
+
+  // 오늘 요일에 해당하는 확정 태스크 구독
+  useEffect(() => {
+    if (!childId || isDemo) return;
+    const unsub = onSnapshot(
+      query(collection(db, "tasks"), where("childId", "==", childId), where("status", "==", "confirmed")),
+      (snap) => {
+        const today = new Date();
+        const dow = (today.getDay() + 6) % 7; // 0=월
+        const tasks: Task[] = [];
+        snap.docs.forEach(d => {
+          const scheduleDays = d.data().scheduleDays ?? [];
+          if (!scheduleDays.includes(dow)) return;
+          tasks.push({
+            id: d.id, childId: d.data().childId,
+            serviceSlug: d.data().serviceSlug,
+            partSlug: d.data().partSlug ?? null,
+            title: d.data().title,
+            scheduleDays,
+            externalUrl: d.data().externalUrl ?? null,
+            progressLabel: d.data().progressLabel ?? null,
+            level: d.data().level ?? null,
+            setName: d.data().setName ?? null,
+            deleteRequested: d.data().deleteRequested ?? false,
+            order: d.data().order ?? 0,
+            active: d.data().active ?? true,
+            createdBy: d.data().createdBy,
+            status: d.data().status,
+            adminComment: d.data().adminComment ?? null,
+            createdAt: null, confirmedAt: null,
+          });
+        });
+        setTodayTasks(tasks);
+      }
+    );
+    return unsub;
+  }, [childId, isDemo]);
+
+  // 오늘 taskChecks 구독
+  useEffect(() => {
+    if (!childId || isDemo) return;
+    const unsub = onSnapshot(
+      query(collection(db, "taskChecks"), where("childId", "==", childId), where("date", "==", todayStr())),
+      (snap) => setTodayTaskChecks(snap.docs.map(d => ({
+        id: d.id,
+        taskId: d.data().taskId ?? "",
+        childId: d.data().childId ?? "",
+        date: d.data().date ?? "",
+        status: d.data().status ?? "error",
+        detail: d.data().detail ?? null,
+        reason: d.data().reason ?? null,
+        reasonNote: d.data().reasonNote ?? null,
+        checkedBy: d.data().checkedBy ?? "student",
+        checkedAt: null,
+      })))
+    );
+    return unsub;
+  }, [childId, isDemo]);
 
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [startedSlugs, setStartedSlugs] = useState<Set<string>>(new Set());
@@ -191,7 +261,7 @@ export function LearnDashboard({
   }, [showScreenshot, childId, isDemo, recordSlugTime]);
 
   async function markDone(serviceSlug: string, screenshotUrl?: string, durationSeconds = 0) {
-    if (!childId) return;
+    if (!childId || readOnly) return;
     setSubmitting(serviceSlug);
     try {
       if (isDemo) {
@@ -218,7 +288,7 @@ export function LearnDashboard({
   }
 
   async function handleRedo(serviceSlug: string) {
-    if (!childId) return;
+    if (!childId || readOnly) return;
     setSubmitting(serviceSlug);
     try {
       if (isDemo) {
@@ -253,8 +323,8 @@ export function LearnDashboard({
   }
 
   const streak = calcStreak(allLogs);
-  const todayDone = logs.length;
-  const todayTotal = subscriptions.length;
+  const todayDone = todayTasks.filter(t => todayTaskChecks.find(c => c.taskId === t.id && c.status === "done")).length;
+  const todayTotal = todayTasks.length;
   const allDone = todayTotal > 0 && todayDone === todayTotal;
 
   const autoStatusMap: Record<string, AutoStatus> = {};
@@ -445,7 +515,7 @@ export function LearnDashboard({
                 <span className="text-[18px]">✅</span>
                 <span className="text-sm font-semibold text-p-teal">오늘 출석 완료</span>
               </div>
-            ) : (
+            ) : readOnly ? null : (
               <button
                 onClick={() => setAttendanceState("consent")}
                 className="w-full h-12 rounded-xl border-none bg-p-teal text-white text-[15px] font-bold cursor-pointer tracking-[-0.1px] flex items-center justify-center gap-2"
@@ -456,21 +526,18 @@ export function LearnDashboard({
           </div>
         )}
 
-        {/* 오늘 할 일 */}
+        {/* 오늘 할 일 (태스크 기반) */}
         <div className="text-[10px] font-bold tracking-[0.1em] text-p-muted uppercase pl-1 mb-1.5">오늘 할 일</div>
         <Card style={{ overflow: "hidden", padding: 0 }}>
-          <ServiceChecklist
-            subscriptions={subscriptions}
-            doneSlugs={doneSlugs}
-            submitting={submitting}
-            onScreenshot={(slug) => setShowScreenshot(slug)}
-            isSharing={attendanceState === "sharing"}
-            onStartedSlugsChange={(slugs) => setStartedSlugs(new Set(slugs))}
-            onRedo={handleRedo}
-            onWindowOpened={handleWindowOpened}
-            timeSummary={timeSummary}
-            autoStatusMap={autoStatusMap}
-          />
+          {childId && (
+            <TaskChecklist
+              tasks={todayTasks}
+              taskChecks={todayTaskChecks}
+              childId={childId}
+              date={todayStr()}
+              readOnly={readOnly}
+            />
+          )}
         </Card>
 
         {/* 배지 */}

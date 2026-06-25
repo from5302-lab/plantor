@@ -6,6 +6,7 @@ import { ChildInputRow, Field } from "./child-input-row";
 import { useSignupForm } from "./hooks/useSignupForm";
 import { useServices } from "@/lib/services-context";
 import { AuthModal } from "@/components/auth/auth-modal";
+import { MonthsPicker } from "@/components/ui/months-picker";
 
 export function SignupForm() {
   const { signupServices } = useServices();
@@ -13,7 +14,8 @@ export function SignupForm() {
 
   const {
     form, setForm, submitting, error, existingMember, done,
-    estimatedTotal, updateChild, toggleChildService, toggleParentService, addChild, removeChild,
+    depositTotal, updateChild, toggleChildService, setChildServiceMonths,
+    toggleParentService, setParentServiceMonths, addChild, removeChild,
     handleSubmit,
   } = useSignupForm();
 
@@ -98,21 +100,29 @@ export function SignupForm() {
                   {parentOnlyServices.map((svc) => {
                     const checked = form.parentServices.includes(svc.slug);
                     return (
-                      <label
-                        key={svc.slug}
-                        className={`flex cursor-pointer items-start gap-2.5 rounded-lg px-3.5 py-3 ${checked ? "border-[1.5px] border-p-green bg-[#f0faf1]" : "border border-black/10 bg-white"}`}
-                      >
-                        <input type="checkbox" checked={checked} onChange={() => toggleParentService(svc.slug)} className="mt-0.5 w-3.5 h-3.5 accent-p-green" />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-black/95 flex items-center gap-1.5">
-                              {svc.emoji} {svc.name}
-                            </span>
-                            <span className={`text-[13px] font-bold shrink-0 ${checked ? "text-p-green" : "text-p-secondary"}`}>{svc.priceLabel}</span>
+                      <div key={svc.slug}>
+                        <label
+                          className={`flex cursor-pointer items-start gap-2.5 rounded-lg px-3.5 py-3 ${checked ? "border-[1.5px] border-p-green bg-[#f0faf1]" : "border border-black/10 bg-white"}`}
+                        >
+                          <input type="checkbox" checked={checked} onChange={() => toggleParentService(svc.slug)} className="mt-0.5 w-3.5 h-3.5 accent-p-green" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-black/95 flex items-center gap-1.5">
+                                {svc.emoji} {svc.name}
+                              </span>
+                              <span className={`text-[13px] font-bold shrink-0 ${checked ? "text-p-green" : "text-p-secondary"}`}>{svc.priceLabel}</span>
+                            </div>
+                            <p className="m-0 mt-0.5 text-[11px] text-p-muted">{svc.hook}</p>
                           </div>
-                          <p className="m-0 mt-0.5 text-[11px] text-p-muted">{svc.hook}</p>
-                        </div>
-                      </label>
+                        </label>
+                        {checked && (
+                          <MonthsPicker
+                            value={form.parentServiceMonths?.[svc.slug] ?? null}
+                            onChange={(m) => setParentServiceMonths(svc.slug, m)}
+                            className="flex gap-1 mt-1.5 mb-0.5 ml-1"
+                          />
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -143,6 +153,7 @@ export function SignupForm() {
                 canRemove={true}
                 onUpdate={(patch) => updateChild(idx, patch)}
                 onToggleService={(slug) => toggleChildService(idx, slug)}
+                onChangeMonths={(slug, m) => setChildServiceMonths(idx, slug, m)}
                 onRemove={() => removeChild(idx)}
                 services={childServices}
               />
@@ -157,9 +168,9 @@ export function SignupForm() {
             + 자녀 추가
           </button>
 
-          {estimatedTotal > 0 && (
+          {depositTotal > 0 && (
             <div className="mt-3 rounded-lg bg-p-bg px-3.5 py-2.5 text-[13px] text-p-secondary">
-              예상 월 결제액 합계: <strong className="text-black/95 font-bold">₩{estimatedTotal.toLocaleString()}</strong>
+              총 입금액 <span className="text-[11px] text-p-muted">(선택 기간 기준)</span>: <strong className="text-black/95 font-bold">₩{depositTotal.toLocaleString()}</strong>
             </div>
           )}
         </fieldset>

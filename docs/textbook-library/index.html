@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>교과서 단원 라이브러리 · 중1~고3</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --card: #ffffff;
+    --border: #e5e3dd;
+    --text: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #c96442;
+    --accent-soft: #f4e8e3;
+    --chip-2022: #2563eb;
+    --chip-2015: #7c3aed;
+    --chip-bg-2022: #dbeafe;
+    --chip-bg-2015: #ede9fe;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .filters {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .filter-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .filter-group select, .filter-group input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .stats {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .book-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .book-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all .12s ease;
+  }
+  .book-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .book-card .top {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  .chip.curriculum-2022 { background: var(--chip-bg-2022); color: var(--chip-2022); }
+  .chip.curriculum-2015 { background: var(--chip-bg-2015); color: var(--chip-2015); }
+  .chip.grade { background: #f4f4f0; color: #444; }
+  .chip.subject { background: var(--accent-soft); color: var(--accent); }
+  .chip.unverified { background: #fef3c7; color: #92400e; }
+  .chip.stub { background: #e5e7eb; color: #4b5563; }
+  .book-card h3 {
+    margin: 4px 0 2px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .book-card .meta {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 100;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 12px;
+    max-width: 760px;
+    width: 100%;
+    padding: 24px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.15);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--muted);
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .modal-meta {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .modal-meta a { color: var(--accent); }
+  .units {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .unit-l1 {
+    margin: 14px 0 8px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .unit-l2 {
+    margin: 6px 0 4px 16px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .unit-l3 {
+    margin: 2px 0 2px 32px;
+    font-size: 13px;
+    color: #333;
+  }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 20px;
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+  .empty h3 { margin: 0 0 8px; }
+  .footer-note {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 32px;
+    padding: 16px;
+  }
+  .footer-note a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>교과서 단원 라이브러리</h1>
+  <div class="subtitle">중1~고3 · 2022/2015 개정 · 국어·영어·수학·사회·과학·역사</div>
+</header>
+
+<div class="container">
+  <div class="filters">
+    <div class="filter-group">
+      <label for="f-search">검색</label>
+      <input id="f-search" type="text" placeholder="출판사·단원명 검색">
+    </div>
+    <div class="filter-group">
+      <label for="f-curriculum">교육과정</label>
+      <select id="f-curriculum">
+        <option value="">전체</option>
+        <option value="2022">2022 개정</option>
+        <option value="2015">2015 개정</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="f-grade">학년</label>
+      <select id="f-grade">
+        <option value="">전체</option>
+        <option value="중1">중1</option>
+        <option value="중2">중2</option>
+        <option value="중3">중3</option>
+        <option value="고1">고1</option>
+        <option value="고2">고2</option>
+        <option value="고3">고3</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="f-subject">과목군</label>
+      <select id="f-subject">
+        <option value="">전체</option>
+        <option value="국어">국어</option>
+        <option value="영어">영어</option>
+        <option value="수학">수학</option>
+        <option value="사회">사회</option>
+        <option value="과학">과학</option>
+        <option value="역사">역사</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="f-publisher">출판사</label>
+      <select id="f-publisher">
+        <option value="">전체</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="stats">
+    <span id="stat-count">0권</span>
+    <span id="stat-meta"></span>
+  </div>
+
+  <div id="book-list" class="book-grid"></div>
+  <div id="empty" class="empty" style="display:none">
+    <h3>해당 조건의 교과서가 아직 없습니다</h3>
+    <div>다른 필터를 시도해보거나, 이 라이브러리에 새로 데이터를 추가해 주세요.</div>
+  </div>
+
+  <div class="footer-note">
+    데이터는 출판사 공식 사이트 1순위로 수집되며, 검정 완료 후 사용 시작 시점이 다를 수 있습니다.<br>
+    <a href="data/books.json">books.json 원본 보기</a> · <a href="schema.json">스키마 보기</a>
+  </div>
+</div>
+
+<div id="modal" class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title"></h2>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="units" id="modal-units"></div>
+  </div>
+</div>
+
+<script>
+let allBooks = [];
+
+async function loadData() {
+  try {
+    const res = await fetch('data/books.json');
+    const json = await res.json();
+    allBooks = json.books || [];
+    document.getElementById('stat-meta').textContent =
+      '최종 업데이트: ' + (json.lastUpdated || '미정');
+    populatePublishers();
+    render();
+  } catch (e) {
+    document.getElementById('book-list').innerHTML =
+      '<div class="empty"><h3>데이터 로드 실패</h3><div>' + e.message + '</div></div>';
+  }
+}
+
+function populatePublishers() {
+  const set = new Set();
+  allBooks.forEach(b => set.add(b.publisher));
+  const sel = document.getElementById('f-publisher');
+  [...set].sort().forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+function getFilters() {
+  return {
+    search: document.getElementById('f-search').value.trim().toLowerCase(),
+    curriculum: document.getElementById('f-curriculum').value,
+    grade: document.getElementById('f-grade').value,
+    subject: document.getElementById('f-subject').value,
+    publisher: document.getElementById('f-publisher').value
+  };
+}
+
+function matches(book, f) {
+  if (f.curriculum && book.curriculum !== f.curriculum) return false;
+  if (f.grade && book.grade !== f.grade) return false;
+  if (f.subject && (book.subjectGroup || book.subject) !== f.subject) return false;
+  if (f.publisher && book.publisher !== f.publisher) return false;
+  if (f.search) {
+    const hay = [
+      book.publisher, book.subject, book.grade,
+      ...(book.authors || []),
+      ...flatten(book.units || []).map(u => u.title)
+    ].join(' ').toLowerCase();
+    if (!hay.includes(f.search)) return false;
+  }
+  return true;
+}
+
+function flatten(units) {
+  let out = [];
+  units.forEach(u => {
+    out.push(u);
+    if (u.subunits) out = out.concat(flatten(u.subunits));
+  });
+  return out;
+}
+
+function render() {
+  const f = getFilters();
+  const filtered = allBooks.filter(b => matches(b, f));
+  document.getElementById('stat-count').textContent = filtered.length + '권';
+  const list = document.getElementById('book-list');
+  const empty = document.getElementById('empty');
+  if (filtered.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = filtered.map(b => bookCard(b)).join('');
+  [...list.querySelectorAll('.book-card')].forEach((el, i) => {
+    el.onclick = () => openModal(filtered[i]);
+  });
+}
+
+function bookCard(b) {
+  const isStub = !b.units || b.units.length === 0;
+  const chips = [];
+  if (isStub) chips.push('<span class="chip stub">카탈로그</span>');
+  else if (b.verified === false) chips.push('<span class="chip unverified">표준 시드</span>');
+  return `
+    <div class="book-card">
+      <div class="top">
+        <span class="chip curriculum-${b.curriculum}">${b.curriculum} 개정</span>
+        <span class="chip grade">${b.grade}</span>
+        <span class="chip subject">${b.subjectGroup || b.subject}</span>
+        ${chips.join('')}
+      </div>
+      <h3>${b.publisher}</h3>
+      <div class="meta">${b.subject}${b.authors && b.authors.length ? ' · ' + b.authors[0] + (b.authors.length > 1 ? ' 외' : '') : ''}</div>
+    </div>
+  `;
+}
+
+function openModal(b) {
+  document.getElementById('modal-title').textContent =
+    `${b.publisher} · ${b.subject} (${b.grade})`;
+  let meta = `${b.curriculum} 개정 교육과정`;
+  if (b.authors && b.authors.length) meta += ` · ${b.authors.join(', ')}`;
+  if (b.approvalYear) meta += ` · ${b.approvalYear}년 검정`;
+  if (b.sourceUrl) meta += ` · <a href="${b.sourceUrl}" target="_blank">출처</a>`;
+  document.getElementById('modal-meta').innerHTML = meta;
+  const unitsHtml = (b.units && b.units.length)
+    ? renderUnits(b.units)
+    : '<div style="padding:20px;color:#888;text-align:center">단원명은 아직 수집되지 않았습니다. 카탈로그 항목입니다.<br><small>출판사 사이트(<a href="' + (b.sourceUrl||'#') + '" target="_blank">출처</a>)에서 차례를 확인하거나, books.json의 units 필드를 직접 채우시면 됩니다.</small></div>';
+  document.getElementById('modal-units').innerHTML = unitsHtml;
+  document.getElementById('modal').classList.add('open');
+}
+
+function renderUnits(units) {
+  return units.map(u => {
+    const cls = 'unit-l' + (u.level || 1);
+    const num = u.number ? `<strong>${u.number}.</strong> ` : '';
+    const sub = u.subunits ? renderUnits(u.subunits) : '';
+    return `<div class="${cls}">${num}${u.title}${u.page ? ' <span style="color:#999">('+u.page+')</span>' : ''}</div>${sub}`;
+  }).join('');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+['f-search','f-curriculum','f-grade','f-subject','f-publisher'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+});
+
+loadData();
+</script>
+</body>
+</html>

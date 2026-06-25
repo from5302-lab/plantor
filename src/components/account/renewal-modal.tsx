@@ -9,6 +9,7 @@ import { validateId } from "@/lib/auth-context";
 import { useServices } from "@/lib/services-context";
 import { formatWon } from "@/lib/format";
 import { ServiceIcon } from "@/components/ui/service-icon";
+import { MonthsPicker } from "@/components/ui/months-picker";
 import type { Subscription, WalletCoupon } from "@/lib/types";
 
 const GRADES = ["미취학","초1","초2","초3","초4","초5","초6","중1","중2","중3"];
@@ -16,41 +17,10 @@ const GRADES = ["미취학","초1","초2","초3","초4","초5","초6","중1","�
 type NewChildEntry = { name: string; grade: string; loginId: string; selectedServices: string[] };
 const emptyNewChild = (): NewChildEntry => ({ name: "", grade: "", loginId: "", selectedServices: [] });
 
-const RENEWAL_OPTIONS = [
-  { months: 1, label: "1개월" },
-  { months: 3, label: "3개월" },
-  { months: 6, label: "6개월" },
-  { months: 12, label: "12개월" },
-];
-
 function calcSubRenewalPrice(sub: Subscription, months: number): { base: number; orig: number } {
   const full = sub.monthlyPrice;
   const disc = sub.discount ?? 0;
   return { base: (full - disc) * months, orig: full * months };
-}
-
-function InlineMonthsPicker({ value, onChange }: { value: number | null; onChange: (m: number) => void }) {
-  return (
-    <div className="flex gap-1 mt-1 mb-1 ml-5">
-      {RENEWAL_OPTIONS.map(({ months, label }) => {
-        const active = value === months;
-        return (
-          <button
-            key={months}
-            onClick={(e) => { e.stopPropagation(); onChange(months); }}
-            className="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer"
-            style={{
-              border: active ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
-              backgroundColor: active ? "#f0fff4" : "#fff",
-              color: active ? "#38a848" : "#a39e98",
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 export type ChildInfo = { id: string; name: string; grade: string; loginId: string };
@@ -341,7 +311,7 @@ export function RenewalModal({
                                     {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                                   </div>
                                 </div>
-                                {isChecked && <InlineMonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
+                                {isChecked && <MonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
                               </div>
                             );
                           })}
@@ -422,7 +392,7 @@ export function RenewalModal({
                                   <span className="flex-1 text-[13px] text-black/95">{svc.name}</span>
                                   <span className="text-[12px] text-p-secondary">{svc.priceLabel}</span>
                                 </div>
-                                {isChecked && <InlineMonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
+                                {isChecked && <MonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
                               </div>
                             );
                           })}
@@ -482,7 +452,7 @@ export function RenewalModal({
                                 {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                               </div>
                             </div>
-                            {isChecked && <InlineMonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
+                            {isChecked && <MonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
                           </div>
                         );
                       })}

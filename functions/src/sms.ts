@@ -7,7 +7,7 @@
  */
 
 import * as crypto from "crypto";
-import { SENDER_PHONE } from "./config";
+import { SENDER_PHONE, KAKAO_PF_ID } from "./config";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { SolapiMessageService } = require("solapi");
@@ -38,7 +38,7 @@ export async function sendSms(
   apiSecret: string
 ): Promise<void> {
   const service = new SolapiMessageService(trim(apiKey), trim(apiSecret));
-  await service.sendOne({ to: phone.replace(/-/g, ""), from: SENDER_PHONE, text });
+  await service.sendOne({ to: phone.replace(/\D/g, ""), from: SENDER_PHONE, text });
 }
 
 /** 다건 SMS 일괄 발송 */
@@ -48,7 +48,7 @@ export async function sendBulkSms(
   apiSecret: string
 ): Promise<void> {
   const service = new SolapiMessageService(trim(apiKey), trim(apiSecret));
-  await service.send(messages.map(({ to, text }) => ({ to: to.replace(/-/g, ""), from: SENDER_PHONE, text })));
+  await service.send(messages.map(({ to, text }) => ({ to: to.replace(/\D/g, ""), from: SENDER_PHONE, text })));
 }
 
 /** 발송 내역 조회 */
@@ -66,6 +66,109 @@ export async function fetchSolapiMessages(
     throw new Error(`Solapi 조회 실패: ${text}`);
   }
   return res.json();
+}
+
+/** 알림톡 발송 (실패 시 SMS fallback) */
+export async function sendAlimtalk(
+  phone: string,
+  templateId: string,
+  variables: Record<string, string>,
+  fallbackText: string,
+  apiKey: string,
+  apiSecret: string
+): Promise<void> {
+  const service = new SolapiMessageService(trim(apiKey), trim(apiSecret));
+  const to = phone.replace(/\D/g, "");
+  try {
+    await service.sendOne({
+      to,
+      from: SENDER_PHONE,
+      kakaoOptions: {
+        pfId: KAKAO_PF_ID,
+        templateId,
+        variables,
+      },
+    });
+  } catch (e) {
+    console.warn(`[알림톡 실패 → SMS fallback] ${to}:`, (e as Error).message ?? e);
+    await service.sendOne({ to, from: SENDER_PHONE, text: fallbackText });
+  }
+}
+
+/** 솔라피 잔액 조회 — `/cash/v1/balance` */
+export async function fetchSolapiBalance(
+  apiKey: string,
+  apiSecret: string
+): Promise<unknown> {
+  const authorization = buildAuth(trim(apiKey), trim(apiSecret));
+  const res = await fetch("https://api.solapi.com/cash/v1/balance", {
+    headers: { Authorization: authorization },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Solapi 잔액 조회 실패: ${text}`);
+  }
+  return res.json();
+}
+
+/** 솔라피에 등록된 카카오톡 채널 목록 조회 */
+export async function getKakaoChannels(
+  apiKey: string,
+  apiSecret: string
+): Promise<unknown> {
+  const authorization = buildAuth(trim(apiKey), trim(apiSecret));
+  const res = await fetch("https://api.solapi.com/kakao/v2/channels", {
+    headers: { Authorization: authorization },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`카카오 채널 조회 실패: ${text}`);
+  }
+  return res.json();
+}
+
+/** 친구톡 단건 발송 — 실패(채널친구 아님 등) 시 SMS fallback */
+export async function sendFriendTalk(
+  phone: string,
+  text: string,
+  apiKey: string,
+  apiSecret: string
+): Promise<void> {
+  const service = new SolapiMessageService(trim(apiKey), trim(apiSecret));
+  const to = phone.replace(/\D/g, "");
+  try {
+    const res = await service.sendOne({
+      to,
+      from: SENDER_PHONE,
+      text,
+      kakaoOptions: { pfId: KAKAO_PF_ID },
+    }) as { statusCode?: string };
+    // statusCode 2000 = 정상 접수, 그 외 = 실패 → SMS fallback
+    if (res.statusCode && res.statusCode !== "2000") {
+      console.warn(`[친구톡 실패(${res.statusCode}) → SMS fallback] ${to}`);
+      await service.sendOne({ to, from: SENDER_PHONE, text });
+    }
+  } catch (e) {
+    console.warn(`[친구톡 에러 → SMS fallback] ${to}:`, (e as Error).message ?? e);
+    try {
+      await service.sendOne({ to, from: SENDER_PHONE, text });
+    } catch (e2) {
+      console.error(`[SMS fallback도 실패] ${to}:`, (e2 as Error).message ?? e2);
+      const raw = (e2 as Error).message ?? String(e2);
+      throw new Error(`SMS 발송 실패 (${to}): ${raw.length > 120 ? raw.slice(0, 120) + "…" : raw}`);
+    }
+  }
+}
+
+/** 친구톡 다건 발송 (개별 실패 시 SMS fallback) */
+export async function sendBulkFriendTalk(
+  messages: Array<{ to: string; text: string }>,
+  apiKey: string,
+  apiSecret: string
+): Promise<void> {
+  await Promise.all(
+    messages.map(({ to, text }) => sendFriendTalk(to, text, apiKey, apiSecret))
+  );
 }
 
 /** MMS용 이미지 업로드 → fileId 반환 */

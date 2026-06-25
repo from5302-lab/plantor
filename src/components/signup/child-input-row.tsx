@@ -5,6 +5,7 @@ import { functions } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { Select } from "@/components/ui/select";
+import { MonthsPicker } from "@/components/ui/months-picker";
 
 const GRADES = ["미취학", "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3"];
 export const SIGNUP_SERVICES = SERVICES.filter(
@@ -16,6 +17,7 @@ export type ChildEntry = {
   grade: string;
   loginId: string;
   selectedServices: string[];
+  serviceMonths: Record<string, number>;
   loginIdError?: string;
 };
 
@@ -49,13 +51,14 @@ export function Field({
 // ─── ChildInputRow ────────────────────────────────────────────────────────────
 
 export function ChildInputRow({
-  index, child, canRemove, onUpdate, onToggleService, onRemove, services,
+  index, child, canRemove, onUpdate, onToggleService, onChangeMonths, onRemove, services,
 }: {
   index: number;
   child: ChildEntry;
   canRemove: boolean;
   onUpdate: (patch: Partial<ChildEntry>) => void;
   onToggleService: (slug: string) => void;
+  onChangeMonths: (slug: string, months: number) => void;
   onRemove: () => void;
   services?: typeof SIGNUP_SERVICES;
 }) {
@@ -106,31 +109,39 @@ export function ChildInputRow({
           {(services ?? SIGNUP_SERVICES).map((svc) => {
             const checked = child.selectedServices.includes(svc.slug);
             return (
-              <label
-                key={svc.slug}
-                className={[
-                  "flex cursor-pointer items-start gap-2.5 rounded-lg px-3.5 py-3",
-                  checked
-                    ? "border-[1.5px] border-p-green bg-[#f0faf1]"
-                    : "border border-black/10 bg-white",
-                ].join(" ")}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onToggleService(svc.slug)}
-                  className="mt-0.5 w-3.5 h-3.5 accent-p-green"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-black/95 flex items-center gap-1.5">
-                      <ServiceIcon service={svc} size={16} /> {svc.name}
-                    </span>
-                    <span className={`text-[13px] font-bold shrink-0 ${checked ? "text-p-green" : "text-p-secondary"}`}>{svc.priceLabel}</span>
+              <div key={svc.slug}>
+                <label
+                  className={[
+                    "flex cursor-pointer items-start gap-2.5 rounded-lg px-3.5 py-3",
+                    checked
+                      ? "border-[1.5px] border-p-green bg-[#f0faf1]"
+                      : "border border-black/10 bg-white",
+                  ].join(" ")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleService(svc.slug)}
+                    className="mt-0.5 w-3.5 h-3.5 accent-p-green"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-black/95 flex items-center gap-1.5">
+                        <ServiceIcon service={svc} size={16} /> {svc.name}
+                      </span>
+                      <span className={`text-[13px] font-bold shrink-0 ${checked ? "text-p-green" : "text-p-secondary"}`}>{svc.priceLabel}</span>
+                    </div>
+                    <p className="m-0 mt-0.5 text-[11px] text-p-muted">{svc.hook}</p>
                   </div>
-                  <p className="m-0 mt-0.5 text-[11px] text-p-muted">{svc.hook}</p>
-                </div>
-              </label>
+                </label>
+                {checked && (
+                  <MonthsPicker
+                    value={child.serviceMonths?.[svc.slug] ?? null}
+                    onChange={(m) => onChangeMonths(svc.slug, m)}
+                    className="flex gap-1 mt-1.5 mb-0.5 ml-1"
+                  />
+                )}
+              </div>
             );
           })}
         </div>

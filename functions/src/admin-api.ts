@@ -1,11 +1,15 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { solapiApiKey, solapiApiSecret, SITE_URL, BANK_NAME, BANK_ACCOUNT, BANK_HOLDER, SERVICE_META } from "./config";
+import { FieldValue } from "firebase-admin/firestore";
+import { solapiApiKey, solapiApiSecret, SITE_URL, BANK_NAME, BANK_ACCOUNT, BANK_HOLDER, KAKAO_TEMPLATES } from "./config";
+import { loadServiceMeta } from "./service-meta-loader";
 import { assertAdmin, db } from "./utils";
 import {
   fetchSolapiMessages,
-  sendBulkSms as solapiBulkSend,
+  fetchSolapiBalance,
+  sendBulkFriendTalk,
   uploadImageToSolapi,
-  sendSms,
+  sendAlimtalk,
+  getKakaoChannels,
 } from "./sms";
 import { sendDirectClassExpiryNotice, sendSubscriptionExpiryNotice } from "./notifications";
 
@@ -56,20 +60,44 @@ export const confirmDirectClassPayment = onCall(
 
     await docRef.update({ expiry: newExpiry });
 
-    // SMS 발송
+    // 가계부 수입 자동 기록 (어드민 개인 가계부) — 같은 확인 중복 방지
     const students = (cls.students as Array<{ name?: string; parentPhone?: string }>) ?? [];
+    const studentNames = students.map((s) => s.name ?? "").filter(Boolean).join(", ");
+    const tuition = (cls.tuition as number) ?? 0;
+    if (tuition > 0) {
+      const paymentKey = `direct_${classId}_${newExpiry}`;
+      const dup = await db.collection("vaultEntries").where("paymentKey", "==", paymentKey).limit(1).get();
+      if (dup.empty) {
+        const kst = new Date(Date.now() + 9 * 3600 * 1000);
+        const todayKst = `${kst.getUTCFullYear()}-${pad(kst.getUTCMonth() + 1)}-${pad(kst.getUTCDate())}`;
+        await db.collection("vaultEntries").add({
+          date: todayKst,
+          type: "income",
+          amount: tuition,
+          category: "수업료",
+          memo: `${studentNames} 수업료`,
+          receiptUrl: null,
+          recurringId: null,
+          paymentKey,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    // 알림톡 발송 (실패 시 SMS fallback)
     const parentPhone = students[0]?.parentPhone as string | undefined;
     if (parentPhone) {
       const studentNames = students.map((s) => s.name ?? "").filter(Boolean).join(", ");
-      const text = [
-        `안녕하세요^^`,
-        `충쌤입니다,`,
-        ``,
-        `${studentNames} 학습비 입금이 확인되었습니다 ✅`,
-        ``,
-        `감사합니다.`,
-      ].join("\n");
-      await sendSms(parentPhone, text, solapiApiKey.value(), solapiApiSecret.value());
+      const fallbackText = `${studentNames}학생 입금이 확인되었습니다.\n감사합니다.`;
+      await sendAlimtalk(
+        parentPhone,
+        KAKAO_TEMPLATES.RENEWAL_CONFIRM,
+        { "#{parentName}": studentNames, "#{details}": `학습비 입금 확인 완료` },
+        fallbackText,
+        solapiApiKey.value(),
+        solapiApiSecret.value()
+      );
     }
 
     return { newExpiry };
@@ -95,26 +123,7 @@ export const triggerExpirySms = onCall(
       if (type === "directClass") {
         await sendDirectClassExpiryNotice(daysAhead, solapiApiKey.value(), solapiApiSecret.value());
       } else {
-        // 임시 디버그: 매칭된 구독의 전체 필드 확인
         sent = await sendSubscriptionExpiryNotice(daysAhead, solapiApiKey.value(), solapiApiSecret.value());
-
-        const allSnap2 = await db.collection("subscriptions").where("status", "==", "active").get();
-        const KST = 9 * 60 * 60 * 1000;
-        const nk = new Date(Date.now() + KST);
-        const tgt = nk.getUTCDate() + daysAhead;
-        const f = new Date(Date.UTC(nk.getUTCFullYear(), nk.getUTCMonth(), tgt) - KST);
-        const t = new Date(Date.UTC(nk.getUTCFullYear(), nk.getUTCMonth(), tgt + 1));
-        const matched = allSnap2.docs.filter((d) => {
-          const ed = d.data().endDate;
-          if (!ed?.toDate) return false;
-          const ms = ed.toDate().getTime();
-          return ms >= f.getTime() && ms < t.getTime();
-        });
-        const info = matched.slice(0, 3).map((d) => {
-          const data = d.data();
-          return `${d.id}: fam=${data.familyId ?? "없음"}, child=${data.childId ?? "없음"}, keys=${Object.keys(data).join(",")}`;
-        });
-        return { success: true, sent, debug: `매칭${matched.length}건, 발송${sent}건\n${info.join("\n")}` };
       }
       return { success: true, sent };
     } catch (e) {
@@ -134,8 +143,8 @@ export const sendBulkSms = onCall(
       if (!phones?.length || !text?.trim())
         throw new HttpsError("invalid-argument", "수신자와 메시지가 필요합니다.");
 
-      const normalizedPhones = phones.map((p: string) => p.replace(/-/g, ""));
-      await solapiBulkSend(
+      const normalizedPhones = phones.map((p: string) => p.replace(/\D/g, ""));
+      await sendBulkFriendTalk(
         normalizedPhones.map((to: string) => ({ to, text })),
         solapiApiKey.value(),
         solapiApiSecret.value()
@@ -143,8 +152,8 @@ export const sendBulkSms = onCall(
       return { success: true, count: phones.length };
     } catch (e: unknown) {
       if (e instanceof HttpsError) throw e;
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[sendBulkSms] 오류:`, msg);
+      const raw = e instanceof Error ? e.message : String(e);
+      const msg = raw.length > 150 ? raw.slice(0, 150) + "…" : raw;
       throw new HttpsError("internal", `발송 실패: ${msg}`);
     }
   }
@@ -174,8 +183,9 @@ export const previewExpirySms = onCall(async (request) => {
   const childNames = childrenSnap.docs.map((d) => (d.data().name as string) ?? "").filter(Boolean);
 
   const subsSnap = await db.collection("subscriptions").where("familyId", "==", familyId).where("status", "==", "active").get();
+  const meta = await loadServiceMeta();
   const serviceNames = subsSnap.docs
-    .map((d) => SERVICE_META[d.data().serviceSlug as string]?.name ?? (d.data().serviceSlug as string))
+    .map((d) => meta.get(d.data().serviceSlug as string)?.name ?? (d.data().serviceSlug as string))
     .join(", ");
 
   const endDates = subsSnap.docs
@@ -219,3 +229,55 @@ export const previewExpirySms = onCall(async (request) => {
 
   return { phone, text, parentName };
 });
+
+// ─── Solapi 잔액 조회 (어드민 전용) ──────────────────────────────────────────
+export const getSolapiBalance = onCall(
+  { secrets: [solapiApiKey, solapiApiSecret] },
+  async (request) => {
+    await assertAdmin(request.auth);
+    try {
+      const data = await fetchSolapiBalance(
+        solapiApiKey.value(), solapiApiSecret.value()
+      );
+      return data;
+    } catch (e) {
+      throw new HttpsError("internal", (e as Error).message);
+    }
+  }
+);
+
+// ─── 카카오톡 채널 목록 조회 (어드민 전용) ──────────────────────────────────────
+export const getKakaoChannelList = onCall(
+  { secrets: [solapiApiKey, solapiApiSecret] },
+  async (request) => {
+    await assertAdmin(request.auth);
+    try {
+      const channels = await getKakaoChannels(solapiApiKey.value(), solapiApiSecret.value());
+      return { channels };
+    } catch (e) {
+      throw new HttpsError("internal", (e as Error).message);
+    }
+  }
+);
+
+// ─── 카카오톡 알림톡 테스트 발송 (어드민 전용) ─────────────────────────────────
+export const sendTestKakao = onCall(
+  { secrets: [solapiApiKey, solapiApiSecret] },
+  async (request) => {
+    await assertAdmin(request.auth);
+    const { phone, templateId, variables, fallbackText } = request.data as {
+      phone: string; templateId: string; variables?: Record<string, string>; fallbackText?: string;
+    };
+    if (!phone || !templateId) throw new HttpsError("invalid-argument", "phone, templateId가 필요합니다.");
+    try {
+      await sendAlimtalk(
+        phone, templateId, variables ?? {}, fallbackText ?? "알림톡 테스트",
+        solapiApiKey.value(), solapiApiSecret.value()
+      );
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new HttpsError("internal", `알림톡 발송 실패: ${msg}`);
+    }
+  }
+);

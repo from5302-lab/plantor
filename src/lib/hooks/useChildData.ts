@@ -13,6 +13,10 @@ type UseChildDataOptions = {
   userId: string;
   userEmail?: string | null;
   isDemo?: boolean;
+  /** 어드민 미리보기: childId 직접 지정 → loginId 해석 생략 */
+  previewChildId?: string;
+  /** 어드민 미리보기: loginId로 자녀 조회 (직강 학생 등 childId를 모를 때) */
+  previewLoginId?: string;
   /** isDemo=true 일 때 초기값으로 사용할 데이터 */
   demoData?: {
     subscriptions: Subscription[];
@@ -25,7 +29,7 @@ type UseChildDataOptions = {
  * 학생 userId로 자녀 정보, 구독, 오늘 로그, 전체 로그, 출석 여부를 실시간으로 가져온다.
  * setLogs / setAllLogs 는 데모 모드의 낙관적 업데이트에 사용된다.
  */
-export function useChildData({ userId, userEmail, isDemo = false, demoData }: UseChildDataOptions) {
+export function useChildData({ userId, userEmail, isDemo = false, previewChildId, previewLoginId, demoData }: UseChildDataOptions) {
   const [childId, setChildId] = useState<string | null>(isDemo ? "demo-child" : null);
   const [childName, setChildName] = useState<string>(isDemo ? "민준" : "");
   const [childGrade, setChildGrade] = useState<string>(isDemo ? "초4" : "");
@@ -42,9 +46,35 @@ export function useChildData({ userId, userEmail, isDemo = false, demoData }: Us
   const [todayAttended, setTodayAttended] = useState(false);
   const [ready, setReady] = useState(isDemo);
 
-  // 1) userId → plantor_id → child
+  // 1) userId → plantor_id → child  (미리보기는 childId 직접 사용)
   useEffect(() => {
     if (isDemo) return;
+    if (previewChildId) {
+      getDoc(doc(db, "children", previewChildId)).then((snap) => {
+        if (snap.exists()) {
+          setChildId(snap.id);
+          setChildName(snap.data().name ?? "");
+          setChildGrade(snap.data().grade ?? "");
+          setChildLoginId(snap.data().loginId ?? "");
+        }
+        setReady(true);
+      });
+      return;
+    }
+    if (previewLoginId) {
+      const q = query(collection(db, "children"), where("loginId", "==", previewLoginId.toLowerCase()));
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          setChildId(d.id);
+          setChildName(d.data().name ?? "");
+          setChildGrade(d.data().grade ?? "");
+          setChildLoginId(d.data().loginId ?? "");
+        }
+        setReady(true);
+      });
+      return () => unsub();
+    }
     let unsubChild: (() => void) | undefined;
     getDoc(doc(db, "users", userId)).then((userSnap) => {
       let plantorId = userSnap.data()?.plantor_id as string | undefined;
@@ -65,22 +95,36 @@ export function useChildData({ userId, userEmail, isDemo = false, demoData }: Us
       });
     });
     return () => unsubChild?.();
-  }, [userId, userEmail, isDemo]);
+  }, [userId, userEmail, isDemo, previewChildId, previewLoginId]);
 
-  // 2) 활성 구독
+  // 2) 활성 구독 (active + transferred 중 endDate가 유효한 것)
   useEffect(() => {
     if (isDemo || !childId) return;
     return onSnapshot(
-      query(collection(db, "subscriptions"), where("childId", "==", childId), where("status", "==", "active")),
-      (snap) => setSubscriptions(snap.docs.map((d) => ({
-        id: d.id,
-        childId: d.data().childId ?? "",
-        serviceSlug: d.data().serviceSlug ?? "",
-        monthlyPrice: d.data().monthlyPrice ?? 0,
-        status: d.data().status ?? "active",
-        startDate: null,
-        endDate: null,
-      })))
+      query(collection(db, "subscriptions"), where("childId", "==", childId)),
+      (snap) => {
+        const now = new Date();
+        setSubscriptions(snap.docs
+          .filter((d) => {
+            const status = d.data().status;
+            if (status === "active" || status === "transferred") {
+              const endTs = d.data().endDate;
+              if (!endTs) return status === "active";
+              const endDate = endTs.toDate ? endTs.toDate() : new Date(endTs);
+              return endDate >= now;
+            }
+            return false;
+          })
+          .map((d) => ({
+            id: d.id,
+            childId: d.data().childId ?? "",
+            serviceSlug: d.data().serviceSlug ?? "",
+            monthlyPrice: d.data().monthlyPrice ?? 0,
+            status: d.data().status ?? "active",
+            startDate: null,
+            endDate: null,
+          })));
+      }
     );
   }, [childId, isDemo]);
 

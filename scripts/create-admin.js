@@ -6,9 +6,10 @@ async function main() {
   const auth = admin.auth();
   const db = admin.firestore();
 
-  const email = "from302@plantor.app";
-  const password = "vision00^^";
-  const displayName = "from302";
+  const email = process.env.ADMIN_EMAIL || "from302@plantor.app";
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) { console.error("ADMIN_PASSWORD 환경변수를 설정하세요."); process.exit(1); }
+  const displayName = process.env.ADMIN_NAME || "from302";
 
   // Auth 계정 생성
   let uid;

@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Korean Middle/High School Textbook Unit Library",
+  "description": "한국 중·고등학교 교과서 단원명 라이브러리 스키마 (2022/2015 개정 교육과정)",
+  "type": "object",
+  "required": ["schemaVersion", "lastUpdated", "books"],
+  "properties": {
+    "schemaVersion": {"type": "string", "const": "1.0"},
+    "lastUpdated": {"type": "string", "format": "date"},
+    "books": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "subject", "grade", "schoolLevel", "curriculum", "publisher", "units"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "고유 ID. 형식: <과목코드>-<학년코드>-<출판사코드>-<교육과정연도>. 예: kor-m1-mirae-2022"
+          },
+          "subject": {
+            "type": "string",
+            "enum": [
+              "국어", "영어", "수학", "사회", "과학", "역사",
+              "공통국어1", "공통국어2", "공통영어1", "공통영어2",
+              "공통수학1", "공통수학2", "기본수학1", "기본수학2",
+              "통합사회1", "통합사회2", "통합과학1", "통합과학2",
+              "과학탐구실험1", "과학탐구실험2",
+              "한국사1", "한국사2",
+              "화법과언어", "독서와작문", "문학",
+              "영어I", "영어II", "영어독해와작문", "영어회화",
+              "대수", "미적분I", "미적분II", "확률과통계", "기하",
+              "세계시민과지리", "사회와문화", "현대사회와윤리", "세계사", "동아시아사",
+              "물리학", "화학", "생명과학", "지구과학",
+              "화법과작문", "독서", "언어와매체",
+              "수학I", "수학II",
+              "한국지리", "세계지리", "경제", "정치와법", "사회문화", "생활과윤리", "윤리와사상",
+              "물리학I", "물리학II", "화학I", "화학II",
+              "생명과학I", "생명과학II", "지구과학I", "지구과학II"
+            ]
+          },
+          "subjectGroup": {
+            "type": "string",
+            "enum": ["국어", "영어", "수학", "사회", "과학", "역사"],
+            "description": "묶음 분류 (사용자 필터용)"
+          },
+          "grade": {
+            "type": "string",
+            "enum": ["중1", "중2", "중3", "고1", "고2", "고3"]
+          },
+          "schoolLevel": {
+            "type": "string",
+            "enum": ["middle", "high"]
+          },
+          "curriculum": {
+            "type": "string",
+            "enum": ["2022", "2015"],
+            "description": "적용 교육과정 (2022 또는 2015 개정)"
+          },
+          "publisher": {
+            "type": "string",
+            "description": "출판사명 (예: 미래엔, 천재교육, 비상교육)"
+          },
+          "publisherCode": {
+            "type": "string",
+            "description": "출판사 코드 (영문 슬러그)"
+          },
+          "authors": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "대표 저자"
+          },
+          "approvalYear": {
+            "type": "integer",
+            "description": "인정/검정 연도"
+          },
+          "useYear": {
+            "type": "integer",
+            "description": "사용 시작 연도"
+          },
+          "isbn": {"type": "string"},
+          "sourceUrl": {
+            "type": "string",
+            "description": "출판사 사이트 또는 자료 출처 URL"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": ["publisher-site", "publisher-pdf", "web-search", "official-doc", "user-provided"],
+            "description": "데이터 수집 출처 유형"
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "출판사 1차 자료로 확인되었는지"
+          },
+          "notes": {"type": "string"},
+          "units": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/unit"}
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "unit": {
+      "type": "object",
+      "required": ["level", "title"],
+      "properties": {
+        "level": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "1=대단원, 2=중단원, 3=소단원"
+        },
+        "number": {
+          "type": "string",
+          "description": "단원 번호 표기 (예: I, 1, (1), ①, 1-1)"
+        },
+        "title": {"type": "string"},
+        "page": {
+          "type": "string",
+          "description": "쪽수 범위 (선택)"
+        },
+        "subunits": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/unit"}
+        }
+      }
+    }
+  }
+}

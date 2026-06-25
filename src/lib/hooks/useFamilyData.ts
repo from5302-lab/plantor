@@ -27,15 +27,15 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
   }, [familyId]);
 
   useEffect(() => {
-    if (children.length === 0) { setSubscriptions([]); return; }
-    const childIds = children.map((c) => c.id);
+    if (!familyId) { setSubscriptions([]); return; }
+    // familyId로 조회 → 자녀 sub + 학부모 sub (childId=null) 모두 포함
     return onSnapshot(
-      query(collection(db, "subscriptions"), where("childId", "in", childIds)),
+      query(collection(db, "subscriptions"), where("familyId", "==", familyId)),
       (snap) => setSubscriptions(snap.docs.map((d) => {
         const data = d.data();
         return {
           id: d.id,
-          childId: data.childId ?? "",
+          childId: data.childId ?? null,
           serviceSlug: data.serviceSlug ?? "",
           monthlyPrice: data.monthlyPrice ?? 0,
           status: data.status ?? "active",
@@ -45,7 +45,7 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
         };
       }))
     );
-  }, [children]);
+  }, [familyId]);
 
   useEffect(() => {
     if (!familyId || children.length === 0) return;

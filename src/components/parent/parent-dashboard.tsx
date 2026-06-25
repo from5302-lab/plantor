@@ -372,7 +372,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
 
         {/* 안내 */}
         <div className="mt-5 px-4 py-3 bg-p-bg rounded-xl text-xs text-p-muted leading-[1.6]">
-          인증샷은 제출일로부터 90일간 보관됩니다. 학습 완료 시 문자로 알림이 발송됩니다.
+          인증샷은 제출일로부터 90일간 보관됩니다. 학습 완료 시 카톡으로 알림이 발송됩니다.
         </div>
       </div>
 

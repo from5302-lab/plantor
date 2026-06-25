@@ -11,6 +11,10 @@ import { loadServices, filterSignupServices } from "@/lib/load-services";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { formatDateTime, formatWon } from "@/lib/format";
 import { CenterMsg } from "@/components/ui/center-msg";
+import { CopyBtn } from "@/components/ui/copy-btn";
+import { useSendToast } from "@/lib/send-toast";
+import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
+import { X, Settings, BarChart3, KeyRound } from "lucide-react";
 
 import type { MemberFamily, MemberChild, Subscription as MemberSub, DirectClass, DirectClassStudent, DaySchedule } from "@/lib/types";
 export type { MemberFamily, MemberChild, MemberSub };
@@ -96,9 +100,20 @@ function MoneyCell({ label, value, color, size = 12 }: { label: string; value: n
   );
 }
 
-function FinanceBox({ revenue, discount, agencyFee, profit, size }: { revenue: number; discount: number; agencyFee: number; profit: number; size?: number }) {
+function FinanceBox({ revenue, discount, agencyFee, profit, size, personal }: { revenue: number; discount: number; agencyFee: number; profit: number; size?: number; personal?: boolean }) {
+  if (personal) {
+    // 개인 박스: 가맹비·순이익 제외, 실입금(매출−할인)만
+    return (
+      <div className="mt-finance-box flex items-center bg-p-bg rounded-lg border border-black/10" style={{ padding: "6px 10px", gap: 4, flexShrink: 0 }}>
+        <MoneyCell label="매출"  value={revenue}   size={size} />
+        <MoneyCell label="할인" value={discount} color="#c00000" size={size} />
+        <div style={{ width: 1, height: 28, backgroundColor: "rgba(0,0,0,0.08)" }} />
+        <MoneyCell label="실입금" value={revenue - discount} color="#1a7f4b" size={size} />
+      </div>
+    );
+  }
   return (
-    <div className="flex items-center bg-p-bg rounded-lg border border-black/10" style={{ padding: "6px 10px", gap: 4, flexShrink: 0 }}>
+    <div className="mt-finance-box flex items-center bg-p-bg rounded-lg border border-black/10" style={{ padding: "6px 10px", gap: 4, flexShrink: 0 }}>
       <MoneyCell label="매출"  value={revenue}   size={size} />
       <MoneyCell label="할인" value={discount} color="#c00000" size={size} />
       <MoneyCell label="가맹비" value={agencyFee} color="#92660a" size={size} />
@@ -222,32 +237,13 @@ function SubStatusBadge({ sub }: { sub: MemberSub }) {
 
   return (
     <select value={selectVal} onChange={handleChange} disabled={updating}
-      style={{ appearance: "none", WebkitAppearance: "none", border: `1px solid ${s.border}`, borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600, color: s.color, backgroundColor: s.bg, cursor: "pointer", outline: "none", width: 68, textAlign: "center" }}>
+      style={{ appearance: "none", WebkitAppearance: "none", border: `1px solid ${s.border}`, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: s.color, backgroundColor: s.bg, cursor: "pointer", outline: "none", textAlign: "center", textAlignLast: "center" }}>
       {BADGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
 }
 
 // ── 자녀 카드 삭제 버튼 (자녀 doc + 모든 구독 doc 삭제) ──────────────────────
-
-// ── 클립보드 복사 버튼 ────────────────────────────────────────────────────────
-
-function CopyBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  function handleCopy() {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-  return (
-    <button onClick={handleCopy} title="복사" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", lineHeight: 1, display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}>
-      {copied
-        ? <span style={{ fontSize: 10, color: "#1a7f4b", fontWeight: 700 }}>✓</span>
-        : <img src="/icons/copy.svg" width={13} height={13} alt="copy" style={{ display: "block" }} />}
-    </button>
-  );
-}
 
 function KeyBtn({ onClick }: { onClick: () => void }) {
   const [active, setActive] = useState(false);
@@ -268,7 +264,7 @@ function KeyBtn({ onClick }: { onClick: () => void }) {
         filter: active ? "brightness(0.8)" : "none",
       }}
     >
-      🔑
+      <KeyRound size={14} strokeWidth={1.5} color="rgba(0,0,0,0.95)" />
     </button>
   );
 }
@@ -279,9 +275,9 @@ const deleteXStyle = (deleting: boolean): React.CSSProperties => ({
   opacity: deleting ? 0.2 : 1, padding: "2px 4px",
 });
 
-function SmsSendBtn({ family, childNames, serviceNames, endDate, parentId, isDirect, tuition }: {
+function SmsSendBtn({ family, childNames, serviceNames, endDate, parentId, isDirect, tuition, disabled }: {
   family: MemberFamily; childNames: string; serviceNames: string; endDate: string; parentId: string;
-  isDirect?: boolean; tuition?: number;
+  isDirect?: boolean; tuition?: number; disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const text = isDirect
@@ -313,7 +309,17 @@ function SmsSendBtn({ family, childNames, serviceNames, endDate, parentId, isDir
       ].join("\n");
   return (
     <>
-      <button onClick={() => setOpen(true)} title="만료 알림 문자" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: "2px 4px", lineHeight: 1 }}>🔔</button>
+      <button
+        onClick={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        title={disabled ? "만료 7일 이내일 때 활성화" : "만료 알림 카톡"}
+        style={{
+          background: "none", border: "none",
+          cursor: disabled ? "not-allowed" : "pointer",
+          fontSize: 14, padding: "2px 4px", lineHeight: 1,
+          filter: disabled ? "grayscale(1)" : "none",
+        }}
+      >🔔</button>
       {open && <SmsPreviewModal phone={family.phone} parentName={family.parentName} initialText={text} onClose={() => setOpen(false)} />}
     </>
   );
@@ -323,19 +329,12 @@ function SmsPreviewModal({ phone, parentName, initialText, onClose }: {
   phone: string; parentName: string; initialText: string; onClose: () => void;
 }) {
   const [text, setText] = useState(initialText);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
+  const { startSend } = useSendToast();
 
-  async function handleSend() {
+  function handleSend() {
     if (!text.trim() || !phone) return;
-    setSending(true);
-    try {
-      const fn = httpsCallable<{ phones: string[]; text: string }, { success: boolean }>(functions, "sendBulkSms");
-      await fn({ phones: [phone.replace(/[\s-]/g, "")], text });
-      setSent(true);
-      setTimeout(onClose, 1500);
-    } catch (e) { setError(e instanceof Error ? e.message.slice(0, 100) : "발송 실패"); setSending(false); }
+    startSend({ label: `${parentName} 만료알림`, phones: [phone.replace(/[\s-]/g, "")], text });
+    onClose();
   }
 
   return (
@@ -343,34 +342,24 @@ function SmsPreviewModal({ phone, parentName, initialText, onClose }: {
       <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.35)", zIndex: 200 }} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(420px, 92vw)", backgroundColor: "#fff", borderRadius: 12, boxShadow: "0 8px 40px rgba(0,0,0,0.15)", zIndex: 201, padding: "24px 24px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>만료 알림 문자 발송</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>만료 알림 카톡 발송</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: "#a39e98", cursor: "pointer", padding: 4 }}>✕</button>
         </div>
-        {sent ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#1a7f4b" }}>발송 완료</div>
-          </div>
-        ) : (
-          <>
-            <div style={{ fontSize: 12, color: "#a39e98", marginBottom: 12 }}>
-              수신자: <span style={{ color: "#615d59", fontWeight: 600 }}>{parentName}</span> {phone && <span>({phone})</span>}
-            </div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={10}
-              style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, padding: 12, fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit" }}
-            />
-            {error && <div style={{ color: "#c0a0a0", fontSize: 12, marginTop: 6 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-              <button onClick={onClose} className={MODAL_BTN_GHOST_CLS}>취소</button>
-              <button onClick={handleSend} disabled={sending || !text.trim()} className={MODAL_BTN_PRIMARY_CLS} style={{ opacity: sending ? 0.7 : 1 }}>
-                {sending ? "발송 중…" : "발송"}
-              </button>
-            </div>
-          </>
-        )}
+        <div style={{ fontSize: 12, color: "#a39e98", marginBottom: 12 }}>
+          수신자: <span style={{ color: "#615d59", fontWeight: 600 }}>{parentName}</span> {phone && <span>({phone})</span>}
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          style={{ width: "100%", boxSizing: "border-box", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, padding: 12, fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+        />
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+          <button onClick={onClose} className={MODAL_BTN_GHOST_CLS}>취소</button>
+          <button onClick={handleSend} disabled={!text.trim()} className={MODAL_BTN_PRIMARY_CLS}>
+            발송
+          </button>
+        </div>
       </div>
     </>
   );
@@ -439,10 +428,10 @@ function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }
         if (userId) await updateDoc(doc(db, "users", userId), { aiPackageEndDate: endDateStr });
       } else if (isParentTarget) {
         const svc = SERVICES.find((s) => s.slug === slug);
-        // 학부모 서비스: subscriptions 컬렉션에 childId __parent__로 저장
+        // 학부모 서비스: subscriptions 컬렉션에 childId=null로 저장 (학부모 본인 구독)
         await addDoc(collection(db, "subscriptions"), {
           familyId,
-          childId: "__parent__",
+          childId: null,
           serviceSlug: slug,
           monthlyPrice: svc?.pricePerMonth ?? 0,
           agencyFee: svc?.agencyFee ?? 0,
@@ -578,7 +567,7 @@ function AiPackageStatusBadge({ familyId, userId, endDate }: { familyId: string;
 
   return (
     <select value={selectVal} onChange={handleChange} disabled={updating}
-      style={{ appearance: "none", WebkitAppearance: "none", border: `1px solid ${s.border}`, borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600, color: s.color, backgroundColor: s.bg, cursor: "pointer", outline: "none", width: 68, textAlign: "center" }}>
+      style={{ appearance: "none", WebkitAppearance: "none", border: `1px solid ${s.border}`, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: s.color, backgroundColor: s.bg, cursor: "pointer", outline: "none", textAlign: "center", textAlignLast: "center" }}>
       {BADGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
@@ -596,7 +585,7 @@ function AiPackageRow({ familyId, userId, endDate }: { familyId: string; userId:
     } catch (err) { alert(err instanceof Error ? err.message : "삭제 오류"); setDeleting(false); }
   }
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 68px 110px 24px", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto 24px", alignItems: "center", gap: 8 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
         <span style={{ fontSize: 14 }}>💻</span>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Mom&amp; AI 패키지</span>
@@ -651,13 +640,16 @@ function calcTotals(subs: MemberSub[], statusFilter?: StatusFilter, serviceSlug?
 
 function familyHasStatus(family: MemberFamily, children: MemberChild[], allSubs: MemberSub[], filter: StatusFilter) {
   if (filter === "all") return true;
-  const subs = allSubs.filter((s) => children.some((c) => c.id === s.childId) || (s.childId === "__parent__" && s.familyId === family.id));
+  // 자녀 sub + 학부모 sub(childId null 또는 구 "__parent__") 모두 포함
+  const subs = allSubs.filter((s) => children.some((c) => c.id === s.childId) || (!s.childId && s.familyId === family.id));
   if (filter === "active") {
     const todayStr = new Date().toISOString().slice(0, 10);
     return subs.some((s) => effectiveStatus(s) === "active") || !!(family.aiPackageEndDate && family.aiPackageEndDate >= todayStr);
   }
-  // "stopped": 정지된 구독이 하나라도 있으면 포함
-  return subs.some((s) => effectiveStatus(s) === "stopped");
+  // "stopped": 정지된 구독 또는 만료된 AI 패키지가 있으면 포함
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return subs.some((s) => effectiveStatus(s) === "stopped")
+    || !!(family.aiPackageEndDate && family.aiPackageEndDate < todayStr);
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -747,35 +739,17 @@ export function MembersTab({
     .filter((c) => c.status === "active")
     .reduce((acc, c) => acc + c.students.length, 0);
 
-  async function handlePurgeOrphanChildren() {
-    const orphans = allChildren.filter((c) => !allSubs.some((s) => s.childId === c.id));
-    if (orphans.length === 0) { alert("정리할 자녀가 없습니다."); return; }
-    if (!confirm(`구독 없는 자녀 ${orphans.length}명을 삭제하시겠습니까?\n${orphans.map((c) => c.name).join(", ")}`)) return;
-    try {
-      const batch = writeBatch(db);
-      orphans.forEach((c) => batch.delete(doc(db, "children", c.id)));
-      await batch.commit();
-      alert(`✅ ${orphans.length}명 삭제 완료`);
-    } catch (err) { alert(err instanceof Error ? err.message : "삭제 오류"); }
-  }
-
-  async function handleRepair() {
-    if (!confirm("자녀 users 문서를 복구하시겠습니까?")) return;
-    try {
-      const { httpsCallable } = await import("firebase/functions");
-      const fn = httpsCallable<unknown, { fixed: number }>(functions, "repairUserDocs");
-      const res = await fn({});
-      alert(`✅ ${res.data.fixed}건 복구 완료`);
-    } catch (err) { alert(err instanceof Error ? err.message : "오류"); }
-  }
-
   // ── 대시보드 집계 (테스트 계정 제외) ────────────────────────────────────────
   const testFamilyIds = new Set(families.filter((f) => f.isTest).map((f) => f.id));
   const testChildIds = new Set(
     allChildren.filter((c) => testFamilyIds.has(c.familyId)).map((c) => c.id)
   );
   const activeSubs     = allSubs.filter((s) => rawStatus(s) === "active");
-  const realActiveSubs = activeSubs.filter((s) => !testChildIds.has(s.childId) && !(s.childId === "__parent__" && s.familyId && testFamilyIds.has(s.familyId)));
+  const realActiveSubs = activeSubs.filter((s) => {
+    // 학부모 sub: childId null 또는 (구) "__parent__" → familyId로 테스트 여부 판단
+    if (!s.childId || s.childId === "__parent__") return !(s.familyId && testFamilyIds.has(s.familyId));
+    return !testChildIds.has(s.childId);
+  });
   const activeDirectClasses = directClasses.filter((c) => c.status === "active");
 
   // 서비스 필터 선택 시 대시보드 수치도 해당 서비스만 반영
@@ -814,13 +788,13 @@ export function MembersTab({
   svcCounts["momsaipack"] = families.filter(
     (f) => !f.isTest && f.aiPackageEndDate && f.aiPackageEndDate >= today
   ).length;
-  // site.ts에 정의된 서비스만 표시, momsaipack/무료/coming-soon 제외
+  // site.ts에 정의된 서비스만 표시, momsaipack/coming-soon 제외
   const knownSlugs = new Set(SERVICES.map((s) => s.slug));
   const sortedServices = [...activeServices]
-    .filter((s) => knownSlugs.has(s.slug) && s.slug !== "momsaipack" && s.slug !== "mom-webinar" && !s.slug.startsWith("coming-soon"))
+    .filter((s) => knownSlugs.has(s.slug) && s.slug !== "momsaipack" && !s.slug.startsWith("coming-soon"))
     .sort((a, b) => (svcCounts[b.slug] ?? 0) - (svcCounts[a.slug] ?? 0));
   const activeIds = new Set<string>([
-    ...(allSubs.filter((s) => rawStatus(s) === "active").map((s) => allChildren.find((c) => c.id === s.childId)?.familyId).filter(Boolean) as string[]),
+    ...(allSubs.filter((s) => rawStatus(s) === "active").map((s) => s.familyId || allChildren.find((c) => c.id === s.childId)?.familyId).filter(Boolean) as string[]),
     ...families.filter((f) => f.aiPackageEndDate && f.aiPackageEndDate >= today).map((f) => f.id),
   ]);
   const activeFamilies   = families.filter((f) => activeIds.has(f.id));
@@ -841,7 +815,7 @@ export function MembersTab({
     } else if (svcFilter === "__plantor__" || svcFilter === "__direct__") {
       // 전체 플랜토 / 직강 필터 — 가족 목록은 서비스 필터 없이 전체 표시
     } else if (svcFilter) {
-      const hasSvc = allSubs.some((s) => (ch.some((c) => c.id === s.childId) || (s.childId === "__parent__" && s.familyId === f.id)) && s.serviceSlug === svcFilter && effectiveStatus(s) === "active");
+      const hasSvc = allSubs.some((s) => (ch.some((c) => c.id === s.childId) || (!s.childId && s.familyId === f.id)) && s.serviceSlug === svcFilter && effectiveStatus(s) === "active");
       if (!hasSvc) return false;
     }
     if (!q) return true;
@@ -901,7 +875,7 @@ export function MembersTab({
     <>
       {/* ── 대시보드 ──────────────────────────────────────────────────────────── */}
       <div className="bg-white border border-black/10 rounded-xl mb-4" style={{ boxShadow: T.shadow }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
+        <div className="mt-dashboard-row" style={{ display: "flex", alignItems: "center" }}>
           {/* 아이콘 필터 영역 — 좌우 스크롤 */}
           <div style={{ flex: 1, minWidth: 0, overflowX: "auto", overflowY: "hidden", scrollbarWidth: "none", padding: "16px 16px" }} className="hide-scrollbar">
             <div style={{ display: "inline-flex", gap: 14, alignItems: "flex-end", whiteSpace: "nowrap", padding: "4px" }}>
@@ -951,7 +925,7 @@ export function MembersTab({
             </div>
           </div>
           {/* 구분선 + 매출박스 */}
-          <div style={{ borderLeft: "1px solid rgba(0,0,0,0.08)", padding: "12px 16px", flexShrink: 0 }}>
+          <div className="mt-dashboard-finance" style={{ borderLeft: "1px solid rgba(0,0,0,0.08)", padding: "12px 16px", flexShrink: 0 }}>
             <FinanceBox revenue={totalRevenue} discount={totalDiscount} agencyFee={totalAgency} profit={totalProfit} size={14} />
           </div>
         </div>
@@ -959,13 +933,14 @@ export function MembersTab({
       <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
       {/* ── 필터 버튼 + 검색창 ────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="mt-members-filter-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8, marginBottom: 16 }}>
+        <div className="mt-members-filter-btns" style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap", justifyContent: "space-between", width: "100%" }}>
         {FILTER_BTNS.map(({ value, label, count }) => {
           const active = statusFilter === value && svcFilter !== "__direct__";
           const s = statusStyle(value === "stopped" ? "cancelled" : value);
           return (
             <button key={value} onClick={() => { setSvcFilter(null); setStatusFilter(value); }} style={{
-              borderRadius: 9999, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              borderRadius: 8, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
               border: active ? "none" : "1px solid rgba(0,0,0,0.1)",
               backgroundColor: active ? s.bg : "#ffffff",
               color: active ? s.color : "#615d59",
@@ -983,7 +958,7 @@ export function MembersTab({
 
         {/* 대기중 */}
         <button onClick={onShowSignups} style={{
-          borderRadius: 9999, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          borderRadius: 8, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
           border: pendingSignupCount > 0 ? "none" : "1px solid rgba(0,0,0,0.1)",
           backgroundColor: pendingSignupCount > 0 ? "#f0fff4" : "#ffffff",
           color: pendingSignupCount > 0 ? "#1a7f4b" : "#615d59",
@@ -995,7 +970,7 @@ export function MembersTab({
 
         {/* 연장신청 */}
         <button onClick={onShowRenewals} style={{
-          borderRadius: 9999, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          borderRadius: 8, padding: "4px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
           border: pendingRenewalCount > 0 ? "none" : "1px solid rgba(0,0,0,0.1)",
           backgroundColor: pendingRenewalCount > 0 ? "#f0f7ff" : "#ffffff",
           color: pendingRenewalCount > 0 ? "#097fe8" : "#615d59",
@@ -1004,8 +979,9 @@ export function MembersTab({
         }}>
           연장신청 <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>{pendingRenewalCount}</span>
         </button>
+        </div>
 
-        <div style={{ marginLeft: "auto", position: "relative" }}>
+        <div className="mt-members-search" style={{ position: "relative", width: "100%" }}>
           <span style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#a39e98", pointerEvents: "none" }}>🔍</span>
           <input
             type="text"
@@ -1013,22 +989,25 @@ export function MembersTab({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              border: "1px solid rgba(0,0,0,0.1)", borderRadius: 9999, padding: "4px 12px 4px 28px",
-              fontSize: 12, outline: "none", width: 160, color: "rgba(0,0,0,0.95)",
-              backgroundColor: "#ffffff",
+              border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, padding: "4px 12px 4px 28px",
+              fontSize: 12, outline: "none", width: "100%", color: "rgba(0,0,0,0.95)",
+              backgroundColor: "#ffffff", boxSizing: "border-box",
             }}
           />
         </div>
       </div>
+      <style>{`
+        @media (max-width: 600px) {
+          .mt-dashboard-row { flex-direction: column !important; align-items: stretch !important; }
+          .mt-dashboard-finance { border-left: none !important; border-top: 1px solid rgba(0,0,0,0.08) !important; width: 100%; box-sizing: border-box; }
+          .mt-dashboard-finance > div { width: 100%; justify-content: space-between; }
+          .mt-finance-box { width: 100%; justify-content: space-between; flex-shrink: 1 !important; }
+          .mt-family-info { width: 100%; }
+          .mt-family-settings { margin-left: auto !important; }
+          .mt-family-createdat { margin-left: auto; }
+        }
+      `}</style>
 
-      {/* ── 정리 버튼 (구독 없는 자녀) ───────────────────────────────────────────── */}
-      {allChildren.some((c) => !allSubs.some((s) => s.childId === c.id)) && (
-        <div style={{ marginBottom: 12, textAlign: "right" }}>
-          <button onClick={handlePurgeOrphanChildren} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "rgba(200,0,0,0.4)", padding: "4px 8px" }}>
-            구독 없는 자녀 정리
-          </button>
-        </div>
-      )}
 
       {/* ── 회원 카드 목록 ─────────────────────────────────────────────────────── */}
       {isDirect ? (
@@ -1042,10 +1021,10 @@ export function MembersTab({
           {sortedFamilies.length > 0 && (
             <FamilyList families={sortedFamilies} allChildren={allChildren} allSubs={allSubs} onResetByFamily={onResetByFamily} onResetAttendance={onResetAttendance} statusFilter={statusFilter} svcFilter={svcFilter} />
           )}
-          {statusFilter === "active" && !isPlantor && !isSvcSlug && directClasses.length > 0 && (
-            <DirectStudentList classes={directClasses} searchQuery={searchQuery} onReset={onResetDirectClass} />
+          {statusFilter === "active" && !isPlantor && svcFilter !== "momsaipack" && directClasses.length > 0 && (
+            <DirectStudentList classes={directClasses} searchQuery={searchQuery} onReset={onResetDirectClass} serviceSlug={svcFilter ?? undefined} />
           )}
-          {sortedFamilies.length === 0 && !isDirect && (
+          {sortedFamilies.length === 0 && !isDirect && directClasses.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/[0.12] bg-white px-6 py-12 text-center text-sm text-p-muted">
               해당하는 회원이 없습니다.
             </div>
@@ -1058,53 +1037,6 @@ export function MembersTab({
 
 // ── 이름 인라인 수정 (공용) ────────────────────────────────────────────────────
 
-function InlineNameEditor({ name, onSave, fontSize = 15, inputWidth = 90 }: {
-  name: string;
-  onSave: (newName: string) => Promise<void>;
-  fontSize?: number;
-  inputWidth?: number;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(name);
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === name) { setEditing(false); setValue(name); return; }
-    setSaving(true);
-    try {
-      await onSave(trimmed);
-      setEditing(false);
-    } catch (e) {
-      alert("이름 수정 실패: " + (e instanceof Error ? e.message : String(e)));
-      setValue(name);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <input
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") { setEditing(false); setValue(name); } }}
-          disabled={saving}
-          style={{ fontSize, fontWeight: 700, border: "1px solid #38a848", borderRadius: 4, padding: "1px 6px", width: inputWidth, outline: "none" }}
-        />
-        <button onClick={handleSave} disabled={saving} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, border: "1px solid #38a848", background: "#38a848", color: "#fff", cursor: "pointer" }}>
-          {saving ? "…" : "저장"}
-        </button>
-        <button onClick={() => { setEditing(false); setValue(name); }} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(0,0,0,0.1)", background: "none", cursor: "pointer" }}>취소</button>
-      </span>
-    );
-  }
-
-  return <span style={{ fontSize, fontWeight: 700, color: "rgba(0,0,0,0.95)" }}>{name}</span>;
-}
 
 // ── 직강 편집 모달용 상수 ──────────────────────────────────────────────────────
 
@@ -1260,6 +1192,16 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
         students: studentsWithParent,
         notes: form.notes.trim(), status: form.status,
       });
+      // 학생/학부모 loginId가 있으면 Auth 계정 자동 생성
+      const hasLoginIds = studentsWithParent.some((s) => s.studentLoginId || s.parentLoginId);
+      if (hasLoginIds) {
+        try {
+          const ensureFn = httpsCallable(functions, "ensureDirectClassAccounts");
+          await ensureFn({ classId: cls.id });
+        } catch (e) {
+          void e;
+        }
+      }
       onClose();
     } catch (e) { setError(e instanceof Error ? e.message : "저장 실패"); }
     finally { setSaving(false); }
@@ -1577,7 +1519,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
               </div>
               {/* 학부모 구독 */}
               {(() => {
-                const parentSubs = allSubs.filter((s) => s.childId === "__parent__");
+                const parentSubs = allSubs.filter((s) => !s.childId && s.familyId === family.id);
                 if (!family.aiPackageEndDate && parentSubs.length === 0) return null;
                 return (
                   <div style={{ marginTop: 14 }}>
@@ -1706,11 +1648,28 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
   );
 }
 
-function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (classId: string, loginId: string) => void }) {
+function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; onReset: (classId: string, loginId: string) => void; serviceSlug?: string }) {
   const [editing, setEditing] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
-  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [expandedLearningLoginId, setExpandedLearningLoginId] = useState<string | null>(null);
+  const [childIdMap, setChildIdMap] = useState<Record<string, string>>({});
+  const { startTask } = useSendToast();
   const parentStudent = cls.students[0] ?? { name: "", studentPhone: "", studentLoginId: "", parentPhone: "", parentLoginId: "" };
+
+  // loginId → childId 매핑 (children 컬렉션 조회)
+  useEffect(() => {
+    const loginIds = cls.students.map((s) => s.studentLoginId?.toLowerCase()).filter(Boolean) as string[];
+    if (loginIds.length === 0) return;
+    const unsubs = loginIds.map((lid) => {
+      const q = query(collection(db, "children"), where("loginId", "==", lid));
+      return onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          setChildIdMap((prev) => ({ ...prev, [lid]: snap.docs[0].id }));
+        }
+      });
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [cls.students]);
   const firstStudentName = cls.students[0]?.name ?? cls.name;
   const parentLabel = cls.parentName || `${firstStudentName}맘`;
   const className = cls.name !== firstStudentName ? cls.name : null;
@@ -1724,17 +1683,14 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
     return d.toLocaleDateString("ko-KR");
   }
 
-  async function handleConfirmPayment() {
-    setPaymentSaving(true);
-    try {
-      const fn = httpsCallable<{ classId: string }, { newExpiry: string }>(functions, "confirmDirectClassPayment");
-      await fn({ classId: cls.id });
-      setConfirmingPayment(false);
-    } catch (e) {
-      alert("오류: " + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setPaymentSaving(false);
-    }
+  function handleConfirmPayment() {
+    const fn = httpsCallable<{ classId: string }, { newExpiry: string }>(functions, "confirmDirectClassPayment");
+    startTask({
+      label: `${cls.students.map(s => s.name).join(", ")} 입금확인`,
+      task: () => fn({ classId: cls.id }),
+      successText: "입금확인 완료",
+    });
+    setConfirmingPayment(false);
   }
 
   async function updateClass(field: string, value: unknown) {
@@ -1776,8 +1732,8 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
           <p style={{ margin: "0 0 16px", fontSize: 12, color: "#a39e98" }}>확인 시 만료일이 연장되고 SMS가 자동 발송됩니다.</p>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={() => setConfirmingPayment(false)} style={{ padding: "8px 16px", borderRadius: 4, border: "1px solid rgba(0,0,0,0.1)", background: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#615d59" }}>취소</button>
-            <button onClick={handleConfirmPayment} disabled={paymentSaving} style={{ padding: "8px 16px", borderRadius: 4, border: "none", backgroundColor: "#1a7f4b", color: "#ffffff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: paymentSaving ? 0.7 : 1 }}>
-              {paymentSaving ? "처리 중…" : "✅ 입금 확인"}
+            <button onClick={handleConfirmPayment} style={{ padding: "8px 16px", borderRadius: 4, border: "none", backgroundColor: "#1a7f4b", color: "#ffffff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              ✅ 입금 확인
             </button>
           </div>
         </div>
@@ -1788,7 +1744,11 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
         <div>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "rgba(0,0,0,0.95)" }}>{parentLabel}</span>
+            <span
+              onClick={parentStudent.parentLoginId ? () => window.open(`/admin/preview?type=parent&loginId=${encodeURIComponent(parentStudent.parentLoginId)}&name=${encodeURIComponent(parentLabel)}`, "_blank") : undefined}
+              title={parentStudent.parentLoginId ? "학부모 화면 미리보기 (새창)" : undefined}
+              style={{ fontSize: 15, fontWeight: 700, color: "rgba(0,0,0,0.95)", cursor: parentStudent.parentLoginId ? "pointer" : "default" }}
+            >{parentLabel}</span>
             <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", backgroundColor: "rgba(92,78,220,0.08)", color: "#5c4edc", border: "1px solid rgba(92,78,220,0.2)" }}>1:1수업</span>
             {parentStudent.parentLoginId && (
               <>
@@ -1799,7 +1759,7 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
               </>
             )}
             <KeyBtn onClick={() => onReset(cls.id, parentStudent.parentLoginId)} />
-            <button onClick={() => setEditing(true)} title="수정" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1 }}>⚙️</button>
+            <button onClick={() => setEditing(true)} title="수정" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", lineHeight: 1 }}><Settings size={14} strokeWidth={1.5} color="rgba(0,0,0,0.95)" /></button>
           </div>
           <div style={{ marginTop: 6, fontSize: 12, color: "#a39e98", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
             {parentStudent.parentPhone && (
@@ -1810,12 +1770,13 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
             )}
           </div>
         </div>
-        {cls.tuition > 0 && (
+        {!serviceSlug && cls.tuition > 0 && (
           <FinanceBox
             revenue={cls.tuition}
             discount={0}
             agencyFee={cls.agencyFee}
             profit={cls.tuition - cls.agencyFee}
+            personal
           />
         )}
       </div>
@@ -1823,14 +1784,21 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
       {/* 학생 목록 — 다중 학생 지원 */}
       <div className="rounded-lg bg-p-bg px-[14px] py-3 text-[13px]">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {(cls.students.length > 0 ? cls.students : [parentStudent]).map((student, si) => {
+          {(cls.students.length > 0 ? cls.students : [parentStudent])
+            .map((student, si) => ({ student, si }))
+            .filter(({ student }) => !serviceSlug || (student.serviceSlugs ?? cls.serviceSlugs).includes(serviceSlug))
+            .map(({ student, si }) => {
             const studentGrade = student.grade ?? cls.grades[si] ?? cls.grades[0] ?? "";
             const studentSlugs = student.serviceSlugs ?? cls.serviceSlugs;
             return (
               <div key={si}>
                 {/* 학생 이름/학년/아이디 행 */}
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: studentSlugs.length > 0 ? 6 : 0 }}>
-                  <strong style={{ color: "rgba(0,0,0,0.95)" }}>{student.name || cls.name}</strong>
+                  <strong
+                    onClick={student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? () => window.open(`/admin/preview?type=learn&loginId=${encodeURIComponent(student.studentLoginId!)}&name=${encodeURIComponent(student.name || "")}`, "_blank") : undefined}
+                    title={student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? "학생 화면 미리보기 (새창)" : undefined}
+                    style={{ color: "rgba(0,0,0,0.95)", cursor: student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? "pointer" : "default" }}
+                  >{student.name || cls.name}</strong>
                   <select value={studentGrade}
                     onChange={async (e) => {
                       if (cls.students.length > 1) {
@@ -1856,6 +1824,18 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
                       <EditableText value={student.studentPhone} onSave={(v) => updateStudentField(si, "studentPhone", v)} muted fontSize={12} />
                       <CopyBtn text={student.studentPhone} />
                     </span>
+                  )}
+                  {student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] && (
+                    <button
+                      onClick={() => setExpandedLearningLoginId(expandedLearningLoginId === student.studentLoginId ? null : (student.studentLoginId ?? null))}
+                      className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer"
+                      style={{
+                        border: expandedLearningLoginId === student.studentLoginId ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+                        backgroundColor: expandedLearningLoginId === student.studentLoginId ? "#f0faf1" : "#fff",
+                        color: expandedLearningLoginId === student.studentLoginId ? "#2da040" : "#a39e98",
+                      }}>
+                      <BarChart3 size={12} strokeWidth={1.5} className="inline-block mr-0.5" /> 학습
+                    </button>
                   )}
                 </div>
                 {/* FamilyCard와 동일한 1fr 68px 110px 그리드 */}
@@ -1903,6 +1883,14 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
                     );
                   })}
                 </div>
+                {/* 학습 그리드 */}
+                {expandedLearningLoginId === student.studentLoginId && student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] && (
+                  <StudentLearningGrid
+                    childId={childIdMap[student.studentLoginId.toLowerCase()]}
+                    childName={student.name}
+                    subscribedSlugs={studentSlugs}
+                  />
+                )}
               </div>
             );
           })}
@@ -1920,11 +1908,15 @@ function DirectStudentCard({ cls, onReset }: { cls: DirectClass; onReset: (class
 
 // ── 직강 학생 목록 ─────────────────────────────────────────────────────────────
 
-function DirectStudentList({ classes, searchQuery, onReset }: { classes: DirectClass[]; searchQuery: string; onReset: (classId: string, loginId: string) => void }) {
+function DirectStudentList({ classes, searchQuery, onReset, serviceSlug }: { classes: DirectClass[]; searchQuery: string; onReset: (classId: string, loginId: string) => void; serviceSlug?: string }) {
   const q = searchQuery.trim().toLowerCase();
   const filtered = classes.filter((c) => {
+    if (serviceSlug) {
+      if (c.status !== "active") return false;
+      if (!c.students.some((s) => (s.serviceSlugs ?? c.serviceSlugs).includes(serviceSlug))) return false;
+    }
     if (!q) return true;
-    if (c.name.toLowerCase().includes(q) || c.notes.toLowerCase().includes(q)) return true;
+    if (c.name.toLowerCase().includes(q) || (c.parentName ?? "").toLowerCase().includes(q) || c.notes.toLowerCase().includes(q)) return true;
     return c.students.some((s) =>
       s.name.toLowerCase().includes(q) ||
       (s.studentPhone ?? "").includes(q) ||
@@ -1938,7 +1930,7 @@ function DirectStudentList({ classes, searchQuery, onReset }: { classes: DirectC
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {filtered.map((cls) => <DirectStudentCard key={cls.id} cls={cls} onReset={onReset} />)}
+      {filtered.map((cls) => <DirectStudentCard key={cls.id} cls={cls} onReset={onReset} serviceSlug={serviceSlug} />)}
     </div>
   );
 }
@@ -1955,13 +1947,14 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
   svcFilter?: string | null;
 }) {
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null);
+  const [expandedLearningChildId, setExpandedLearningChildId] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   if (families.length === 0) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {families.map((family) => {
         const children = allChildren.filter((c) => c.familyId === family.id);
-        const familySubs = allSubs.filter((s) => children.some((c) => c.id === s.childId) || (s.childId === "__parent__" && s.familyId === family.id));
+        const familySubs = allSubs.filter((s) => children.some((c) => c.id === s.childId) || (!s.childId && s.familyId === family.id));
         const baseTotals = family.isTest
           ? { revenue: 0, discount: 0, agencyFee: 0, profit: 0, count: 0 }
           : calcTotals(familySubs, undefined, svcFilter && svcFilter !== "__direct__" ? svcFilter : null);
@@ -1979,18 +1972,22 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
             {/* 가족/자녀 삭제는 수정 모달에서 처리 */}
             {/* 학부모 헤더 */}
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: (children.length > 0 || !!family.aiPackageEndDate) ? 14 : 0 }}>
-              <div>
+              <div className="mt-family-info">
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "rgba(0,0,0,0.95)" }}>{family.parentName}</span>
+                  <span
+                    onClick={family.userId ? () => window.open(`/admin/preview?type=parent&uid=${family.userId}&name=${encodeURIComponent(family.parentName)}`, "_blank") : undefined}
+                    title={family.userId ? "학부모 화면 미리보기 (새창)" : undefined}
+                    style={{ fontSize: 15, fontWeight: 700, color: "rgba(0,0,0,0.95)", cursor: family.userId ? "pointer" : "default" }}
+                  >{family.parentName}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", backgroundColor: "rgba(56,168,72,0.08)", color: "#38a848", border: "1px solid rgba(56,168,72,0.2)" }}>플랜토</span>
                   <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "#f6f5f4", borderRadius: 4, padding: "2px 6px" }}>{parentId}</span>
                   <CopyBtn text={parentId} />
                   <KeyBtn onClick={() => onResetByFamily(family.id, parentId)} />
-                  <button onClick={() => setEditingFamilyId(family.id)} title="수정" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1 }}>⚙️</button>
+                  <button onClick={() => setEditingFamilyId(family.id)} title="수정" className="mt-family-settings" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", lineHeight: 1 }}><Settings size={14} strokeWidth={1.5} color="rgba(0,0,0,0.95)" /></button>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 12, color: "#a39e98", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
                   {family.phone && <span style={{ display: "flex", alignItems: "center", gap: 2 }}>{formatPhone(family.phone)}<CopyBtn text={family.phone} /></span>}
-                  {family.createdAt && <span>가입 {formatDateTime(family.createdAt)}</span>}
+                  {family.createdAt && <span className="mt-family-createdat">가입 {formatDateTime(family.createdAt)}</span>}
                 </div>
               </div>
 
@@ -2001,16 +1998,17 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                   discount={totals.discount}
                   agencyFee={totals.agencyFee}
                   profit={totals.profit}
+                  personal
                 />
               )}
             </div>
 
             {/* 자녀 목록 + AI 패키지 */}
-            {(children.length > 0 || !!family.aiPackageEndDate || allSubs.some((s) => s.childId === "__parent__")) && (
+            {(children.length > 0 || !!family.aiPackageEndDate || allSubs.some((s) => !s.childId && s.familyId === family.id)) && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* 학부모 서비스 (AI패키지 + 고전독서모임 등) */}
                 {(() => {
-                  const parentSubs = allSubs.filter((s) => s.childId === "__parent__" && s.familyId === family.id);
+                  const parentSubs = allSubs.filter((s) => !s.childId && s.familyId === family.id);
                   const hasParentRow = !!family.aiPackageEndDate || parentSubs.length > 0;
                   if (!hasParentRow) return null;
                   return (
@@ -2022,7 +2020,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                         {parentSubs.map((sub) => {
                           const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
                           return (
-                            <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "1fr 68px 110px 24px", alignItems: "center", gap: 8 }}>
+                            <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto 24px", alignItems: "center", gap: 8 }}>
                               <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
                                 {svc && <ServiceIcon service={svc} size={14} />}
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.serviceSlug}</span>
@@ -2051,65 +2049,99 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                   }, {})
                 ).map((group) => {
                   const child = group.primary;
-                  const allChildSubs = allSubs.filter((s) => group.ids.includes(s.childId));
-                  const subs = statusFilter === "all"
-                    ? allChildSubs
-                    : allChildSubs.filter((s) => effectiveStatus(s) === statusFilter);
+                  const allChildSubs = allSubs.filter((s) => s.childId !== null && group.ids.includes(s.childId));
                   // 서비스 필터 시 해당 서비스를 안 듣는 자녀 숨김
                   const isSvcSlugFilter = svcFilter && svcFilter !== "__plantor__" && svcFilter !== "__direct__" && svcFilter !== "momsaipack";
                   if (isSvcSlugFilter && !allChildSubs.some((s) => s.serviceSlug === svcFilter)) return null;
+                  const subs = (statusFilter === "all"
+                    ? allChildSubs
+                    : allChildSubs.filter((s) => effectiveStatus(s) === statusFilter)
+                  ).filter((s) => !isSvcSlugFilter || s.serviceSlug === svcFilter);
+                  // 매칭 구독 없는 자녀 숨김 (statusFilter가 active/stopped일 때)
+                  if (statusFilter !== "all" && subs.length === 0) return null;
+                  // 자녀 단위 통합 만료 알림 (수강중인 모든 과목을 한 번에)
+                  const activeChildSubs = allChildSubs.filter((s) => effectiveStatus(s) === "active");
+                  const childSvcNames = activeChildSubs
+                    .map((s) => SERVICES.find((x) => x.slug === s.serviceSlug)?.name ?? s.serviceSlug)
+                    .join(", ");
+                  const childNearestEnd = activeChildSubs.reduce<Date | null>(
+                    (min, s) => (s.endDate && (!min || s.endDate < min) ? s.endDate : min),
+                    null
+                  );
+                  const childDaysLeft = childNearestEnd ? Math.ceil((childNearestEnd.getTime() - Date.now()) / 86400000) : null;
+                  const showChildSms = activeChildSubs.length > 0 && childDaysLeft !== null && childDaysLeft >= 0 && childDaysLeft <= 7;
                   return (
-                    <div key={child.id} className="relative rounded-lg bg-p-bg px-[14px] py-3 text-[13px]">
-                      {/* 자녀 삭제는 수정 모달에서 처리 */}
+                    <div key={child.id} className="relative rounded-lg bg-p-bg text-[13px] overflow-hidden">
                       {/* 자녀 헤더 */}
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: subs.length > 0 ? 10 : 0 }}>
-                        <InlineNameEditor name={child.name} fontSize={13} inputWidth={80} onSave={async (n) => { const fn = httpsCallable<{ childId: string; newName: string }, { success: boolean }>(functions, "updateChildName"); await fn({ childId: child.id, newName: n }); }} />
-                        <EditableGrade childId={child.id} grade={child.grade} />
-                        <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 4, padding: "2px 6px" }}>
-                          {child.loginId || "-"}
-                        </span>
-                        {child.loginId && <CopyBtn text={child.loginId} />}
-                        {/* 비번 초기화 — 자녀 ID 옆 열쇠 */}
-                        <KeyBtn onClick={() => onResetByFamily(family.id, child.loginId || parentId)} />
+                      <div className="px-[14px] py-3">
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: subs.length > 0 ? 10 : 0 }}>
+                          <span
+                            onClick={() => window.open(`/admin/preview?type=learn&childId=${child.id}&name=${encodeURIComponent(child.name)}`, "_blank")}
+                            title="학생 화면 미리보기 (새창) · 이름 수정은 ⚙"
+                            style={{ fontSize: 13, fontWeight: 700, color: "rgba(0,0,0,0.95)", cursor: "pointer" }}
+                          >{child.name}</span>
+                          <EditableGrade childId={child.id} grade={child.grade} />
+                          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 4, padding: "2px 6px" }}>
+                            {child.loginId || "-"}
+                          </span>
+                          {child.loginId && <CopyBtn text={child.loginId} />}
+                          <KeyBtn onClick={() => onResetByFamily(family.id, child.loginId || parentId)} />
+                          <button
+                            onClick={() => setExpandedLearningChildId(expandedLearningChildId === child.id ? null : child.id)}
+                            className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer"
+                            style={{
+                              border: expandedLearningChildId === child.id ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+                              backgroundColor: expandedLearningChildId === child.id ? "#f0faf1" : "#fff",
+                              color: expandedLearningChildId === child.id ? "#2da040" : "#a39e98",
+                            }}>
+                            <BarChart3 size={12} strokeWidth={1.5} className="inline-block mr-0.5" /> 학습
+                          </button>
+                          {activeChildSubs.length > 0 && (
+                            <SmsSendBtn
+                              family={family}
+                              childNames={child.name}
+                              serviceNames={childSvcNames}
+                              endDate={childNearestEnd?.toLocaleDateString("ko-KR") ?? ""}
+                              parentId={parentId}
+                              disabled={!showChildSms}
+                            />
+                          )}
+                        </div>
+
+                        {/* 구독 목록 */}
+                        {subs.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {subs.map((sub) => {
+                              const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
+                              return (
+                                <div key={sub.id} className="mt-child-sub-row" style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "1fr auto auto",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
+                                    {svc && <ServiceIcon service={svc} size={14} />}
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.serviceSlug}</span>
+                                  </span>
+                                  <SubStatusBadge sub={sub} />
+                                  <div style={{ textAlign: "right" }}>
+                                    <EditableDate sub={sub} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
-                      {/* 구독 목록 */}
-                      {subs.length > 0 && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {subs.map((sub) => {
-                            const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
-                            const es = effectiveStatus(sub);
-                            const isActive = es === "active";
-                            const daysLeftSub = sub.endDate ? Math.ceil((sub.endDate.getTime() - Date.now()) / 86400000) : null;
-                            const showSmsBtn = isActive && daysLeftSub !== null && daysLeftSub >= 0 && daysLeftSub <= 7;
-                            return (
-                              <div key={sub.id} style={{
-                                display: "grid",
-                                gridTemplateColumns: "1fr 68px 110px 24px",
-                                alignItems: "center",
-                                gap: 8,
-                              }}>
-                                <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
-                                  {svc && <ServiceIcon service={svc} size={14} />}
-                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.serviceSlug}</span>
-                                </span>
-                                <SubStatusBadge sub={sub} />
-                                <div style={{ textAlign: "right" }}>
-                                  <EditableDate sub={sub} />
-                                </div>
-                                {showSmsBtn ? (
-                                  <SmsSendBtn
-                                    family={family}
-                                    childNames={child.name}
-                                    serviceNames={svc?.name ?? sub.serviceSlug}
-                                    endDate={sub.endDate?.toLocaleDateString("ko-KR") ?? ""}
-                                    parentId={parentId}
-                                  />
-                                ) : <span />}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      {/* 학습 그리드 */}
+                      {expandedLearningChildId === child.id && (
+                        <StudentLearningGrid
+                          childId={child.id}
+                          childName={child.name}
+                          subscribedSlugs={allChildSubs.filter(s => effectiveStatus(s) === "active").map(s => s.serviceSlug)}
+                        />
                       )}
                     </div>
                   );

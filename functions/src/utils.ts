@@ -2,9 +2,9 @@ import { HttpsError } from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 
 import {
-  db, auth, ADMIN_EMAILS, SITE_URL, SERVICE_META,
+  db, auth, ADMIN_EMAILS, SITE_URL, SERVICE_META, NOTIFY_EMAIL,
 } from "./config";
-export { sendSms } from "./sms";
+export { sendAlimtalk, sendSms } from "./sms";
 
 export function idToEmail(id: string) {
   return `${id.toLowerCase()}@plantor.app`;
@@ -34,10 +34,14 @@ export function serviceIconHtml(slug: string) {
 }
 
 export async function assertAdmin(
-  authContext: { uid: string; token: { email?: string } } | undefined
+  authContext: { uid: string; token: { email?: string; admin?: boolean } } | undefined
 ) {
   if (!authContext) throw new HttpsError("permission-denied", "관리자만 사용할 수 있습니다.");
+  // 1순위: custom claim (token.admin === true). 점진적 전환 중이며, 추후 이 한 줄만 남기는 것이 목표.
+  if (authContext.token.admin === true) return;
+  // 2순위(점진 전환 fallback): 하드코딩된 ADMIN_EMAILS.
   if (ADMIN_EMAILS.includes(authContext.token.email ?? "")) return;
+  // 3순위(점진 전환 fallback): Firestore users/{uid}.role == "admin".
   try {
     const snap = await db.collection("users").doc(authContext.uid).get();
     if (snap.data()?.role === "admin") return;
@@ -54,7 +58,6 @@ export async function sendAdminEmail(
     service: "gmail",
     auth: { user: gmailUserVal, pass: gmailPassVal },
   });
-  const NOTIFY_EMAIL = "from302@kakao.com";
   await transporter.sendMail({
     from: `"Plantor 알림" <${gmailUserVal}>`,
     to: NOTIFY_EMAIL,

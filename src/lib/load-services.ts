@@ -33,7 +33,7 @@ export async function loadServices(): Promise<Service[]> {
 export function filterSignupServices(services: Service[]): Service[] {
   return services.filter(
     (s) =>
-      (s.category === "subscription" || s.category === "premium") &&
+      (s.category === "subscription" || s.category === "premium" || s.category === "community") &&
       (s.pricePerMonth !== null || (s.priceLabel && /\d/.test(s.priceLabel))) &&
       s.status !== "coming_soon" &&
       !s.slug.startsWith("coming-soon")

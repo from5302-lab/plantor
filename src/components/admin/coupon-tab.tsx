@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronDown, X, Check } from "lucide-react";
 import {
   collection, deleteDoc, doc, getDocs, getDoc, onSnapshot,
   orderBy, query, serverTimestamp, setDoc, Timestamp, updateDoc, where,
@@ -33,7 +34,7 @@ function CopyBtn({ text, copied, onCopy }: { text: string; copied: boolean; onCo
   return (
     <button onClick={() => { navigator.clipboard.writeText(text).then(onCopy); }} title="복사" className="bg-transparent border-none cursor-pointer p-0 leading-none inline-flex items-center align-middle px-0.5">
       {copied
-        ? <span className="text-[10px] text-[#1a7f4b] font-bold">✓</span>
+        ? <Check size={10} className="text-[#1a7f4b]" strokeWidth={3} />
         : <img src="/icons/copy.svg" width={13} height={13} alt="copy" className="block" />}
     </button>
   );
@@ -192,7 +193,6 @@ export function CouponTab() {
       records.sort((a, b) => b.date.getTime() - a.date.getTime());
       setUsageMap((prev) => ({ ...prev, [code]: records }));
     } catch (e) {
-      console.error("쿠폰 사용내역 조회 실패:", e);
       setUsageMap((prev) => ({ ...prev, [code]: [] }));
     } finally {
       setUsageLoading(false);
@@ -216,6 +216,19 @@ export function CouponTab() {
 
   return (
     <>
+      <style>{`
+        @media (max-width: 600px) {
+          .ct-coupon-row {
+            display: flex !important;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px !important;
+          }
+          .ct-coupon-row > *:nth-child(1) { flex: 1 1 100%; }
+          .ct-coupon-row > *:nth-child(7) { margin-left: auto; position: absolute; top: 10px; right: 10px; }
+          .ct-coupon-card { position: relative; }
+        }
+      `}</style>
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex gap-4">
@@ -296,11 +309,11 @@ export function CouponTab() {
               : "";
 
             return (
-              <div key={coupon.code} className="bg-white border border-black/10 rounded-xl overflow-hidden" style={{ boxShadow: T.shadow }}>
+              <div key={coupon.code} className="ct-coupon-card bg-white border border-black/10 rounded-xl overflow-hidden" style={{ boxShadow: T.shadow }}>
                 <div
                   onClick={() => toggleExpand(coupon.code)}
-                  className="px-[18px] py-[13px] cursor-pointer items-center gap-y-1.5"
-                  style={{ display: "grid", gridTemplateColumns: "auto auto minmax(70px,auto) minmax(50px,auto) auto auto 1fr auto", gap: "0 12px" }}
+                  className="ct-coupon-row px-[18px] py-[13px] cursor-pointer items-center gap-y-1.5"
+                  style={{ display: "grid", gridTemplateColumns: "minmax(130px,auto) minmax(85px,auto) minmax(65px,auto) minmax(70px,auto) minmax(100px,auto) 1fr auto", gap: "0 12px" }}
                 >
                   {/* 코드 + 복사 */}
                   <span className="flex items-center gap-1">
@@ -341,14 +354,10 @@ export function CouponTab() {
                   )}
                   {/* 메모 */}
                   <span className="text-xs text-p-muted overflow-hidden text-ellipsis whitespace-nowrap">{coupon.note || ""}</span>
-                  {/* 빈 공간 (1fr) */}
-                  <span />
                   {/* 토글 + 삭제 */}
                   <div className="flex items-center gap-1">
-                    <svg width="10" height="9" viewBox="0 0 10 9" style={{ color: "#a39e98", transform: isExpanded ? "none" : "rotate(180deg)", transition: "transform 0.15s" }}>
-                      <polygon points="5,0 10,9 0,9" fill="currentColor" />
-                    </svg>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(coupon.code); }} className="bg-transparent border-none cursor-pointer text-sm text-[rgba(200,0,0,0.4)] px-1.5 py-0.5">×</button>
+                    <ChevronDown size={12} className="text-p-muted" style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(coupon.code); }} className="bg-transparent border-none cursor-pointer text-sm text-[rgba(200,0,0,0.4)] px-1.5 py-0.5"><X size={12} /></button>
                   </div>
                 </div>
 

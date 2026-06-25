@@ -1,7 +1,7 @@
 import { onCall } from "firebase-functions/v2/https";
-import { solapiApiKey, solapiApiSecret, SERVICE_META } from "./config";
-import { assertAdmin, db } from "./utils";
-import { sendBulkSms } from "./sms";
+import { solapiApiKey, solapiApiSecret, KAKAO_TEMPLATES } from "./config";
+import { loadServiceMeta } from "./service-meta-loader";
+import { assertAdmin, sendAlimtalk, db } from "./utils";
 import * as admin from "firebase-admin";
 
 function calcNewEndDate(currentEndDate: admin.firestore.Timestamp | null, months: number): Date {
@@ -45,8 +45,9 @@ export const sendBulkRenewalSms = onCall(
       (grouped[fid] ??= []).push(d);
     }
 
-    const messages: Array<{ to: string; text: string }> = [];
+    let sent = 0;
     let skipped = 0;
+    const meta = await loadServiceMeta();
 
     for (const [familyId, docs] of Object.entries(grouped)) {
       const familySnap = await db.collection("families").doc(familyId).get();
@@ -56,28 +57,36 @@ export const sendBulkRenewalSms = onCall(
 
       const serviceLines = docs.map((d) => {
         const data = d.data();
-        const serviceName = SERVICE_META[data.serviceSlug as string]?.name ?? data.serviceName ?? data.serviceSlug;
+        const serviceName = meta.get(data.serviceSlug as string)?.name ?? data.serviceName ?? data.serviceSlug;
         const newEnd = calcNewEndDate(data.currentEndDate ?? null, data.months ?? 1);
-        return `· ${data.childName} · ${serviceName} → ${fmtKoDate(newEnd)}까지`;
+        const who = (data.childName && data.childName !== "null") ? data.childName : "학부모";
+        return `· ${who} · ${serviceName} → ${fmtKoDate(newEnd)}까지`;
       }).join("\n");
 
-      messages.push({
-        to: phone,
-        text: [
-          `[플랜토] ${parentName}님, 입금이 확인되었습니다 ✅`,
-          ``,
-          `구독이 연장되었어요:`,
-          serviceLines,
-          ``,
-          `감사합니다 🌱`,
-        ].join("\n"),
-      });
+      const smsText = [
+        `[플랜토] ${parentName}님, 입금이 확인되었습니다 ✅`,
+        ``,
+        `구독이 연장되었어요:`,
+        serviceLines,
+        ``,
+        `감사합니다 🌱`,
+      ].join("\n");
+
+      try {
+        await sendAlimtalk(
+          phone,
+          KAKAO_TEMPLATES.RENEWAL_CONFIRM,
+          { "#{parentName}": parentName as string, "#{details}": serviceLines },
+          smsText,
+          solapiApiKey.value(),
+          solapiApiSecret.value()
+        );
+        sent++;
+      } catch {
+        skipped++;
+      }
     }
 
-    if (messages.length > 0) {
-      await sendBulkSms(messages, solapiApiKey.value(), solapiApiSecret.value());
-    }
-
-    return { sent: messages.length, skipped };
+    return { sent, skipped };
   }
 );

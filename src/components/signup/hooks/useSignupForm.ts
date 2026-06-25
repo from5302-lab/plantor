@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addDoc, collection, doc, getDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { useAuth, validateId } from "@/lib/auth-context";
@@ -16,14 +16,12 @@ type FormState = {
   password: string;
   children: ChildEntry[];
   parentServices: string[];
+  parentServiceMonths: Record<string, number>;
   agreed: boolean;
 };
 
-type CouponInfo = { code: string; discountType: "fixed" | "percent"; discountAmount: number };
-type ReferralInfo = { code: string; familyId: string; referrerName: string };
-
-const emptyChild = (): ChildEntry => ({ name: "", grade: "", loginId: "", selectedServices: [] });
-const EMPTY: FormState = { parentName: "", phone: "", parentId: "", password: "", children: [], parentServices: [], agreed: false };
+const emptyChild = (): ChildEntry => ({ name: "", grade: "", loginId: "", selectedServices: [], serviceMonths: {} });
+const EMPTY: FormState = { parentName: "", phone: "", parentId: "", password: "", children: [], parentServices: [], parentServiceMonths: {}, agreed: false };
 
 export function useSignupForm() {
   const { role } = useAuth();
@@ -32,12 +30,8 @@ export function useSignupForm() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingMember, setExistingMember] = useState(false);
   const [done, setDone] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [codeValidating, setCodeValidating] = useState(false);
-  const [couponInfo, setCouponInfo] = useState<CouponInfo | null>(null);
-  const [referralInfo, setReferralInfo] = useState<ReferralInfo | null>(null);
-  const [codeError, setCodeError] = useState("");
 
   useEffect(() => {
     if (role === "admin") { router.replace("/admin"); return; }
@@ -73,6 +67,21 @@ export function useSignupForm() {
     return childTotal + parentTotal;
   }, [form.children, form.parentServices, signupServices]);
 
+  // 총 입금액 = Σ(월요금 × 선택 개월수). 개월수 미선택 서비스는 0으로 계산.
+  const depositTotal = useMemo(() => {
+    const childDep = form.children.reduce((sum, child) => {
+      return sum + child.selectedServices.reduce((s, slug) => {
+        const svc = SIGNUP_SERVICES.find((x) => x.slug === slug);
+        return s + (svc?.pricePerMonth ?? 0) * (child.serviceMonths?.[slug] ?? 0);
+      }, 0);
+    }, 0);
+    const parentDep = form.parentServices.reduce((sum, slug) => {
+      const svc = signupServices.find((x) => x.slug === slug);
+      return sum + (svc?.pricePerMonth ?? 0) * (form.parentServiceMonths?.[slug] ?? 0);
+    }, 0);
+    return childDep + parentDep;
+  }, [form.children, form.parentServices, form.parentServiceMonths, signupServices]);
+
   function updateChild(idx: number, patch: Partial<ChildEntry>) {
     setForm((prev) => ({ ...prev, children: prev.children.map((c, i) => i === idx ? { ...c, ...patch } : c) }));
   }
@@ -82,18 +91,36 @@ export function useSignupForm() {
       ...prev,
       children: prev.children.map((c, i) => {
         if (i !== idx) return c;
-        return { ...c, selectedServices: c.selectedServices.includes(slug) ? c.selectedServices.filter((s) => s !== slug) : [...c.selectedServices, slug] };
+        if (c.selectedServices.includes(slug)) {
+          const restMonths = { ...c.serviceMonths };
+          delete restMonths[slug];
+          return { ...c, selectedServices: c.selectedServices.filter((s) => s !== slug), serviceMonths: restMonths };
+        }
+        return { ...c, selectedServices: [...c.selectedServices, slug] };
       }),
     }));
   }
 
-  function toggleParentService(slug: string) {
+  function setChildServiceMonths(idx: number, slug: string, months: number) {
     setForm((prev) => ({
       ...prev,
-      parentServices: prev.parentServices.includes(slug)
-        ? prev.parentServices.filter((s) => s !== slug)
-        : [...prev.parentServices, slug],
+      children: prev.children.map((c, i) => i === idx ? { ...c, serviceMonths: { ...c.serviceMonths, [slug]: months } } : c),
     }));
+  }
+
+  function toggleParentService(slug: string) {
+    setForm((prev) => {
+      if (prev.parentServices.includes(slug)) {
+        const restMonths = { ...prev.parentServiceMonths };
+        delete restMonths[slug];
+        return { ...prev, parentServices: prev.parentServices.filter((s) => s !== slug), parentServiceMonths: restMonths };
+      }
+      return { ...prev, parentServices: [...prev.parentServices, slug] };
+    });
+  }
+
+  function setParentServiceMonths(slug: string, months: number) {
+    setForm((prev) => ({ ...prev, parentServiceMonths: { ...prev.parentServiceMonths, [slug]: months } }));
   }
 
   function addChild() {
@@ -104,38 +131,10 @@ export function useSignupForm() {
     setForm((prev) => ({ ...prev, children: prev.children.filter((_, i) => i !== idx) }));
   }
 
-  async function handleValidateCode() {
-    const raw = codeInput.trim();
-    if (!raw) return;
-    setCodeValidating(true); setCodeError(""); setCouponInfo(null); setReferralInfo(null);
-    try {
-      const couponSnap = await getDoc(doc(db, "coupons", raw.toUpperCase()));
-      if (couponSnap.exists()) {
-        const data = couponSnap.data();
-        if (data.usedBy) { setCodeError("이미 사용된 코드예요."); return; }
-        if (data.maxUses && (data.useCount ?? 0) >= data.maxUses) { setCodeError("최대 사용 횟수에 도달한 코드예요."); return; }
-        if (data.expiresAt && (data.expiresAt as Timestamp).toDate() < new Date()) { setCodeError("쿠폰 사용기간이 만료되었습니다."); return; }
-        const phone = form.phone.replace(/-/g, "");
-        if (phone && Array.isArray(data.usedPhones) && data.usedPhones.includes(phone)) {
-          setCodeError("이미 사용한 코드예요."); return;
-        }
-        setCouponInfo({ code: raw.toUpperCase(), discountType: data.discountType, discountAmount: data.discountAmount });
-        return;
-      }
-      const refSnap = await getDoc(doc(db, "referralCodes", raw.toLowerCase()));
-      if (refSnap.exists()) {
-        const data = refSnap.data();
-        setReferralInfo({ code: raw.toLowerCase(), familyId: data.familyId, referrerName: data.referrerName });
-        return;
-      }
-      setCodeError("존재하지 않는 코드예요.");
-    } catch (err) { setCodeError(err instanceof Error ? err.message : "코드 확인 중 오류가 발생했습니다."); }
-    finally { setCodeValidating(false); }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setExistingMember(false);
 
     if (!form.parentName.trim()) return setError("부모님 성함을 입력해 주세요.");
     if (!form.phone.trim()) return setError("연락처를 입력해 주세요.");
@@ -156,6 +155,18 @@ export function useSignupForm() {
       const childIdErr = validateId(c.loginId.trim());
       if (childIdErr) return setError(`${label} 아이디: ${childIdErr}`);
       if (c.selectedServices.length === 0) return setError(`${label}의 서비스를 1개 이상 선택해 주세요.`);
+      for (const slug of c.selectedServices) {
+        if (!c.serviceMonths?.[slug]) {
+          const svc = SIGNUP_SERVICES.find((x) => x.slug === slug);
+          return setError(`${label}의 '${svc?.name ?? slug}' 기간을 선택해 주세요.`);
+        }
+      }
+    }
+    for (const slug of form.parentServices) {
+      if (!form.parentServiceMonths?.[slug]) {
+        const svc = signupServices.find((x) => x.slug === slug);
+        return setError(`'${svc?.name ?? slug}' 학부모 서비스 기간을 선택해 주세요.`);
+      }
     }
     if (!form.agreed) return setError("개인정보 수집·이용에 동의해 주세요.");
 
@@ -169,6 +180,7 @@ export function useSignupForm() {
           setError("이미 같은 전화번호로 신청이 접수되어 있어요. 문의사항은 오픈톡방으로 연락해 주세요.");
         } else {
           setError("이미 등록된 회원이에요. 기존 회원이시라면 아이 학습 홈에서 연장신청을 이용해 주세요.");
+          setExistingMember(true);
         }
         setSubmitting(false);
         return;
@@ -177,6 +189,7 @@ export function useSignupForm() {
       const parentRes = await checkId({ type: "parent", id: form.parentId });
       if (!parentRes.data.available) {
         setError(`부모님 아이디(${form.parentId})는 이미 사용 중이에요. 기존 회원이시라면 아이 학습 홈에서 연장신청을 이용해 주세요.`);
+        setExistingMember(true);
         setSubmitting(false);
         return;
       }
@@ -195,13 +208,6 @@ export function useSignupForm() {
       return;
     }
 
-    const couponDiscount = couponInfo
-      ? couponInfo.discountType === "fixed"
-        ? Math.min(couponInfo.discountAmount, estimatedTotal)
-        : Math.round(estimatedTotal * couponInfo.discountAmount / 100)
-      : 0;
-    const referralDiscount = referralInfo ? Math.round(estimatedTotal * 0.1) : 0;
-
     try {
       await addDoc(collection(db, "signups"), {
         parentName: form.parentName.trim(),
@@ -213,15 +219,13 @@ export function useSignupForm() {
           grade: c.grade,
           loginId: c.loginId.trim().toLowerCase(),
           selectedServices: c.selectedServices,
+          serviceMonths: c.serviceMonths,
         })),
         parentServices: form.parentServices,
+        parentServiceMonths: form.parentServiceMonths,
         estimatedMonthly: estimatedTotal,
-        couponCode: couponInfo?.code ?? null,
-        couponDiscount,
-        referralCode: referralInfo?.code ?? null,
-        referrerId: referralInfo?.familyId ?? null,
-        referralDiscount,
-        finalMonthly: estimatedTotal - couponDiscount - referralDiscount,
+        finalMonthly: estimatedTotal,
+        depositTotal,
         status: "pending",
         createdAt: serverTimestamp(),
       });
@@ -234,10 +238,9 @@ export function useSignupForm() {
   }
 
   return {
-    form, setForm, submitting, error, done,
-    codeInput, setCodeInput, codeValidating, couponInfo, referralInfo, codeError,
-    setCouponInfo, setReferralInfo, setCodeError,
-    estimatedTotal, updateChild, toggleChildService, toggleParentService, addChild, removeChild,
-    handleValidateCode, handleSubmit,
+    form, setForm, submitting, error, existingMember, done,
+    estimatedTotal, depositTotal, updateChild, toggleChildService, setChildServiceMonths,
+    toggleParentService, setParentServiceMonths, addChild, removeChild,
+    handleSubmit,
   };
 }

@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { httpsCallable } from "firebase/functions";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db, functions } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { formatDateTime, formatWon } from "@/lib/format";
 import { buildPaymentGuide } from "@/lib/messages";
 import { useServices } from "@/lib/services-context";
+import { useSendToast } from "@/lib/send-toast";
+import { CopyBtn } from "@/components/ui/copy-btn";
 
 import type { SignupStatus, SignupChild, Signup } from "@/lib/types";
-export type { SignupStatus, SignupChild, Signup };
+
 
 const STATUS_STYLE: Record<SignupStatus, string> = {
   pending:        "bg-[#eff6ff] text-[#1d4ed8] border border-[rgba(29,78,216,0.2)]",
@@ -23,25 +22,15 @@ const btnCls = "rounded border border-black/10 bg-white px-3.5 py-1.5 text-[13px
 
 const PARENT_SVC_NAMES: Record<string, string> = {
   momsaipack: "💻 엄마들을 위한 AI 패키지",
-  "mom-webinar": "🙋‍♀️ [Mom&] 맘이랑 금요웨비나",
 };
 
 function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; displayMonthly: number; onClose: () => void }) {
-  const [sending, setSending] = useState(false);
   const text = buildPaymentGuide(signup, displayMonthly > 0 ? displayMonthly : undefined);
+  const { startSend } = useSendToast();
 
-  async function handleSend() {
-    setSending(true);
-    try {
-      const fn = httpsCallable<{ phones: string[]; text: string }, { success: boolean }>(functions, "sendBulkSms");
-      await fn({ phones: [signup.phone], text });
-      alert("문자가 발송됐어요.");
-      onClose();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "발송 실패");
-    } finally {
-      setSending(false);
-    }
+  function handleSend() {
+    startSend({ label: `${signup.parentName} 입금안내`, phones: [signup.phone], text });
+    onClose();
   }
 
   return (
@@ -53,7 +42,7 @@ function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; 
         boxShadow: "rgba(0,0,0,0.18) 0px 8px 32px", zIndex: 301, padding: "24px 24px 20px",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>📱 문자 미리보기</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>💬 카톡 미리보기</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: "#a39e98", cursor: "pointer", padding: 4 }}>✕</button>
         </div>
         <div style={{ fontSize: 12, color: "#615d59", marginBottom: 6 }}>수신: {signup.phone}</div>
@@ -64,12 +53,11 @@ function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; 
         }}>{text}</pre>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={onClose} className={btnCls}>취소</button>
-          <button onClick={handleSend} disabled={sending} style={{
+          <button onClick={handleSend} style={{
             borderRadius: 6, border: "none", backgroundColor: "#38a848", color: "#fff",
             padding: "7px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-            opacity: sending ? 0.7 : 1,
           }}>
-            {sending ? "발송 중…" : "발송"}
+            발송
           </button>
         </div>
       </div>
@@ -87,32 +75,7 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [approving, setApproving] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const [applyingCoupon, setApplyingCoupon] = useState(false);
   const { signupServices } = useServices();
-
-  async function handleApplyCoupon() {
-    if (!signup.couponCode || applyingCoupon) return;
-    setApplyingCoupon(true);
-    try {
-      const snap = await getDoc(doc(db, "coupons", signup.couponCode.toUpperCase()));
-      if (!snap.exists()) { alert("쿠폰 코드를 찾을 수 없어요."); return; }
-      const data = snap.data();
-      const base = displayMonthly;
-      const discount = data.discountType === "fixed"
-        ? Math.min(data.discountAmount as number, base)
-        : Math.round(base * (data.discountAmount as number) / 100);
-      const referralDisc = signup.referralDiscount ?? 0;
-      await updateDoc(doc(db, "signups", signup.id), {
-        couponDiscount: discount,
-        finalMonthly: base - discount - referralDisc,
-      });
-      alert(`쿠폰 적용 완료: -${formatWon(discount)}`);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "오류 발생");
-    } finally {
-      setApplyingCoupon(false);
-    }
-  }
 
   // estimatedMonthly가 0이면 서비스 목록에서 재계산
   const recalcTotal = (() => {
@@ -128,7 +91,6 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
     return childTotal + parentTotal;
   })();
   const displayMonthly = signup.estimatedMonthly > 0 ? signup.estimatedMonthly : recalcTotal;
-  const displayFinal = signup.finalMonthly > 0 ? signup.finalMonthly : (displayMonthly - (signup.couponDiscount ?? 0) - (signup.referralDiscount ?? 0));
 
   async function handleApprove() {
     if (approving) return;
@@ -145,6 +107,9 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[15px] font-bold text-black/95">{signup.parentName}</span>
+              {signup.parentId && (
+                <span className="rounded-full bg-p-bg px-2 py-[2px] font-mono text-[11px] text-p-secondary">ID: {signup.parentId} <CopyBtn text={signup.parentId} /></span>
+              )}
               {signup.convertedFamilyId ? (
                 <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#f0fff4] text-[#1a7f4b] border border-[rgba(26,127,75,0.2)]" title={`familyId: ${signup.convertedFamilyId}`}>
                   ✅ 등록완료
@@ -161,33 +126,11 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
           </div>
           <div className="text-right">
             <div className="text-[11px] text-p-muted">예상 월</div>
-            {(signup.couponDiscount ?? 0) > 0 || (signup.referralDiscount ?? 0) > 0 ? (
+            <div className="text-[15px] font-bold text-black/95">{formatWon(displayMonthly)}</div>
+            {(signup.depositTotal ?? 0) > 0 && (
               <>
-                <div className="text-xs text-p-muted line-through">{formatWon(displayMonthly)}</div>
-                <div className="text-[15px] font-bold text-[#1a7f4b]">{formatWon(displayFinal)}</div>
-                {signup.couponCode && <div className="text-[10px] text-[#1a7f4b] mt-px">🎟 {signup.couponCode} (-{formatWon(signup.couponDiscount)})</div>}
-                {signup.referralCode && <div className="text-[10px] text-[#1a7f4b] mt-px">👥 추천 {signup.referralCode} (-{formatWon(signup.referralDiscount ?? 0)})</div>}
-              </>
-            ) : signup.couponCode || signup.referralCode ? (
-              <>
-                <div className="text-[15px] font-bold text-black/95">{formatWon(displayMonthly)}</div>
-                <div className="text-[10px] text-[#c0392b] mt-px flex items-center gap-1.5 justify-end">
-                  <span>⚠ 코드 미적용 ({signup.couponCode ?? signup.referralCode})</span>
-                  {signup.couponCode && (
-                    <button
-                      onClick={handleApplyCoupon}
-                      disabled={applyingCoupon}
-                      style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, border: "1px solid rgba(192,0,0,0.3)", background: "#fff5f5", color: "#c0392b", cursor: "pointer", fontWeight: 600, opacity: applyingCoupon ? 0.6 : 1 }}
-                    >
-                      {applyingCoupon ? "…" : "재적용"}
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-[15px] font-bold text-black/95">{formatWon(displayMonthly)}</div>
-                <div className="text-[10px] text-p-muted mt-px">코드 없음</div>
+                <div className="text-[11px] text-p-muted mt-1">총 입금액</div>
+                <div className="text-[13px] font-bold text-p-green">{formatWon(signup.depositTotal ?? 0)}</div>
               </>
             )}
           </div>
@@ -199,16 +142,18 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
               <div>
                 <strong className="text-black/95">{child.name}</strong>
                 <span className="ml-2 text-p-muted">{child.grade}</span>
-                {child.loginId && <span className="ml-2 font-mono text-[11px] text-p-muted">ID: {child.loginId}</span>}
+                {child.loginId && <span className="ml-2 font-mono text-[11px] text-p-muted">ID: {child.loginId} <CopyBtn text={child.loginId} /></span>}
               </div>
               <ul className="m-0 mt-1.5 p-0 list-none flex flex-col gap-1">
                 {child.selectedServices.map((slug) => {
                   const svc = SERVICES.find((s) => s.slug === slug);
+                  const months = child.serviceMonths?.[slug];
                   return (
                     <li key={slug} className="flex items-center gap-1.5 text-p-secondary">
                       <span>·</span>
                       {svc && <ServiceIcon service={svc} size={14} />}
                       <span>{svc ? `${svc.name} — ${svc.priceLabel}` : slug}</span>
+                      {months ? <span className="rounded bg-[#f0fff4] text-[#1a7f4b] text-[11px] font-semibold px-1.5 py-px">{months}개월</span> : null}
                     </li>
                   );
                 })}
@@ -220,10 +165,12 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
               <div className="text-[11px] font-bold text-[#7c3aed] mb-1.5 tracking-[0.04em]">학부모 서비스</div>
               <ul className="m-0 p-0 list-none flex flex-col gap-1">
                 {(signup.parentServices ?? []).map((slug) => {
+                  const months = signup.parentServiceMonths?.[slug];
                   return (
                     <li key={slug} className="flex items-center gap-1.5 text-p-secondary">
                       <span>·</span>
                       <span>{PARENT_SVC_NAMES[slug] ?? slug}</span>
+                      {months ? <span className="rounded bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-semibold px-1.5 py-px">{months}개월</span> : null}
                     </li>
                   );
                 })}
@@ -233,7 +180,7 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
         </div>
 
         <div className="mt-3.5 flex flex-wrap gap-2">
-          <button onClick={() => setShowSmsModal(true)} className={btnCls}>📱 문자 발송</button>
+          <button onClick={() => setShowSmsModal(true)} className={btnCls}>💬 카톡 발송</button>
           {!signup.convertedFamilyId && signup.status === "pending" && (
             <button
               onClick={() => onChangeStatus(signup.id, "accountPending")}
