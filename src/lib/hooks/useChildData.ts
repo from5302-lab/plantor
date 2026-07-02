@@ -8,6 +8,9 @@ import {
 import { db } from "@/lib/firebase";
 import type { Subscription, LearningLog } from "@/lib/types";
 import { todayStr } from "@/lib/learn-utils";
+import { SERVICES } from "@/data/site";
+
+const KNOWN_SLUGS = new Set(SERVICES.map((s) => s.slug));
 
 type UseChildDataOptions = {
   userId: string;
@@ -37,6 +40,8 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(
     isDemo ? (demoData?.subscriptions ?? []) : []
   );
+  // 직강(1:1) 학생 수강과목: subscriptions 컬렉션이 아니라 directClasses에 저장됨
+  const [directSlugs, setDirectSlugs] = useState<string[]>([]);
   const [logs, setLogs] = useState<LearningLog[]>(
     isDemo ? (demoData?.logs ?? []) : []
   );
@@ -128,6 +133,31 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
     );
   }, [childId, isDemo]);
 
+  // 2-b) 직강(1:1) 수강과목 — loginId로 활성 directClass의 학생을 찾아 serviceSlugs 수집
+  useEffect(() => {
+    if (isDemo) return;
+    const login = childLoginId.toLowerCase();
+    if (!login) { setDirectSlugs([]); return; }
+    return onSnapshot(
+      query(collection(db, "directClasses"), where("status", "==", "active")),
+      (snap) => {
+        const today = todayStr();
+        const slugs = new Set<string>();
+        snap.docs.forEach((d) => {
+          const cls = d.data();
+          if (cls.expiry && cls.expiry < today) return; // 만료된 수업 제외
+          const me = (cls.students ?? []).find(
+            (s: { studentLoginId?: string }) => (s.studentLoginId ?? "").toLowerCase() === login
+          );
+          if (!me) return;
+          const list: string[] = me.serviceSlugs ?? cls.serviceSlugs ?? [];
+          list.forEach((slug) => { if (KNOWN_SLUGS.has(slug)) slugs.add(slug); });
+        });
+        setDirectSlugs([...slugs]);
+      }
+    );
+  }, [childLoginId, isDemo]);
+
   // 3) 오늘 로그
   useEffect(() => {
     if (isDemo || !childId) return;
@@ -171,5 +201,22 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
     );
   }, [childId, isDemo]);
 
-  return { childId, childName, childGrade, childLoginId, subscriptions, logs, setLogs, allLogs, setAllLogs, todayAttended, ready };
+  // 실제 구독 + 직강 수강과목(합성 구독)을 병합해 반환
+  const subSlugs = new Set(subscriptions.map((s) => s.serviceSlug));
+  const mergedSubscriptions: Subscription[] = [
+    ...subscriptions,
+    ...directSlugs
+      .filter((slug) => !subSlugs.has(slug))
+      .map((slug) => ({
+        id: `direct-${slug}`,
+        childId: childId ?? "",
+        serviceSlug: slug,
+        monthlyPrice: 0,
+        status: "active",
+        startDate: null,
+        endDate: null,
+      })),
+  ];
+
+  return { childId, childName, childGrade, childLoginId, subscriptions: mergedSubscriptions, logs, setLogs, allLogs, setAllLogs, todayAttended, ready };
 }
