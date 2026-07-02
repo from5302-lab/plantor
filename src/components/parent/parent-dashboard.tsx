@@ -11,27 +11,40 @@ import { ServiceIcon } from "@/components/ui/service-icon";
 import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
+import { REASONS_6HDL } from "@/lib/types";
 import { todayStr, getWeekDates, calcStreak } from "@/lib/learn-utils";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
+function dow(dateStr: string): number {
+  return (new Date(dateStr + "T00:00:00").getDay() + 6) % 7; // 0=월
+}
+
 type Child = { id: string; name: string; grade?: string; loginId: string };
-type LearningLog = {
+type TaskT = {
   id: string;
-  childId: string;
   serviceSlug: string;
-  date: string;
-  screenshotUrl?: string | null;
-  method?: string;
+  partSlug: string | null;
+  title: string;
+  scheduleDays: number[];
+  progressLabel: string | null;
 };
-type Subscription = { id: string; serviceSlug: string };
+type CheckT = {
+  id: string;
+  taskId: string;
+  date: string;
+  status: string;
+  reason: string | null;
+  reasonNote: string | null;
+  checkedBy: string;
+};
+type ShotLog = { id: string; serviceSlug: string; screenshotUrl?: string | null };
 
 type ChildData = {
   child: Child;
-  subscriptions: Subscription[];
-  todayLogs: LearningLog[];
-  weekLogs: LearningLog[];
-  allLogs: LearningLog[];
+  tasks: TaskT[];
+  checks: CheckT[];
+  todayShots: ShotLog[];
 };
 
 export function ParentDashboard({ userId }: { userId: string }) {
@@ -42,6 +55,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
 
   const today = todayStr();
   const weekDates = getWeekDates();
+  const todayDow = dow(today);
 
   // 1) userId → familyId → children
   useEffect(() => {
@@ -82,7 +96,6 @@ export function ParentDashboard({ userId }: { userId: string }) {
       });
 
       return unsubChildren;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }
 
     const cleanup = load();
@@ -90,10 +103,9 @@ export function ParentDashboard({ userId }: { userId: string }) {
       cancelled = true;
       cleanup.then((unsub) => unsub?.());
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // 2) 자녀별 구독 + 로그 실시간 구독
+  // 2) 자녀별 과제 + 체크 + 인증샷 실시간 구독
   useEffect(() => {
     if (!children.length) return;
     const unsubs: (() => void)[] = [];
@@ -101,53 +113,59 @@ export function ParentDashboard({ userId }: { userId: string }) {
     for (const child of children) {
       const childId = child.id;
 
+      // 확정 과제
       unsubs.push(onSnapshot(
-        query(collection(db, "subscriptions"), where("childId", "==", childId), where("status", "==", "active")),
+        query(collection(db, "tasks"), where("childId", "==", childId), where("status", "==", "confirmed")),
         (snap) => {
-          const subs = snap.docs.map((d) => ({ id: d.id, serviceSlug: d.data().serviceSlug ?? "" }));
-          setChildDataMap((prev) => ({
-            ...prev,
-            [childId]: { ...prev[childId], child, subscriptions: subs },
-          }));
-        }
-      ));
-
-      unsubs.push(onSnapshot(
-        query(
-          collection(db, "learningLogs"),
-          where("childId", "==", childId),
-          where("date", ">=", weekDates[0]),
-          where("date", "<=", weekDates[6])
-        ),
-        (snap) => {
-          const logs = snap.docs.map((d) => ({
+          const tasks: TaskT[] = snap.docs.map((d) => ({
             id: d.id,
-            childId,
             serviceSlug: d.data().serviceSlug ?? "",
-            date: d.data().date ?? "",
-            screenshotUrl: d.data().screenshotUrl ?? null,
-            method: d.data().method,
+            partSlug: d.data().partSlug ?? null,
+            title: d.data().title ?? "",
+            scheduleDays: d.data().scheduleDays ?? [],
+            progressLabel: d.data().progressLabel ?? null,
           }));
-          const todayLogs = logs.filter((l) => l.date === today);
           setChildDataMap((prev) => ({
             ...prev,
-            [childId]: { ...prev[childId], child, weekLogs: logs, todayLogs },
+            [childId]: { ...prev[childId], child, tasks },
           }));
         }
       ));
 
+      // 과제 체크 (전체) — childId 단일 필드 조회(복합 인덱스 불필요). 주간/streak는 클라에서 파생
+      unsubs.push(onSnapshot(
+        query(collection(db, "taskChecks"), where("childId", "==", childId)),
+        (snap) => {
+          const checks: CheckT[] = snap.docs.map((d) => ({
+            id: d.id,
+            taskId: d.data().taskId ?? "",
+            date: d.data().date ?? "",
+            status: d.data().status ?? "error",
+            reason: d.data().reason ?? null,
+            reasonNote: d.data().reasonNote ?? null,
+            checkedBy: d.data().checkedBy ?? "student",
+          }));
+          setChildDataMap((prev) => ({
+            ...prev,
+            [childId]: { ...prev[childId], child, checks },
+          }));
+        }
+      ));
+
+      // 인증샷 (learningLogs — 표시 전용). childId 단일 필드 조회 후 오늘 것만 파생
       unsubs.push(onSnapshot(
         query(collection(db, "learningLogs"), where("childId", "==", childId)),
         (snap) => {
-          const allLogs = snap.docs.map((d) => ({
-            id: d.id,
-            childId,
-            serviceSlug: d.data().serviceSlug ?? "",
-            date: d.data().date ?? "",
-          }));
+          const todayShots: ShotLog[] = snap.docs
+            .filter((d) => (d.data().date ?? "") === today && d.data().screenshotUrl)
+            .map((d) => ({
+              id: d.id,
+              serviceSlug: d.data().serviceSlug ?? "",
+              screenshotUrl: d.data().screenshotUrl ?? null,
+            }));
           setChildDataMap((prev) => ({
             ...prev,
-            [childId]: { ...prev[childId], child, allLogs },
+            [childId]: { ...prev[childId], child, todayShots },
           }));
         }
       ));
@@ -191,14 +209,17 @@ export function ParentDashboard({ userId }: { userId: string }) {
         <div className="flex flex-col gap-4">
           {children.map((child) => {
             const data = childDataMap[child.id];
-            const subs = data?.subscriptions ?? [];
-            const todayLogs = data?.todayLogs ?? [];
-            const weekLogs = data?.weekLogs ?? [];
-            const allLogs = data?.allLogs ?? [];
-            const streak = calcStreak(allLogs);
-            const todayDone = new Set(todayLogs.map((l) => l.serviceSlug));
-            const todayTotal = subs.length;
-            const todayDoneCount = subs.filter((s) => todayDone.has(s.serviceSlug)).length;
+            const tasks = data?.tasks ?? [];
+            const checks = data?.checks ?? [];
+            const weekChecks = checks.filter((c) => c.date >= weekDates[0] && c.date <= weekDates[6]);
+            const todayShots = data?.todayShots ?? [];
+            const streak = calcStreak(checks.filter((c) => c.status === "done").map((c) => ({ date: c.date })));
+
+            const todayTasks = tasks.filter((t) => t.scheduleDays.includes(todayDow));
+            const isDoneToday = (taskId: string) =>
+              weekChecks.some((c) => c.taskId === taskId && c.date === today && c.status === "done");
+            const todayTotal = todayTasks.length;
+            const todayDoneCount = todayTasks.filter((t) => isDoneToday(t.id)).length;
             const allComplete = todayTotal > 0 && todayDoneCount === todayTotal;
 
             return (
@@ -242,7 +263,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                     {weekDates.map((date, i) => {
                       const isToday = date === today;
                       const isFuture = date > today;
-                      const hasDone = weekLogs.some((l) => l.date === date);
+                      const hasDone = weekChecks.some((c) => c.date === date && c.status === "done");
                       return (
                         <div key={date} className="flex flex-col items-center gap-1">
                           <span
@@ -273,24 +294,31 @@ export function ParentDashboard({ userId }: { userId: string }) {
                   </div>
                 </div>
 
-                {/* 오늘 서비스별 현황 */}
-                {subs.length === 0 ? (
+                {/* 오늘 과제별 현황 */}
+                {todayTasks.length === 0 ? (
                   <div className="px-[18px] py-5 text-[13px] text-p-muted text-center">
-                    활성 구독이 없습니다
+                    오늘 예정된 과제가 없습니다
                   </div>
                 ) : (
                   <div className="py-2">
-                    {subs.map((sub, idx) => {
-                      const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
-                      const log = todayLogs.find((l) => l.serviceSlug === sub.serviceSlug);
-                      const done = !!log;
-                      const hasScreenshot = !!log?.screenshotUrl;
+                    {todayTasks.map((task, idx) => {
+                      const svc = SERVICES.find((s) => s.slug === task.serviceSlug);
+                      const part = svc?.parts?.find((p) => p.slug === task.partSlug);
+                      const label = task.progressLabel
+                        ? `${svc?.name ?? task.serviceSlug} ${task.progressLabel}`
+                        : part ? part.name : task.title;
+                      const check = weekChecks.find((c) => c.taskId === task.id && c.date === today);
+                      const done = check?.status === "done";
+                      const reasonInfo = check?.status === "not_done" && check.reason
+                        ? REASONS_6HDL.find((r) => r.slug === check.reason)
+                        : null;
+                      const shot = todayShots.find((l) => l.serviceSlug === task.serviceSlug && l.screenshotUrl);
 
                       return (
                         <div
-                          key={sub.id}
+                          key={task.id}
                           className="flex items-center gap-3 px-[18px] py-2.5"
-                          style={{ borderBottom: idx < subs.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}
+                          style={{ borderBottom: idx < todayTasks.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}
                         >
                           {/* 완료 뱃지 */}
                           <div
@@ -300,29 +328,36 @@ export function ParentDashboard({ userId }: { userId: string }) {
                             {done && <span className="text-white text-xs font-bold">✓</span>}
                           </div>
 
-                          {/* 서비스명 */}
-                          <div className="flex-1 flex items-center gap-1.5">
-                            {svc && <ServiceIcon service={svc} size={14} />}
-                            <span
-                              className="text-[13px] font-semibold"
-                              style={{ color: done ? "rgba(0,0,0,0.95)" : "#a39e98" }}
-                            >
-                              {svc?.name ?? sub.serviceSlug}
-                            </span>
+                          {/* 과제명 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              {svc && <ServiceIcon service={svc} size={14} />}
+                              <span
+                                className="text-[13px] font-semibold truncate"
+                                style={{ color: done ? "rgba(0,0,0,0.95)" : "#a39e98" }}
+                              >
+                                {label}
+                              </span>
+                            </div>
+                            {reasonInfo && (
+                              <div className="text-[11px] text-[#c00000] font-medium mt-0.5">
+                                {reasonInfo.icon} {reasonInfo.name}{check?.reasonNote ? ` · ${check.reasonNote}` : ""}
+                              </div>
+                            )}
                           </div>
 
                           {/* 인증샷 썸네일 */}
-                          {hasScreenshot && log?.screenshotUrl && (
+                          {shot?.screenshotUrl && (
                             <button
                               onClick={() => setExpandedScreenshot(
-                                expandedScreenshot === log.id ? null : log.id
+                                expandedScreenshot === shot.id ? null : shot.id
                               )}
                               className="border-none bg-transparent cursor-pointer p-0 shrink-0"
                               title="인증샷 보기"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={log.screenshotUrl}
+                                src={shot.screenshotUrl}
                                 alt="인증샷"
                                 className="w-10 h-10 object-cover rounded-md block"
                                 style={{ border: "2px solid #38a848" }}
@@ -331,10 +366,10 @@ export function ParentDashboard({ userId }: { userId: string }) {
                           )}
 
                           {/* 상태 라벨 */}
-                          {!done && (
+                          {!done && !reasonInfo && (
                             <span className="text-[11px] text-p-muted shrink-0">미완료</span>
                           )}
-                          {done && !hasScreenshot && log?.method === "admin" && (
+                          {done && !shot && check?.checkedBy === "admin" && (
                             <span className="text-[11px] text-p-muted shrink-0">선생님 확인</span>
                           )}
                         </div>
@@ -344,21 +379,18 @@ export function ParentDashboard({ userId }: { userId: string }) {
                 )}
 
                 {/* 인증샷 확대 */}
-                {subs.some((sub) => {
-                  const log = todayLogs.find((l) => l.serviceSlug === sub.serviceSlug);
-                  return log && expandedScreenshot === log.id && log.screenshotUrl;
-                }) && (() => {
-                  const expandedLog = todayLogs.find((l) => l.id === expandedScreenshot);
-                  if (!expandedLog?.screenshotUrl) return null;
-                  const svc = SERVICES.find((s) => s.slug === expandedLog.serviceSlug);
+                {(() => {
+                  const expandedShot = todayShots.find((l) => l.id === expandedScreenshot && l.screenshotUrl);
+                  if (!expandedShot?.screenshotUrl) return null;
+                  const svc = SERVICES.find((s) => s.slug === expandedShot.serviceSlug);
                   return (
                     <div className="px-[18px] pb-4">
                       <div className="text-[11px] font-semibold text-p-muted mb-2">
-                        📸 {svc?.name ?? expandedLog.serviceSlug} 인증샷
+                        📸 {svc?.name ?? expandedShot.serviceSlug} 인증샷
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={expandedLog.screenshotUrl}
+                        src={expandedShot.screenshotUrl}
                         alt="인증샷 확대"
                         className="w-full rounded-[10px] block border border-black/10"
                       />
@@ -378,9 +410,9 @@ export function ParentDashboard({ userId }: { userId: string }) {
 
       {/* 인증샷 전체화면 오버레이 */}
       {expandedScreenshot && (() => {
-        const allLogs = Object.values(childDataMap).flatMap((d) => d?.todayLogs ?? []);
-        const log = allLogs.find((l) => l.id === expandedScreenshot);
-        if (!log?.screenshotUrl) return null;
+        const allShots = Object.values(childDataMap).flatMap((d) => d?.todayShots ?? []);
+        const shot = allShots.find((l) => l.id === expandedScreenshot);
+        if (!shot?.screenshotUrl) return null;
         return (
           <div
             onClick={() => setExpandedScreenshot(null)}
@@ -388,7 +420,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={log.screenshotUrl}
+              src={shot.screenshotUrl}
               alt="인증샷 전체화면"
               className="max-w-full max-h-[90vh] rounded-xl block"
               onClick={(e) => e.stopPropagation()}
