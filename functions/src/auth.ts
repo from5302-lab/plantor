@@ -446,7 +446,7 @@ export const approveSignup = onCall(
         if (svc.studentUrl) svcLines.push(`· ${label} 학생용: ${svc.studentUrl}`);
         if (svc.parentUrl) svcLines.push(`· ${label} 학부모용: ${svc.parentUrl}`);
       });
-      return [``, `📚 ${c.name} — 아이디 ${c.loginId} / 비번 012345`, ...svcLines];
+      return [``, `📚 ${c.name} 학습사이트 로그인 (아이디 ${c.loginId} / 비번 012345)`, ...svcLines];
     });
 
     const smsText = [
