@@ -219,6 +219,15 @@ function Dashboard({ user }: { user: User }) {
     catch (err) { alert(err instanceof Error ? err.message : "상태 변경 중 오류가 발생했습니다."); }
   }
 
+  // 계정 생성 전, 신청서의 로그인 ID 수정 (approveSignup이 이 필드들을 읽어 계정 생성)
+  async function editParentId(signupId: string, newId: string) {
+    await updateDoc(doc(db, "signups", signupId), { parentId: newId });
+  }
+  async function editChildId(signup: Signup, childIdx: number, newId: string) {
+    const children = signup.children.map((c, i) => (i === childIdx ? { ...c, loginId: newId } : c));
+    await updateDoc(doc(db, "signups", signup.id), { children });
+  }
+
   async function deleteSignup(id: string) {
     try {
       await deleteDoc(doc(db, "signups", id));
@@ -559,7 +568,7 @@ function Dashboard({ user }: { user: User }) {
             ) : (
               <div className="flex flex-col gap-3">
                 {filteredSignups.map((s) => (
-                  <SignupRow key={s.id} signup={s} onChangeStatus={changeStatus} onApproveAsFamily={approveAsFamily} onDelete={deleteSignup} onResetPassword={handleResetPassword} />
+                  <SignupRow key={s.id} signup={s} onChangeStatus={changeStatus} onApproveAsFamily={approveAsFamily} onDelete={deleteSignup} onResetPassword={handleResetPassword} onEditParentId={editParentId} onEditChildId={editChildId} />
                 ))}
               </div>
             )}

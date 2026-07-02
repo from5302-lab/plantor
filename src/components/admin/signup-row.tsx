@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
+import { Pencil } from "lucide-react";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { formatDateTime, formatWon } from "@/lib/format";
@@ -24,6 +27,69 @@ const PARENT_SVC_NAMES: Record<string, string> = {
   momsaipack: "💻 엄마들을 위한 AI 패키지",
 };
 
+// 계정 생성 전, 신청서의 로그인 ID를 인라인 편집한다.
+function EditableId({ value, type, onSave }: {
+  value: string;
+  type: "parent" | "child";
+  onSave: (newId: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function start() { setVal(value); setErr(""); setEditing(true); }
+  function cancel() { setEditing(false); setErr(""); }
+
+  async function save() {
+    const trimmed = val.trim().toLowerCase();
+    if (trimmed === value.toLowerCase()) { cancel(); return; }
+    if (trimmed.length < 4) { setErr("4자 이상이어야 합니다."); return; }
+    setErr("");
+    setSaving(true);
+    try {
+      const checkId = httpsCallable<{ type: string; id: string }, { available: boolean }>(functions, "checkIdAvailability");
+      const res = await checkId({ type, id: trimmed });
+      if (!res.data.available) { setErr("이미 사용 중인 아이디입니다."); return; }
+      await onSave(trimmed);
+      setEditing(false);
+    } catch {
+      setErr("저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+        <input
+          autoFocus
+          value={val}
+          disabled={saving}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+          className="w-24 rounded border border-black/15 px-1.5 py-0.5 font-mono text-[11px] outline-none focus:border-[#1d4ed8]"
+        />
+        <button onClick={save} disabled={saving} className="rounded border-none bg-[#1d4ed8] text-white px-2 py-0.5 text-[11px] font-semibold cursor-pointer disabled:opacity-60">
+          {saving ? "…" : "저장"}
+        </button>
+        <button onClick={cancel} disabled={saving} className="rounded border border-black/10 bg-white px-2 py-0.5 text-[11px] text-p-secondary cursor-pointer">취소</button>
+        {err && <span className="text-[11px] text-[#c00000]">{err}</span>}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      ID: {value} <CopyBtn text={value} />
+      <button onClick={start} title="아이디 수정" className="ml-0.5 inline-flex items-center align-middle cursor-pointer" style={{ background: "none", border: "none", padding: "0 2px" }}>
+        <Pencil size={11} className="text-p-muted" />
+      </button>
+    </>
+  );
+}
+
 function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; displayMonthly: number; onClose: () => void }) {
   const text = buildPaymentGuide(signup, displayMonthly > 0 ? displayMonthly : undefined);
   const { startSend } = useSendToast();
@@ -42,7 +108,7 @@ function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; 
         boxShadow: "rgba(0,0,0,0.18) 0px 8px 32px", zIndex: 301, padding: "24px 24px 20px",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>💬 카톡 미리보기</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>📩 문자 입금안내 미리보기</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: "#a39e98", cursor: "pointer", padding: 4 }}>✕</button>
         </div>
         <div style={{ fontSize: 12, color: "#615d59", marginBottom: 6 }}>수신: {signup.phone}</div>
@@ -65,13 +131,16 @@ function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; 
   );
 }
 
-export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete, onResetPassword }: {
+export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete, onResetPassword, onEditParentId, onEditChildId }: {
   signup: Signup;
   onChangeStatus: (id: string, status: SignupStatus) => void;
   onApproveAsFamily: (signup: Signup) => Promise<void> | void;
   onDelete: (id: string) => void;
   onResetPassword: (signupId: string) => void;
+  onEditParentId: (signupId: string, newId: string) => Promise<void>;
+  onEditChildId: (signup: Signup, childIdx: number, newId: string) => Promise<void>;
 }) {
+  const canEditId = !signup.convertedFamilyId;
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [approving, setApproving] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -108,7 +177,11 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[15px] font-bold text-black/95">{signup.parentName}</span>
               {signup.parentId && (
-                <span className="rounded-full bg-p-bg px-2 py-[2px] font-mono text-[11px] text-p-secondary">ID: {signup.parentId} <CopyBtn text={signup.parentId} /></span>
+                <span className="rounded-full bg-p-bg px-2 py-[2px] font-mono text-[11px] text-p-secondary">
+                  {canEditId
+                    ? <EditableId value={signup.parentId} type="parent" onSave={(newId) => onEditParentId(signup.id, newId)} />
+                    : <>ID: {signup.parentId} <CopyBtn text={signup.parentId} /></>}
+                </span>
               )}
               {signup.convertedFamilyId ? (
                 <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#f0fff4] text-[#1a7f4b] border border-[rgba(26,127,75,0.2)]" title={`familyId: ${signup.convertedFamilyId}`}>
@@ -142,7 +215,13 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
               <div>
                 <strong className="text-black/95">{child.name}</strong>
                 <span className="ml-2 text-p-muted">{child.grade}</span>
-                {child.loginId && <span className="ml-2 font-mono text-[11px] text-p-muted">ID: {child.loginId} <CopyBtn text={child.loginId} /></span>}
+                {child.loginId && (
+                  <span className="ml-2 font-mono text-[11px] text-p-muted">
+                    {canEditId
+                      ? <EditableId value={child.loginId} type="child" onSave={(newId) => onEditChildId(signup, idx, newId)} />
+                      : <>ID: {child.loginId} <CopyBtn text={child.loginId} /></>}
+                  </span>
+                )}
               </div>
               <ul className="m-0 mt-1.5 p-0 list-none flex flex-col gap-1">
                 {child.selectedServices.map((slug) => {
@@ -180,7 +259,7 @@ export function SignupRow({ signup, onChangeStatus, onApproveAsFamily, onDelete,
         </div>
 
         <div className="mt-3.5 flex flex-wrap gap-2">
-          <button onClick={() => setShowSmsModal(true)} className={btnCls}>💬 카톡 발송</button>
+          <button onClick={() => setShowSmsModal(true)} className={btnCls}>📩 문자 입금안내</button>
           {!signup.convertedFamilyId && signup.status === "pending" && (
             <button
               onClick={() => onChangeStatus(signup.id, "accountPending")}
