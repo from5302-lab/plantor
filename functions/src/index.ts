@@ -3,7 +3,7 @@ admin.initializeApp();
 
 export { approveSignup, createChildAccount, resetPassword, repairUserDocs, resetAllStudentPasswords, updateParentName, updateChildName, sendRenewalConfirmationSms, confirmAiPackagePayment, deleteFamily, checkIdAvailability, cleanupOrphanSubscriptions, ensureDirectClassAccounts, claimAdminRole, getStudentLessonLogs, getParentLessonLogs } from "./auth";
 export {
-  notifyNewSignup, notifyAdminOnSignup, notifyAdminOnRenewal,
+  notifyNewSignup, notifyAdminOnSignup, notifyAdminOnRenewal, notifyAdminOnPlanDraft,
   notifyExpiringDirectClassD7, notifyExpiringDirectClassD3, notifyExpiringDirectClassD0,
   notifyExpiringSubscriptionD7, notifyExpiringSubscriptionD3, notifyExpiringSubscriptionD0,
   notifyParentOnScreenshot,

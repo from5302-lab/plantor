@@ -177,6 +177,53 @@ export const notifyAdminOnSignup = onDocumentCreated(
   }
 );
 
+// ─── 학생이 학습 계획(초안)을 등록하면 운영자 이메일 알림 ──────────────────────
+// 학생은 계획을 배치로 저장(여러 task 동시 생성)하므로, 배치당 1통만 보내도록
+// mailThrottle 마커를 트랜잭션으로 잠근다(같은 학생 5분 내 중복 발송 방지).
+export const notifyAdminOnPlanDraft = onDocumentCreated(
+  { document: "tasks/{taskId}", secrets: [gmailUser, gmailAppPassword] },
+  async (event) => {
+    const task = event.data?.data();
+    if (!task) return;
+    if (task.status !== "draft" || task.createdBy !== "student") return; // 학생 초안만
+    const childId = task.childId as string | undefined;
+    if (!childId) return;
+
+    // 쓰로틀: 같은 학생 최근 5분 내 이미 보냈으면 스킵 (배치 중복 방지)
+    const markerRef = db.collection("mailThrottle").doc(`plan_${childId}`);
+    const shouldSend = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(markerRef);
+      const last = snap.exists ? (snap.data()?.lastSentAt?.toMillis?.() ?? 0) : 0;
+      if (Date.now() - last < 5 * 60 * 1000) return false;
+      tx.set(markerRef, { lastSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      return true;
+    });
+    if (!shouldSend) return;
+
+    // 학생/대기 건수 조회 (배치는 커밋 후 트리거되므로 전체 draft가 이미 존재)
+    const [childSnap, draftSnap] = await Promise.all([
+      db.collection("children").doc(childId).get(),
+      db.collection("tasks").where("childId", "==", childId).where("status", "==", "draft").get(),
+    ]);
+    const childName = childSnap.exists ? (childSnap.data()?.name ?? "학생") : "학생";
+    const grade = childSnap.exists ? (childSnap.data()?.grade ?? "") : "";
+    const count = draftSnap.size || 1;
+
+    const html = `
+      <h2 style="margin:0 0 20px">📝 학생이 학습 계획을 등록했어요</h2>
+      <p style="margin:0 0 6px"><b>학생:</b> ${childName} <span style="color:#888;font-size:13px">${grade}</span></p>
+      <p style="margin:0 0 16px"><b>검토 대기:</b> ${count}건</p>
+      <p style="margin:0 0 16px;color:#555">관리자 페이지 <b>플랜 관리</b> 탭에서 확인 후 확정해 주세요.</p>
+      <a href="${SITE_URL}/admin" style="color:#38a848">👉 관리자 페이지 바로가기</a>
+    `;
+    try {
+      await sendAdminEmail(`[플랜토] 학습 계획 등록 — ${childName}`, html, gmailUser.value(), gmailAppPassword.value());
+    } catch {
+      // 이메일 실패해도 계획은 유지
+    }
+  }
+);
+
 // ─── 연장신청 접수 시 운영자 이메일 알림 ─────────────────────────────────────
 export const notifyAdminOnRenewal = onDocumentCreated(
   { document: "renewalRequests/{requestId}", secrets: [gmailUser, gmailAppPassword] },
@@ -469,16 +516,14 @@ export async function sendSubscriptionExpiryNotice(
   apiKey: string,
   apiSecret: string
 ) {
-  // endDate 저장 시간대가 코드경로마다 다를 수 있으므로 넓은 범위로 조회
-  // 대상일의 KST 자정(=UTC-9h) ~ 대상일 다음날 UTC 자정까지 (33시간 윈도우)
+  // 만료일 당일을 D-0으로 (만료일까지 유효). 1:1(directClasses)과 동일 기준.
+  // endDate 저장 시각은 코드경로마다 달라도(00:00/09:00/23:59 KST) KST 달력 날짜는 만료일과 일치하므로
+  // "endDate의 KST 날짜 == 대상일(KST)" 정확 일치로 매칭한다.
   const KST_OFFSET = 9 * 60 * 60 * 1000;
   const nowKst = new Date(Date.now() + KST_OFFSET);
-  const targetYear = nowKst.getUTCFullYear();
-  const targetMonth = nowKst.getUTCMonth();
-  const targetDay = nowKst.getUTCDate() + daysAhead;
-
-  const from = new Date(Date.UTC(targetYear, targetMonth, targetDay) - KST_OFFSET); // 대상일 00:00 KST
-  const to   = new Date(Date.UTC(targetYear, targetMonth, targetDay + 1));            // 대상일+1 00:00 UTC
+  const targetStr = new Date(
+    Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate() + daysAhead)
+  ).toISOString().slice(0, 10);
 
   // Firestore 복합 쿼리 대신 status만 필터 후 코드에서 날짜 필터링
   const allActive = await db.collection("subscriptions")
@@ -488,8 +533,8 @@ export async function sendSubscriptionExpiryNotice(
   const matching = allActive.docs.filter((d) => {
     const ed = d.data().endDate;
     if (!ed?.toDate) return false;
-    const ms = ed.toDate().getTime();
-    return ms >= from.getTime() && ms < to.getTime();
+    const edKstStr = new Date(ed.toDate().getTime() + KST_OFFSET).toISOString().slice(0, 10);
+    return edKstStr === targetStr;
   });
 
   if (matching.length === 0) return 0;
