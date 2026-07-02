@@ -3,7 +3,12 @@
 // 플랜 관리 탭 — 확정 대기 초안(확정/거절) 중심 + 전체 학생 계획
 import { useMemo, useState } from "react";
 import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
+import { SERVICES } from "@/data/site";
 import type { MemberChild, Subscription } from "@/lib/types";
+
+const GRADE_ORDER = ["미취학", "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3", "고1", "고2", "고3"];
+function gradeIdx(g: string) { const i = GRADE_ORDER.indexOf(g); return i === -1 ? GRADE_ORDER.length : i; }
+function svcName(slug: string) { return SERVICES.find((s) => s.slug === slug)?.name ?? slug; }
 
 type TodayStatus = "pending" | "done" | "none";
 
@@ -31,8 +36,12 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
   todayByChild: Record<string, { total: number; done: number }>;
 }) {
   const [search, setSearch] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | TodayStatus>("");
+  const [sortKey, setSortKey] = useState<"status" | "name" | "grade">("status");
 
-  // 구독 있는 학생만 추리고, 오늘 '안 한 사람'을 위로 정렬
+  // 구독 있는 학생만 추림
   const students = useMemo(() => {
     const slugsByChild = new Map<string, string[]>();
     for (const s of allSubs) {
@@ -46,27 +55,53 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
       .map((c) => {
         const today = todayByChild[c.id] ?? { total: 0, done: 0 };
         return { id: c.id, name: c.name, grade: c.grade, slugs: slugsByChild.get(c.id) ?? [], drafts: draftByChild[c.id] ?? 0, today, status: classify(today) };
-      })
-      .sort((a, b) => (RANK[a.status] - RANK[b.status]) || (b.drafts - a.drafts) || a.name.localeCompare(b.name, "ko"));
+      });
   }, [allChildren, allSubs, draftByChild, todayByChild]);
 
+  // 필터 옵션 (실제 데이터 기준)
+  const gradeOpts = useMemo(() => [...new Set(students.map((s) => s.grade).filter(Boolean))].sort((a, b) => gradeIdx(a) - gradeIdx(b)), [students]);
+  const subjectOpts = useMemo(() => [...new Set(students.flatMap((s) => s.slugs))], [students]);
+
+  // 필터 적용
   const q = search.trim();
-  const filtered = q ? students.filter((s) => s.name.includes(q)) : students;
+  const filtered = students.filter((s) => {
+    if (q && !s.name.includes(q)) return false;
+    if (gradeFilter && s.grade !== gradeFilter) return false;
+    if (subjectFilter && !s.slugs.includes(subjectFilter)) return false;
+    if (statusFilter && s.status !== statusFilter) return false;
+    return true;
+  });
+
+  // 정렬
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortKey === "name") return a.name.localeCompare(b.name, "ko");
+    if (sortKey === "grade") return (gradeIdx(a.grade) - gradeIdx(b.grade)) || a.name.localeCompare(b.name, "ko");
+    // status: 안 한 사람 먼저 → 확정대기 → 이름
+    return (RANK[a.status] - RANK[b.status]) || (b.drafts - a.drafts) || a.name.localeCompare(b.name, "ko");
+  });
 
   const pendingStudents = students.filter((s) => s.drafts > 0);
   const draftTotal = pendingStudents.reduce((n, s) => n + s.drafts, 0);
   const doneCnt = students.filter((s) => s.status === "done").length;
   const notDoneCnt = students.filter((s) => s.status === "pending").length;
   const noneCnt = students.filter((s) => s.status === "none").length;
+  const activeFilterCount = (gradeFilter ? 1 : 0) + (subjectFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (q ? 1 : 0);
+  function resetFilters() { setSearch(""); setGradeFilter(""); setSubjectFilter(""); setStatusFilter(""); }
+
+  const SELECT_CLS = "h-9 rounded-lg border border-black/10 bg-white px-2.5 text-[13px] text-black/90 cursor-pointer outline-none focus:border-p-green";
 
   return (
     <div>
-      {/* 오늘 현황 요약 */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-[13px]">
+      {/* 오늘 현황 요약 (클릭 시 상태 필터) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
         <span className="font-bold text-black/95">오늘 학습 현황</span>
-        <span className="rounded-md px-2 py-0.5 font-semibold" style={{ backgroundColor: "#fff5f5", color: "#c00000" }}>안 한 사람 {notDoneCnt}</span>
-        <span className="rounded-md px-2 py-0.5 font-semibold" style={{ backgroundColor: "#f0faf1", color: "#2a8438" }}>완료 {doneCnt}</span>
-        <span className="rounded-md px-2 py-0.5 font-semibold" style={{ backgroundColor: "#f6f5f4", color: "#a39e98" }}>과제 없음 {noneCnt}</span>
+        {([["pending", "안 한 사람", notDoneCnt, "#fff5f5", "#c00000"], ["done", "완료", doneCnt, "#f0faf1", "#2a8438"], ["none", "과제 없음", noneCnt, "#f6f5f4", "#a39e98"]] as const).map(([st, label, cnt, bg, fg]) => (
+          <button key={st} onClick={() => setStatusFilter((prev) => (prev === st ? "" : st))}
+            className="rounded-md px-2 py-0.5 font-semibold cursor-pointer border"
+            style={{ backgroundColor: bg, color: fg, borderColor: statusFilter === st ? fg : "transparent" }}>
+            {label} {cnt}
+          </button>
+        ))}
       </div>
 
       {/* 확정 대기 배너 */}
@@ -79,18 +114,48 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
         </div>
       )}
 
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="학생 이름 검색"
-        className="w-full h-10 rounded-lg border border-black/10 px-3.5 text-[13px] mb-4 outline-none focus:border-p-green"
-      />
+      {/* 필터 + 정렬 바 */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="학생 이름 검색"
+          className="h-9 flex-1 min-w-[140px] rounded-lg border border-black/10 px-3 text-[13px] outline-none focus:border-p-green"
+        />
+        <select className={SELECT_CLS} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
+          <option value="">전체 학년</option>
+          {gradeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select className={SELECT_CLS} value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+          <option value="">전체 과목</option>
+          {subjectOpts.map((slug) => <option key={slug} value={slug}>{svcName(slug)}</option>)}
+        </select>
+        <select className={SELECT_CLS} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "" | TodayStatus)}>
+          <option value="">전체 상태</option>
+          <option value="pending">안 한 사람</option>
+          <option value="done">오늘 완료</option>
+          <option value="none">오늘 과제 없음</option>
+        </select>
+        <select className={SELECT_CLS} value={sortKey} onChange={(e) => setSortKey(e.target.value as "status" | "name" | "grade")}>
+          <option value="status">정렬: 오늘 상태순</option>
+          <option value="name">정렬: 이름순</option>
+          <option value="grade">정렬: 학년순</option>
+        </select>
+      </div>
+      <div className="mb-3 flex items-center gap-2 text-[12px] text-p-muted">
+        <span>{sorted.length}명 표시</span>
+        {activeFilterCount > 0 && (
+          <button onClick={resetFilters} className="rounded-md border border-black/10 bg-white px-2 py-0.5 text-[12px] font-semibold text-p-secondary cursor-pointer">
+            필터 초기화 ({activeFilterCount})
+          </button>
+        )}
+      </div>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="py-12 text-center text-[13px] text-p-muted">해당하는 학생이 없어요.</div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map((s) => (
+          {sorted.map((s) => (
             <div key={s.id} className="rounded-xl border bg-white overflow-hidden"
               style={s.status === "pending"
                 ? { borderColor: "rgba(200,0,0,0.35)", boxShadow: "0 0 0 1px rgba(200,0,0,0.12)" }
