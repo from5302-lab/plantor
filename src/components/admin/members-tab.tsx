@@ -1422,6 +1422,43 @@ function EditableText({
 
 // ── 직강 학생 카드 ─────────────────────────────────────────────────────────────
 
+// ── 플랜(스케줄) → 확정 태스크 동기화 ─────────────────────────────────────────
+// 스케줄 항목마다 결정적 ID(sched_childId_slug_day)로 tasks 를 upsert 하고,
+// 제거된 항목의 태스크는 삭제한다. (source:"schedule" 로 수동 태스크와 구분)
+async function syncScheduleTasks(childId: string, schedule: DaySchedule[]) {
+  const desired = schedule.filter((s) => s.serviceSlug);
+  const desiredIds = new Set<string>();
+  for (const s of desired) {
+    const slug = s.serviceSlug!;
+    const id = `sched_${childId}_${slug}_${s.day}`;
+    desiredIds.add(id);
+    const svcName = SERVICES.find((x) => x.slug === slug)?.name ?? (slug === ONLINE_SERVICE.slug ? ONLINE_SERVICE.name : slug);
+    await setDoc(doc(db, "tasks", id), {
+      childId,
+      serviceSlug: slug,
+      partSlug: null,
+      title: svcName,
+      scheduleDays: [s.day],
+      time: s.time || null,
+      externalUrl: null,
+      progressLabel: null,
+      level: null,
+      setName: null,
+      deleteRequested: false,
+      order: 0,
+      active: true,
+      createdBy: "admin",
+      status: "confirmed",
+      adminComment: null,
+      source: "schedule",
+      createdAt: serverTimestamp(),
+      confirmedAt: serverTimestamp(),
+    });
+  }
+  const existing = await getDocs(query(collection(db, "tasks"), where("childId", "==", childId), where("source", "==", "schedule")));
+  await Promise.all(existing.docs.filter((d) => !desiredIds.has(d.id)).map((d) => deleteDoc(d.ref)));
+}
+
 // ── 플랜토 가족 수정 모달 ──────────────────────────────────────────────────────
 
 function FamilyEditModal({ family, children, allSubs, onClose }: {
@@ -1464,18 +1501,27 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
         parentName: parentForm.name.trim(),
         phone: parentForm.phone.trim(),
       });
+      // 변경 감지용 원본 loginId
+      const origLoginId = new Map(children.map((c) => [c.id, (c.loginId ?? "").trim().toLowerCase()]));
       // 자녀별 정보 + 스케줄 업데이트
       await Promise.all(childForms.map(async (cf) => {
         await updateDoc(doc(db, "children", cf.id), {
           name: cf.name.trim(),
           grade: cf.grade,
-          loginId: cf.loginId.trim(),
         });
+        // 아이디 변경 시: children.loginId + Auth 이메일 + users.plantor_id 를 콜러블로 함께 전환
+        const nextLogin = cf.loginId.trim().toLowerCase();
+        if (nextLogin && nextLogin !== origLoginId.get(cf.id)) {
+          const fn = httpsCallable<{ childId: string; newLoginId: string }, { success: boolean }>(functions, "updateChildLoginId");
+          await fn({ childId: cf.id, newLoginId: nextLogin });
+        }
         await setDoc(doc(db, "studentProfiles", cf.id), {
           childId: cf.id,
           schedule: schedules[cf.id] ?? [],
           updatedAt: Timestamp.now(),
         }, { merge: true });
+        // 플랜(스케줄) → 확정 태스크(tasks) 동기화 (source: "schedule")
+        await syncScheduleTasks(cf.id, schedules[cf.id] ?? []);
       }));
       onClose();
     } catch (e) { setError(e instanceof Error ? e.message : "저장 실패"); }
@@ -1563,9 +1609,13 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                     onClick={async () => {
                       if (!confirm(`${cf.name} 학생과 모든 구독 기록을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
                       try {
-                        const subsSnap = await getDocs(query(collection(db, "subscriptions"), where("childId", "==", cf.id)));
+                        const [subsSnap, schedTasksSnap] = await Promise.all([
+                          getDocs(query(collection(db, "subscriptions"), where("childId", "==", cf.id))),
+                          getDocs(query(collection(db, "tasks"), where("childId", "==", cf.id), where("source", "==", "schedule"))),
+                        ]);
                         const batch = writeBatch(db);
                         subsSnap.docs.forEach((d) => batch.delete(d.ref));
+                        schedTasksSnap.docs.forEach((d) => batch.delete(d.ref));
                         batch.delete(doc(db, "children", cf.id));
                         batch.delete(doc(db, "studentProfiles", cf.id));
                         await batch.commit();
@@ -1598,7 +1648,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                       onChange={(e) => setChildForms((prev) => prev.map((x, i) => i === ci ? { ...x, loginId: e.target.value } : x))} />
                   </div>
                 </div>
-                <label className={LABEL_CLS}>학습 스케줄</label>
+                <label className={LABEL_CLS}>플랜</label>
                 <ScheduleEditor
                   schedule={schedules[cf.id] ?? []}
                   onChange={(s) => setSchedules((prev) => ({ ...prev, [cf.id]: s }))}

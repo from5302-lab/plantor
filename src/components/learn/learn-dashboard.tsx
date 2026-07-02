@@ -107,6 +107,7 @@ export function LearnDashboard({
             partSlug: d.data().partSlug ?? null,
             title: d.data().title,
             scheduleDays,
+            time: d.data().time ?? null,
             externalUrl: d.data().externalUrl ?? null,
             progressLabel: d.data().progressLabel ?? null,
             level: d.data().level ?? null,

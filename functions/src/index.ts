@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 admin.initializeApp();
 
-export { approveSignup, createChildAccount, resetPassword, repairUserDocs, resetAllStudentPasswords, updateParentName, updateChildName, sendRenewalConfirmationSms, confirmAiPackagePayment, deleteFamily, checkIdAvailability, cleanupOrphanSubscriptions, ensureDirectClassAccounts, claimAdminRole, getStudentLessonLogs, getParentLessonLogs } from "./auth";
+export { approveSignup, createChildAccount, resetPassword, repairUserDocs, resetAllStudentPasswords, updateParentName, updateChildName, updateChildLoginId, sendRenewalConfirmationSms, confirmAiPackagePayment, deleteFamily, checkIdAvailability, cleanupOrphanSubscriptions, ensureDirectClassAccounts, claimAdminRole, getStudentLessonLogs, getParentLessonLogs } from "./auth";
 export {
   notifyNewSignup, notifyAdminOnSignup, notifyAdminOnRenewal, notifyAdminOnPlanDraft,
   notifyExpiringDirectClassD7, notifyExpiringDirectClassD3, notifyExpiringDirectClassD0,

@@ -498,6 +498,11 @@ export function EditableTaskCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-sm font-bold text-black/95">{task.title}</span>
+            {task.time && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "#f0faf1", color: "#2a8438" }}>
+                {task.time}
+              </span>
+            )}
             {task.level && (
               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "#f0f6ff", color: "#5aa3f2" }}>
                 Lv.{task.level}

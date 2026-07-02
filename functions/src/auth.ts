@@ -684,6 +684,57 @@ export const updateChildName = onCall(async (request) => {
   return { success: true };
 });
 
+// ─────────────────────────────────────────────────────────
+// updateChildLoginId — 자녀 로그인 아이디 변경.
+//   children.loginId + Auth 이메일({id}@plantor.app) + users.plantor_id 를 함께 전환.
+//   (셋을 함께 바꾸지 않으면 학생이 새 아이디로 로그인·조회를 못 해 학생페이지가 깨짐)
+// ─────────────────────────────────────────────────────────
+export const updateChildLoginId = onCall(async (request) => {
+  await assertAdmin(request.auth);
+
+  const { childId, newLoginId } = request.data as { childId: string; newLoginId: string };
+  const next = (newLoginId ?? "").trim().toLowerCase();
+  if (!childId || next.length < 4) {
+    throw new HttpsError("invalid-argument", "childId와 4자 이상 아이디가 필요합니다.");
+  }
+
+  const childSnap = await db.collection("children").doc(childId).get();
+  if (!childSnap.exists) throw new HttpsError("not-found", "학생 정보를 찾을 수 없습니다.");
+  const child = childSnap.data()!;
+  const oldLoginId = (child.loginId as string | undefined)?.toLowerCase() ?? "";
+  if (next === oldLoginId) return { success: true };
+
+  // 중복 검사: 다른 자녀 loginId / 학부모 plantor_id 가 이미 쓰는 아이디면 차단
+  const [childDup, parentDup] = await Promise.all([
+    db.collection("children").where("loginId", "==", next).limit(1).get(),
+    db.collection("users").where("plantor_id", "==", next).limit(1).get(),
+  ]);
+  if ((!childDup.empty && childDup.docs[0].id !== childId) || !parentDup.empty) {
+    throw new HttpsError("already-exists", "이미 사용 중인 아이디입니다.");
+  }
+
+  // Auth uid 해석: authUid 우선, 없으면 기존 아이디 이메일로 조회
+  const authUid = child.authUid as string | undefined;
+  const uid = authUid ?? (oldLoginId
+    ? await auth.getUserByEmail(idToEmail(oldLoginId)).then((u) => u.uid).catch(() => null)
+    : null);
+
+  if (uid) {
+    try {
+      await auth.updateUser(uid, { email: idToEmail(next) });
+      await db.collection("users").doc(uid).update({ plantor_id: next });
+    } catch (e) {
+      functions.logger.error("학생 로그인 계정(Auth/plantor_id) 전환 실패", { childId, uid, error: String(e) });
+      throw new HttpsError("internal", "로그인 계정 전환에 실패했습니다. 아이디를 확인해주세요.");
+    }
+  } else {
+    functions.logger.warn("학생 Auth 계정 없음 — children.loginId 만 갱신", { childId, next });
+  }
+
+  await db.collection("children").doc(childId).update({ loginId: next });
+  return { success: true };
+});
+
 // 입금 확인 후 연장 완료 SMS 발송 (어드민 전용)
 export const sendRenewalConfirmationSms = onCall(
   { secrets: [solapiApiKey, solapiApiSecret] },

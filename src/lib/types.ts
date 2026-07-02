@@ -208,6 +208,7 @@ export type Task = {
   partSlug: string | null;       // 서비스 내 세부 파트 (null이면 서비스 전체)
   title: string;
   scheduleDays: number[];        // 0=월 ~ 6=일
+  time: string | null;           // "HH:MM" 학습 시각 (없으면 null)
   externalUrl: string | null;
   progressLabel: string | null;  // 오토보카용 "3권 12유닛" 등
   level: number | null;          // 클래스5 레벨 (Lv.1~7)

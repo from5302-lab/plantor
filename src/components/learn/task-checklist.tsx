@@ -137,6 +137,7 @@ export function TaskChecklist({
                   }}>
                   {svc && <ServiceIcon service={svc} size={18} />}
                   <span className="truncate">{label}</span>
+                  {task.time && <span className="text-[12px] font-semibold text-[#2a8438] shrink-0">{task.time}</span>}
                 </div>
                 {isNotDone && reasonInfo && (
                   <div className="text-[11px] text-[#c00000] font-medium mt-0.5 pl-6">

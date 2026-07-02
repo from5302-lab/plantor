@@ -39,6 +39,7 @@ export function StudentPlan({ userId, userEmail }: { userId: string; userEmail?:
         serviceSlug: d.data().serviceSlug,
         title: d.data().title,
         scheduleDays: d.data().scheduleDays ?? [],
+        time: d.data().time ?? null,
         externalUrl: d.data().externalUrl ?? null,
         order: d.data().order ?? 0,
         active: d.data().active ?? true,
