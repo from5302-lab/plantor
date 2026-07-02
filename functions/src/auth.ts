@@ -92,6 +92,22 @@ export const approveSignup = onCall(
       parentServiceMonths?: Record<string, number>;
     };
 
+    // ── 0. 선택 서비스 가격표 사전 검증 ──
+    // 가격표(SERVICE_PRICING)에 없는 서비스는 아래 루프에서 조용히 건너뛰어
+    // "확정됐는데 구독은 안 생기는" 사각지대를 만든다. 무엇도 생성하기 전에 즉시 중단한다.
+    // (momsaipack은 가격표가 아니라 aiPackageEndDate로 처리하므로 제외)
+    const selectedSlugs = [
+      ...children.flatMap((c) => c.selectedServices ?? []),
+      ...(parentServices ?? []).filter((s) => s !== "momsaipack"),
+    ];
+    const unpriced = [...new Set(selectedSlugs)].filter((s) => !SERVICE_PRICING[s]);
+    if (unpriced.length > 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        `가격표에 없는 서비스: ${unpriced.join(", ")}. 코드(SERVICE_PRICING)에 가격을 추가한 뒤 다시 승인하세요.`
+      );
+    }
+
     // ── 1. Auth 계정 생성 (실패 시 즉시 중단) ──
     const parentUid = await getOrCreateAuthUser(
       idToEmail(parentId), password, parentName
@@ -420,10 +436,24 @@ export const approveSignup = onCall(
     );
     extraLines.push(``, `[Mom&] 맘이랑 멤버십 오픈톡방`, `https://open.kakao.com/o/gs9aP64h`);
 
+    // 자녀별 로그인 안내 — 어느 사이트에 어떤 아이디로 접속하는지 (과목별 접속 링크)
+    const childBlocks = children.flatMap((c) => {
+      const svcLines: string[] = [];
+      c.selectedServices.forEach((slug) => {
+        const svc = svcMap[slug];
+        if (!svc) return;
+        const label = svc.name ?? slug;
+        if (svc.studentUrl) svcLines.push(`· ${label} 학생용: ${svc.studentUrl}`);
+        if (svc.parentUrl) svcLines.push(`· ${label} 학부모용: ${svc.parentUrl}`);
+      });
+      return [``, `📚 ${c.name} — 아이디 ${c.loginId} / 비번 012345`, ...svcLines];
+    });
+
     const smsText = [
       `[플랜토] ${parentName}님, 가입이 승인됐어요!`,
       ``, `👉 ${SITE_URL}`, `아이디: ${parentId} / 비번: 012345`,
       ``, `로그인 후 학습 사이트 접속과 자녀 학습 현황을 확인하실 수 있어요.`,
+      ...childBlocks,
       ...extraLines,
     ].join("\n");
 
