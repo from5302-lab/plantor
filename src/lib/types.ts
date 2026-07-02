@@ -217,6 +217,7 @@ export type Task = {
   order: number;
   active: boolean;
   createdBy: "student" | "admin";
+  source?: "schedule";           // 플랜(스케줄)에서 자동생성된 태스크 표시 (수동 태스크는 없음)
   status: TaskStatus;
   adminComment: string | null;
   createdAt: Date | null;

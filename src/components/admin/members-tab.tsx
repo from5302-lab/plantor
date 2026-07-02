@@ -1428,12 +1428,13 @@ function EditableText({
 async function syncScheduleTasks(childId: string, schedule: DaySchedule[]) {
   const desired = schedule.filter((s) => s.serviceSlug);
   const desiredIds = new Set<string>();
+  const batch = writeBatch(db);
   for (const s of desired) {
     const slug = s.serviceSlug!;
     const id = `sched_${childId}_${slug}_${s.day}`;
     desiredIds.add(id);
     const svcName = SERVICES.find((x) => x.slug === slug)?.name ?? (slug === ONLINE_SERVICE.slug ? ONLINE_SERVICE.name : slug);
-    await setDoc(doc(db, "tasks", id), {
+    batch.set(doc(db, "tasks", id), {
       childId,
       serviceSlug: slug,
       partSlug: null,
@@ -1455,8 +1456,10 @@ async function syncScheduleTasks(childId: string, schedule: DaySchedule[]) {
       confirmedAt: serverTimestamp(),
     });
   }
+  // 제거된 스케줄 항목의 기존 태스크 삭제 (upsert 와 함께 원자적 커밋)
   const existing = await getDocs(query(collection(db, "tasks"), where("childId", "==", childId), where("source", "==", "schedule")));
-  await Promise.all(existing.docs.filter((d) => !desiredIds.has(d.id)).map((d) => deleteDoc(d.ref)));
+  existing.docs.forEach((d) => { if (!desiredIds.has(d.id)) batch.delete(d.ref); });
+  await batch.commit();
 }
 
 // ── 플랜토 가족 수정 모달 ──────────────────────────────────────────────────────
