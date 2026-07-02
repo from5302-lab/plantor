@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import {
   collection,
   addDoc, doc, serverTimestamp,
@@ -85,6 +86,8 @@ export function LearnDashboard({
   // 태스크 + 체크 상태
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [todayTaskChecks, setTodayTaskChecks] = useState<TaskCheck[]>([]);
+  // 확정 과제 총 개수(요일 무관) — 0이면 아직 학습 계획이 없는 첫 진입 상태
+  const [confirmedCount, setConfirmedCount] = useState(0);
 
   // 오늘 요일에 해당하는 확정 태스크 구독
   useEffect(() => {
@@ -118,6 +121,7 @@ export function LearnDashboard({
           });
         });
         setTodayTasks(tasks);
+        setConfirmedCount(snap.docs.length);
       }
     );
     return unsub;
@@ -526,19 +530,42 @@ export function LearnDashboard({
           </div>
         )}
 
-        {/* 오늘 할 일 (태스크 기반) */}
-        <div className="text-[10px] font-bold tracking-[0.1em] text-p-muted uppercase pl-1 mb-1.5">오늘 할 일</div>
-        <Card style={{ overflow: "hidden", padding: 0 }}>
-          {childId && (
-            <TaskChecklist
-              tasks={todayTasks}
-              taskChecks={todayTaskChecks}
-              childId={childId}
-              date={todayStr()}
-              readOnly={readOnly}
-            />
-          )}
-        </Card>
+        {/* 첫 진입 온보딩: 확정 과제가 하나도 없으면 학습 계획부터 안내 */}
+        {!isDemo && confirmedCount === 0 ? (
+          <Card style={{ padding: "32px 24px", textAlign: "center" }}>
+            <div className="text-4xl mb-3">📅</div>
+            <h2 className="m-0 text-[18px] font-bold text-black/95 tracking-[-0.2px]">먼저 학습 계획을 세워볼까요?</h2>
+            <p className="mt-2.5 text-[13px] text-p-secondary leading-relaxed">
+              이번 주에 어떤 과목을 며칠 할지 정하면,<br />
+              매일 &lsquo;오늘 할 일&rsquo;이 이 화면에 나타나요.
+            </p>
+            <Link
+              href="/plan"
+              className="inline-flex items-center justify-center gap-1 mt-5 h-11 px-6 rounded-xl bg-p-green text-white text-sm font-bold no-underline"
+            >
+              학습 계획 세우러 가기 →
+            </Link>
+            <p className="mt-4 text-[11px] text-p-muted leading-relaxed">
+              이미 계획을 세웠다면, 선생님이 확정하면 여기에 표시돼요.
+            </p>
+          </Card>
+        ) : (
+          <>
+            {/* 오늘 할 일 (태스크 기반) */}
+            <div className="text-[10px] font-bold tracking-[0.1em] text-p-muted uppercase pl-1 mb-1.5">오늘 할 일</div>
+            <Card style={{ overflow: "hidden", padding: 0 }}>
+              {childId && (
+                <TaskChecklist
+                  tasks={todayTasks}
+                  taskChecks={todayTaskChecks}
+                  childId={childId}
+                  date={todayStr()}
+                  readOnly={readOnly}
+                />
+              )}
+            </Card>
+          </>
+        )}
 
         {/* 배지 */}
         {streak >= 3 && (
