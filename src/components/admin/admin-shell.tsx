@@ -15,8 +15,8 @@ import { CenterMsg } from "@/components/ui/center-msg";
 import { SendToastProvider, useSendToast } from "@/lib/send-toast";
 import { SignupRow } from "./signup-row";
 import { MembersTab } from "./members-tab";
+import { PlanTab } from "./plan-tab";
 
-import { LessonJournalTab } from "./lesson-journal-tab";
 import { MessagesTab } from "./messages-tab";
 
 
@@ -72,7 +72,8 @@ export function AdminShell() {
 
 function Dashboard({ user }: { user: User }) {
   const { startTask } = useSendToast();
-  const [activeTab, setActiveTab] = useState<"members" | "journal" | "messages">("members");
+  const [activeTab, setActiveTab] = useState<"members" | "plan" | "messages">("members");
+  const [draftByChild, setDraftByChild] = useState<Record<string, number>>({});
   const [showSignups, setShowSignups] = useState(false);
   const [showRenewals, setShowRenewals] = useState(false);
   const [signups, setSignups] = useState<Signup[]>([]);
@@ -132,6 +133,18 @@ function Dashboard({ user }: { user: User }) {
     });
 
     return () => { unsubFamilies?.(); unsubChildren?.(); unsubSubs?.(); };
+  }, []);
+
+  // 확정 대기 초안(draft) 과제 수 — 학생별 집계 (플랜 관리 탭 뱃지/배너용)
+  useEffect(() => {
+    return onSnapshot(query(collection(db, "tasks"), where("status", "==", "draft")), (snap) => {
+      const counts: Record<string, number> = {};
+      snap.docs.forEach((d) => {
+        const cid = d.data().childId;
+        if (cid) counts[cid] = (counts[cid] ?? 0) + 1;
+      });
+      setDraftByChild(counts);
+    });
   }, []);
 
   // 연장 신청 로드
@@ -473,6 +486,7 @@ function Dashboard({ user }: { user: User }) {
     (r) => r.createdAt != null && r.createdAt.getTime() < overdueCutoff
   );
   const overdueTotal = overdueSignups.length + overdueRenewals.length;
+  const draftTotal = Object.values(draftByChild).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen bg-p-bg">
@@ -505,18 +519,23 @@ function Dashboard({ user }: { user: User }) {
         <div className="mb-5 flex items-center gap-2.5 flex-wrap">
           {/* 탭 — 모바일 가로 스크롤 */}
           <div className="flex gap-[3px] bg-p-bg rounded-lg p-[3px] max-[600px]:overflow-x-auto max-[600px]:w-full no-scrollbar">
-            {(["members", "journal", "messages"] as const).map((tab) => (
+            {(["members", "plan", "messages"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="rounded-md border-none cursor-pointer px-4 py-[5px] text-[13px] font-semibold"
+                className="rounded-md border-none cursor-pointer px-4 py-[5px] text-[13px] font-semibold flex items-center gap-1.5"
                 style={{
                   backgroundColor: activeTab === tab ? "#ffffff" : "transparent",
                   color: activeTab === tab ? "rgba(0,0,0,0.95)" : "#a39e98",
                   boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
                 }}
               >
-                {tab === "members" ? "회원" : tab === "journal" ? "수업일지" : "발송현황"}
+                {tab === "members" ? "회원" : tab === "plan" ? "플랜 관리" : "발송현황"}
+                {tab === "plan" && draftTotal > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full bg-p-green text-white text-[10px] font-bold leading-none">
+                    {draftTotal}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -526,7 +545,9 @@ function Dashboard({ user }: { user: User }) {
         {activeTab === "members" && (
           <MembersTab families={families} allChildren={allChildren} allSubs={allSubs} membersLoading={membersLoading} onResetByFamily={handleResetByFamily} onResetDirectClass={handleResetDirectClass} onResetAttendance={handleResetAttendance} pendingSignupCount={pendingCount} pendingRenewalCount={pendingRenewals.length} onShowSignups={() => setShowSignups(true)} onShowRenewals={() => setShowRenewals(true)} />
         )}
-        {activeTab === "journal" && <LessonJournalTab />}
+        {activeTab === "plan" && (
+          <PlanTab allChildren={allChildren} allSubs={allSubs} draftByChild={draftByChild} />
+        )}
         {activeTab === "messages" && <MessagesTab families={families} allChildren={allChildren} />}
       </main>
 
