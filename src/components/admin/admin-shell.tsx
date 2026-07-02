@@ -73,7 +73,9 @@ export function AdminShell() {
 function Dashboard({ user }: { user: User }) {
   const { startTask } = useSendToast();
   const [activeTab, setActiveTab] = useState<"members" | "plan" | "messages">("members");
-  const [draftByChild, setDraftByChild] = useState<Record<string, number>>({});
+  // 플랜 관리 탭 집계: 확정 대기 초안 수 + 오늘 예정 과제 taskId (학생별)
+  const [taskAgg, setTaskAgg] = useState<{ draft: Record<string, number>; todaySched: Record<string, string[]> }>({ draft: {}, todaySched: {} });
+  const [doneTodayIds, setDoneTodayIds] = useState<Set<string>>(new Set());
   const [showSignups, setShowSignups] = useState(false);
   const [showRenewals, setShowRenewals] = useState(false);
   const [signups, setSignups] = useState<Signup[]>([]);
@@ -135,15 +137,32 @@ function Dashboard({ user }: { user: User }) {
     return () => { unsubFamilies?.(); unsubChildren?.(); unsubSubs?.(); };
   }, []);
 
-  // 확정 대기 초안(draft) 과제 수 — 학생별 집계 (플랜 관리 탭 뱃지/배너용)
+  // tasks 집계: 확정 대기 초안 수 + 오늘 요일에 예정된 확정 과제 (플랜 관리 탭 뱃지/라벨용)
   useEffect(() => {
-    return onSnapshot(query(collection(db, "tasks"), where("status", "==", "draft")), (snap) => {
-      const counts: Record<string, number> = {};
+    const dow = (new Date().getDay() + 6) % 7; // 0=월
+    return onSnapshot(collection(db, "tasks"), (snap) => {
+      const draft: Record<string, number> = {};
+      const todaySched: Record<string, string[]> = {};
       snap.docs.forEach((d) => {
-        const cid = d.data().childId;
-        if (cid) counts[cid] = (counts[cid] ?? 0) + 1;
+        const x = d.data();
+        const cid = x.childId;
+        if (!cid) return;
+        if (x.status === "draft") draft[cid] = (draft[cid] ?? 0) + 1;
+        else if (x.status === "confirmed" && (x.scheduleDays ?? []).includes(dow)) {
+          (todaySched[cid] ??= []).push(d.id);
+        }
       });
-      setDraftByChild(counts);
+      setTaskAgg({ draft, todaySched });
+    });
+  }, []);
+
+  // 오늘 완료 체크(taskChecks) — 오늘 완료된 taskId 집합
+  useEffect(() => {
+    const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD (로컬)
+    return onSnapshot(query(collection(db, "taskChecks"), where("date", "==", today)), (snap) => {
+      const s = new Set<string>();
+      snap.docs.forEach((d) => { if (d.data().status === "done") s.add(d.data().taskId); });
+      setDoneTodayIds(s);
     });
   }, []);
 
@@ -486,7 +505,13 @@ function Dashboard({ user }: { user: User }) {
     (r) => r.createdAt != null && r.createdAt.getTime() < overdueCutoff
   );
   const overdueTotal = overdueSignups.length + overdueRenewals.length;
+  const draftByChild = taskAgg.draft;
   const draftTotal = Object.values(draftByChild).reduce((a, b) => a + b, 0);
+  // 오늘 기준 학생별 완료 현황 { total, done }
+  const todayByChild: Record<string, { total: number; done: number }> = {};
+  for (const [cid, ids] of Object.entries(taskAgg.todaySched)) {
+    todayByChild[cid] = { total: ids.length, done: ids.filter((id) => doneTodayIds.has(id)).length };
+  }
 
   return (
     <div className="min-h-screen bg-p-bg">
@@ -546,7 +571,7 @@ function Dashboard({ user }: { user: User }) {
           <MembersTab families={families} allChildren={allChildren} allSubs={allSubs} membersLoading={membersLoading} onResetByFamily={handleResetByFamily} onResetDirectClass={handleResetDirectClass} onResetAttendance={handleResetAttendance} pendingSignupCount={pendingCount} pendingRenewalCount={pendingRenewals.length} onShowSignups={() => setShowSignups(true)} onShowRenewals={() => setShowRenewals(true)} />
         )}
         {activeTab === "plan" && (
-          <PlanTab allChildren={allChildren} allSubs={allSubs} draftByChild={draftByChild} />
+          <PlanTab allChildren={allChildren} allSubs={allSubs} draftByChild={draftByChild} todayByChild={todayByChild} />
         )}
         {activeTab === "messages" && <MessagesTab families={families} allChildren={allChildren} />}
       </main>
