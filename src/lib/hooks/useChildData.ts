@@ -5,12 +5,11 @@ import {
   collection, query, where, onSnapshot,
   getDoc, doc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import type { Subscription, LearningLog } from "@/lib/types";
 import { todayStr } from "@/lib/learn-utils";
-import { SERVICES } from "@/data/site";
-
-const KNOWN_SLUGS = new Set(SERVICES.map((s) => s.slug));
+import { useServices } from "@/lib/services-context";
 
 type UseChildDataOptions = {
   userId: string;
@@ -33,10 +32,12 @@ type UseChildDataOptions = {
  * setLogs / setAllLogs 는 데모 모드의 낙관적 업데이트에 사용된다.
  */
 export function useChildData({ userId, userEmail, isDemo = false, previewChildId, previewLoginId, demoData }: UseChildDataOptions) {
+  const { allServices } = useServices();
   const [childId, setChildId] = useState<string | null>(isDemo ? "demo-child" : null);
   const [childName, setChildName] = useState<string>(isDemo ? "민준" : "");
   const [childGrade, setChildGrade] = useState<string>(isDemo ? "초4" : "");
   const [childLoginId, setChildLoginId] = useState<string>(isDemo ? "demo" : "");
+  const [studentPhone, setStudentPhone] = useState<string>("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(
     isDemo ? (demoData?.subscriptions ?? []) : []
   );
@@ -61,6 +62,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
           setChildName(snap.data().name ?? "");
           setChildGrade(snap.data().grade ?? "");
           setChildLoginId(snap.data().loginId ?? "");
+          setStudentPhone(snap.data().studentPhone ?? "");
         }
         setReady(true);
       });
@@ -75,6 +77,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
           setChildName(d.data().name ?? "");
           setChildGrade(d.data().grade ?? "");
           setChildLoginId(d.data().loginId ?? "");
+          setStudentPhone(d.data().studentPhone ?? "");
         }
         setReady(true);
       });
@@ -95,6 +98,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
           setChildName(d.data().name ?? "");
           setChildGrade(d.data().grade ?? "");
           setChildLoginId(d.data().loginId ?? "");
+          setStudentPhone(d.data().studentPhone ?? "");
         }
         setReady(true);
       });
@@ -133,29 +137,20 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
     );
   }, [childId, isDemo]);
 
-  // 2-b) 직강(1:1) 수강과목 — loginId로 활성 directClass의 학생을 찾아 serviceSlugs 수집
+  // 2-b) 직강(1:1) 수강과목 — directClasses는 어드민 전용이라 서버(callable)에서 대신 조회
   useEffect(() => {
     if (isDemo) return;
     const login = childLoginId.toLowerCase();
     if (!login) { setDirectSlugs([]); return; }
-    return onSnapshot(
-      query(collection(db, "directClasses"), where("status", "==", "active")),
-      (snap) => {
-        const today = todayStr();
-        const slugs = new Set<string>();
-        snap.docs.forEach((d) => {
-          const cls = d.data();
-          if (cls.expiry && cls.expiry < today) return; // 만료된 수업 제외
-          const me = (cls.students ?? []).find(
-            (s: { studentLoginId?: string }) => (s.studentLoginId ?? "").toLowerCase() === login
-          );
-          if (!me) return;
-          const list: string[] = me.serviceSlugs ?? cls.serviceSlugs ?? [];
-          list.forEach((slug) => { if (KNOWN_SLUGS.has(slug)) slugs.add(slug); });
-        });
-        setDirectSlugs([...slugs]);
-      }
-    );
+    let cancelled = false;
+    const getSlugs = httpsCallable<{ loginId: string }, { slugs: string[] }>(functions, "getStudentDirectSlugs");
+    getSlugs({ loginId: login })
+      .then((res) => {
+        if (cancelled) return;
+        setDirectSlugs(res.data.slugs ?? []);
+      })
+      .catch(() => { if (!cancelled) setDirectSlugs([]); });
+    return () => { cancelled = true; };
   }, [childLoginId, isDemo]);
 
   // 3) 오늘 로그
@@ -170,6 +165,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
         flagged: d.data().flagged ?? false,
         method: d.data().method ?? "self",
         autoStatus: d.data().autoStatus ?? undefined,
+        scrapedData: d.data().scrapedData ?? null,
       })))
     );
   }, [childId, isDemo]);
@@ -202,11 +198,13 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
   }, [childId, isDemo]);
 
   // 실제 구독 + 직강 수강과목(합성 구독)을 병합해 반환
+  // 직강 슬러그는 서비스 목록(정적 + serviceOverrides 병합)에 있는 것만 인정
+  const knownSlugs = new Set(allServices.map((s) => s.slug));
   const subSlugs = new Set(subscriptions.map((s) => s.serviceSlug));
   const mergedSubscriptions: Subscription[] = [
     ...subscriptions,
     ...directSlugs
-      .filter((slug) => !subSlugs.has(slug))
+      .filter((slug) => knownSlugs.has(slug) && !subSlugs.has(slug))
       .map((slug) => ({
         id: `direct-${slug}`,
         childId: childId ?? "",
@@ -218,5 +216,5 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
       })),
   ];
 
-  return { childId, childName, childGrade, childLoginId, subscriptions: mergedSubscriptions, logs, setLogs, allLogs, setAllLogs, todayAttended, ready };
+  return { childId, childName, childGrade, childLoginId, studentPhone, subscriptions: mergedSubscriptions, logs, setLogs, allLogs, setAllLogs, todayAttended, ready };
 }

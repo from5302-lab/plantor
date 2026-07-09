@@ -13,6 +13,7 @@ import { SERVICES } from "@/data/site";
 import { T } from "@/lib/design-tokens";
 import type { LearningLog, AutoStatus, Task, TaskCheck } from "@/lib/types";
 import { useChildData } from "@/lib/hooks/useChildData";
+import { EditableStudentPhone } from "./editable-student-phone";
 import { useAttendanceSession } from "@/lib/hooks/useAttendanceSession";
 import { useWindowTracking } from "@/lib/hooks/useWindowTracking";
 import { todayStr, getWeekDates, formatDateHeader, calcStreak } from "@/lib/learn-utils";
@@ -67,7 +68,7 @@ export function LearnDashboard({
   previewLoginId?: string;
 }) {
   const {
-    childId, childName, childGrade, childLoginId, subscriptions,
+    childId, childName, childGrade, childLoginId, studentPhone, subscriptions,
     logs, setLogs, allLogs, setAllLogs,
     todayAttended, ready,
   } = useChildData({
@@ -332,10 +333,12 @@ export function LearnDashboard({
   const allDone = todayTotal > 0 && todayDone === todayTotal;
 
   const autoStatusMap: Record<string, AutoStatus> = {};
+  const autoLogsBySlug: Record<string, LearningLog> = {};
   for (const sub of subscriptions) {
     if (AUTO_VERIFIED_SLUGS.has(sub.serviceSlug)) {
       const autoLog = logs.find((l) => l.serviceSlug === sub.serviceSlug && l.method === "auto");
       autoStatusMap[sub.serviceSlug] = autoLog?.autoStatus ?? "시작전";
+      if (autoLog) autoLogsBySlug[sub.serviceSlug] = autoLog;
     }
   }
 
@@ -457,6 +460,11 @@ export function LearnDashboard({
           <div className="mt-2 text-[15px] font-medium text-p-secondary flex items-center gap-1.5">
             안녕, {childName || userName}! <img src="/favicon.svg" alt="" width={16} height={16} />
           </div>
+          {!isDemo && !readOnly && childId && (
+            <div className="mt-3">
+              <EditableStudentPhone childId={childId} phone={studentPhone} />
+            </div>
+          )}
         </div>
 
         {/* 주간 스트릭 바 */}
@@ -561,6 +569,7 @@ export function LearnDashboard({
                   childId={childId}
                   date={todayStr()}
                   readOnly={readOnly}
+                  autoLogsBySlug={autoLogsBySlug}
                 />
               )}
             </Card>

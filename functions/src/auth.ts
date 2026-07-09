@@ -684,6 +684,34 @@ export const updateChildName = onCall(async (request) => {
   return { success: true };
 });
 
+// 학생 연락처 수정 — 본인 자녀(학부모) 또는 어드민. 미완료 알림 발송용.
+export const updateStudentPhone = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const { childId, phone } = request.data as { childId: string; phone: string };
+  if (!childId) throw new HttpsError("invalid-argument", "childId가 필요합니다.");
+
+  const childSnap = await db.collection("children").doc(childId).get();
+  if (!childSnap.exists) throw new HttpsError("not-found", "학생 정보를 찾을 수 없습니다.");
+  const child = childSnap.data()!;
+  const uid = request.auth.uid;
+
+  // 권한: 학생 본인(authUid) · 자녀 소유 학부모(children.userId 또는 가족 소유자) · 어드민
+  // children.userId가 병합·재승인으로 stale일 수 있어 가족 소유자(families.userId)까지 확인한다.
+  let allowed = child.authUid === uid || child.userId === uid;
+  if (!allowed && child.familyId) {
+    const famSnap = await db.collection("families").doc(child.familyId as string).get();
+    if (famSnap.exists && famSnap.data()!.userId === uid) allowed = true;
+  }
+  if (!allowed) await assertAdmin(request.auth);
+
+  const clean = String(phone ?? "").replace(/[^\d]/g, "");
+  if (clean && (clean.length < 9 || clean.length > 11)) {
+    throw new HttpsError("invalid-argument", "전화번호 형식이 올바르지 않습니다.");
+  }
+  await db.collection("children").doc(childId).update({ studentPhone: clean });
+  return { success: true };
+});
+
 // 입금 확인 후 연장 완료 SMS 발송 (어드민 전용)
 export const sendRenewalConfirmationSms = onCall(
   { secrets: [solapiApiKey, solapiApiSecret] },
@@ -783,6 +811,8 @@ export const ensureDirectClassAccounts = onCall(async (request) => {
   const students = (cls.students ?? []) as Array<{
     name: string;
     studentLoginId?: string;
+    studentClasscardId?: string;
+    studentAutovocaId?: string;
     parentLoginId?: string;
     parentPhone?: string;
     serviceSlugs?: string[];
@@ -819,6 +849,11 @@ export const ensureDirectClassAccounts = onCall(async (request) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
+      // 외부 자동인증 아이디 (있을 때만 기록)
+      const externalIds: Record<string, string> = {};
+      if (student.studentClasscardId?.trim()) externalIds.classcardLoginId = student.studentClasscardId.trim();
+      if (student.studentAutovocaId?.trim()) externalIds.autovocaLoginId = student.studentAutovocaId.trim();
+
       // children 문서도 생성 (이미 있으면 스킵)
       const existingChild = await db.collection("children")
         .where("loginId", "==", loginId).limit(1).get();
@@ -831,11 +866,12 @@ export const ensureDirectClassAccounts = onCall(async (request) => {
           grade: grades[0] ?? "",
           loginId,
           directClassId: classId,
+          ...externalIds,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       } else {
-        // authUid 보강
-        await existingChild.docs[0].ref.update({ authUid: uid });
+        // authUid + 외부 아이디 보강
+        await existingChild.docs[0].ref.update({ authUid: uid, ...externalIds });
       }
       created++;
     }
@@ -1078,6 +1114,36 @@ export const getParentLessonLogs = onCall(async (request) => {
   }));
 
   return { students };
+});
+
+// 직강(1:1) 학생의 활성 수강 과목 슬러그 — directClasses는 어드민 전용 컬렉션이라 서버에서 대신 조회
+export const getStudentDirectSlugs = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  const { loginId } = request.data as { loginId?: string };
+  const target = (loginId ?? "").toLowerCase().trim();
+  if (!target) return { slugs: [] };
+
+  // 본인 확인: users.plantor_id 또는 @plantor.app 이메일 → 불일치 시 어드민만 허용 (미리보기)
+  const userSnap = await db.collection("users").doc(request.auth.uid).get();
+  let plantorId = ((userSnap.data()?.plantor_id as string | undefined) ?? "").toLowerCase();
+  if (!plantorId) {
+    const email = (request.auth.token.email as string | undefined) ?? "";
+    if (email.endsWith("@plantor.app")) plantorId = email.replace("@plantor.app", "").toLowerCase();
+  }
+  if (plantorId !== target) await assertAdmin(request.auth);
+
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dcSnap = await db.collection("directClasses").where("status", "==", "active").get();
+  const slugs = new Set<string>();
+  for (const dc of dcSnap.docs) {
+    const cls = dc.data();
+    if (cls.expiry && cls.expiry < todayKst) continue; // 만료된 수업 제외
+    const me = ((cls.students ?? []) as Array<{ studentLoginId?: string; serviceSlugs?: string[] }>)
+      .find((s) => (s.studentLoginId ?? "").toLowerCase() === target);
+    if (!me) continue;
+    ((me.serviceSlugs ?? cls.serviceSlugs ?? []) as string[]).forEach((slug) => slugs.add(slug));
+  }
+  return { slugs: [...slugs] };
 });
 
 // 가족 전체 삭제 — Firestore + Auth 계정 완전 제거 (어드민 전용)
