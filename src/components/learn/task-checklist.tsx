@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { REASONS_6HDL } from "@/lib/types";
-import type { Task, TaskCheck } from "@/lib/types";
+import type { Task, TaskCheck, LearningLog } from "@/lib/types";
+import { AutoResultCard } from "./auto-result-card";
+
+// 클릭 시 교사 계정으로 진도를 실시간 스크래핑하는 서비스
+const AUTO_VERIFIED_SLUGS = new Set(["autovoca", "classcard-middle", "dailykor"]);
 
 export function TaskChecklist({
   tasks,
@@ -14,16 +19,42 @@ export function TaskChecklist({
   childId,
   date,
   readOnly = false,
+  autoLogsBySlug = {},
 }: {
   tasks: Task[];
   taskChecks: TaskCheck[];
   childId: string;
   date: string;
   readOnly?: boolean;
+  autoLogsBySlug?: Record<string, LearningLog>;
 }) {
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [showReasonFor, setShowReasonFor] = useState<string | null>(null);
   const [reasonNote, setReasonNote] = useState("");
+  // 자동인증 진행 상태 (taskId → 로딩/에러/미완료판정)
+  const [autoVerifying, setAutoVerifying] = useState<Record<string, boolean>>({});
+  const [autoError, setAutoError] = useState<Record<string, string>>({});
+  // 인증 결과가 "완료"가 아닐 때의 상태(진행중/시작전) — 체크는 남지 않고 안내만
+  const [notComplete, setNotComplete] = useState<Record<string, string>>({});
+
+  // "완료" 클릭 = 서버 인증 요청. 교사 계정으로 오늘 진도를 조회해 완료면 서버가 done(agent) 기록
+  //   → 스냅샷으로 체크가 채워짐. 완료가 아니면 done이 안 생기고 안내만 뜬다.
+  async function runAutoVerify(task: Task) {
+    setAutoError((p) => ({ ...p, [task.id]: "" }));
+    setNotComplete((p) => ({ ...p, [task.id]: "" }));
+    setAutoVerifying((p) => ({ ...p, [task.id]: true }));
+    try {
+      const call = httpsCallable(functions, "verifyAutoProgress");
+      const res = await call({ serviceSlug: task.serviceSlug });
+      const status = (res.data as { autoStatus?: string })?.autoStatus;
+      if (status && status !== "완료") setNotComplete((p) => ({ ...p, [task.id]: status }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "진도 확인 실패";
+      setAutoError((p) => ({ ...p, [task.id]: msg }));
+    } finally {
+      setAutoVerifying((p) => ({ ...p, [task.id]: false }));
+    }
+  }
 
   // 미완료 태스크 (체크 없거나 not_done)
   const incompleteTasks = tasks.filter(t => {
@@ -33,6 +64,12 @@ export function TaskChecklist({
 
   async function handleMarkDone(task: Task) {
     if (readOnly) return;
+    // 자동인증 과목: 자기체크로 done을 쓰지 않는다. 클릭 = 서버 인증 요청일 뿐.
+    //   서버 스크래핑이 "완료"를 확인해야만 done(agent)이 기록되고 체크가 채워진다.
+    if (AUTO_VERIFIED_SLUGS.has(task.serviceSlug)) {
+      await runAutoVerify(task);
+      return;
+    }
     setSubmitting(task.id);
     try {
       const existing = taskChecks.find(c => c.taskId === task.id && c.date === date);
@@ -51,7 +88,10 @@ export function TaskChecklist({
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류");
-    } finally { setSubmitting(null); }
+      setSubmitting(null);
+      return;
+    }
+    setSubmitting(null);
   }
 
   async function handleSubmitReason(taskId: string, reasonSlug: string) {
@@ -95,7 +135,9 @@ export function TaskChecklist({
         const check = taskChecks.find(c => c.taskId === task.id && c.date === date);
         const isDone = check?.status === "done";
         const isNotDone = check?.status === "not_done";
-        const isLoading = submitting === task.id;
+        const isVerifying = !!autoVerifying[task.id];
+        const isLoading = submitting === task.id || isVerifying;
+        const notCompleteStatus = notComplete[task.id];
         const isLast = index === tasks.length - 1;
         const part = svc?.parts?.find(p => p.slug === task.partSlug);
 
@@ -143,12 +185,19 @@ export function TaskChecklist({
                     {reasonInfo.icon} {reasonInfo.name}{check?.reasonNote ? ` · ${check.reasonNote}` : ""}
                   </div>
                 )}
+                {!isDone && notCompleteStatus && (
+                  <div className="text-[11px] font-medium mt-0.5 pl-6" style={{ color: "#92660a" }}>
+                    아직 완료로 확인되지 않았어요 ({notCompleteStatus}) · 학습을 마친 뒤 다시 눌러 인증하세요
+                  </div>
+                )}
               </div>
 
               {/* 우측 버튼 */}
               <div className="flex items-center gap-2 shrink-0">
                 {isDone ? (
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#2a8438]">완료</span>
+                ) : isVerifying ? (
+                  <span className="text-xs font-semibold px-2.5 py-1 text-p-muted">인증 중…</span>
                 ) : readOnly ? null : isNotDone ? (
                   <button onClick={() => handleMarkDone(task)} disabled={isLoading}
                     className="text-xs font-semibold px-3 py-1.5 rounded bg-transparent text-p-muted border border-black/10 cursor-pointer"
@@ -192,6 +241,15 @@ export function TaskChecklist({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* 자동인증 결과 (오토보카/클래스카드) */}
+            {AUTO_VERIFIED_SLUGS.has(task.serviceSlug) && (
+              <AutoResultCard
+                log={autoLogsBySlug[task.serviceSlug]}
+                loading={autoVerifying[task.id]}
+                error={autoError[task.id]}
+              />
             )}
 
             {!isLast && <div className="h-px bg-black/5 mx-5" />}
