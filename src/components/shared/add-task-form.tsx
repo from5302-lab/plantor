@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { collection, doc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { SERVICES } from "@/data/site";
+import type { Service } from "@/data/site";
+import { useServices } from "@/lib/services-context";
 import { X, Check, Pencil, ChevronDown } from "lucide-react";
 
 const CLASS5_API = "/api/class5-library";
@@ -129,8 +130,8 @@ type TaskRow = {
   scheduleDays: number[];
 };
 
-function buildTitle(row: TaskRow): string {
-  const svc = SERVICES.find(s => s.slug === row.serviceSlug);
+function buildTitle(row: TaskRow, services: Service[]): string {
+  const svc = services.find(s => s.slug === row.serviceSlug);
   if (!svc) return "";
 
   // 클래스5: 파트(카테고리) + 레벨 + 세트
@@ -156,15 +157,16 @@ function buildTitle(row: TaskRow): string {
 }
 
 function TaskRowEditor({
-  row, availableServices, c5Data, onChange, onRemove,
+  row, services, availableServices, c5Data, onChange, onRemove,
 }: {
   row: TaskRow;
-  availableServices: typeof SERVICES;
+  services: Service[];
+  availableServices: Service[];
   c5Data: C5Data | null;
   onChange: (r: TaskRow) => void;
   onRemove: () => void;
 }) {
-  const svc = SERVICES.find(s => s.slug === row.serviceSlug);
+  const svc = services.find(s => s.slug === row.serviceSlug);
   const hasParts = (svc?.parts?.length ?? 0) > 0;
   const isProgressType = svc?.progressLabel === true;
   const isClass5 = row.serviceSlug === "class5";
@@ -181,7 +183,7 @@ function TaskRowEditor({
           <select
             value={row.serviceSlug}
             onChange={e => {
-              const newSvc = SERVICES.find(s => s.slug === e.target.value);
+              const newSvc = services.find(s => s.slug === e.target.value);
               onChange({
                 ...row,
                 serviceSlug: e.target.value,
@@ -288,7 +290,8 @@ export function AddTaskFormBatch({
   onDone: () => void;
 }) {
   const c5Data = useClass5Data();
-  const availableServices = SERVICES.filter(s => subscribedSlugs.includes(s.slug));
+  const { allServices } = useServices();
+  const availableServices = allServices.filter(s => subscribedSlugs.includes(s.slug));
   const defaultSlug = availableServices[0]?.slug ?? "";
   const defaultPart = availableServices[0]?.parts?.[0]?.slug ?? "";
 
@@ -307,7 +310,7 @@ export function AddTaskFormBatch({
   }
 
   const validRows = rows.filter(r => {
-    const title = buildTitle(r);
+    const title = buildTitle(r, allServices);
     return title.trim() && r.scheduleDays.length > 0;
   });
 
@@ -318,7 +321,7 @@ export function AddTaskFormBatch({
       const batch = writeBatch(db);
       const isAdmin = createdBy === "admin";
       for (const row of validRows) {
-        const title = buildTitle(row);
+        const title = buildTitle(row, allServices);
         const ref = doc(collection(db, "tasks"));
         batch.set(ref, {
           childId,
@@ -354,6 +357,7 @@ export function AddTaskFormBatch({
         <TaskRowEditor
           key={row.key}
           row={row}
+          services={allServices}
           availableServices={availableServices}
           c5Data={c5Data}
           onChange={r => setRows(prev => prev.map(x => x.key === row.key ? r : x))}
@@ -399,7 +403,8 @@ export function EditableTaskCard({
   onDelete: () => void;
 }) {
   const c5Data = useClass5Data();
-  const svc = SERVICES.find(s => s.slug === task.serviceSlug);
+  const { allServices } = useServices();
+  const svc = allServices.find(s => s.slug === task.serviceSlug);
   const isDraft = task.status === "draft";
   const today = new Date().getDay();
   const todayIdx = today === 0 ? 6 : today - 1;
@@ -417,10 +422,10 @@ export function EditableTaskCard({
   });
   const [saving, setSaving] = useState(false);
 
-  const availableServices = SERVICES.filter(s => subscribedSlugs.includes(s.slug));
+  const availableServices = allServices.filter(s => subscribedSlugs.includes(s.slug));
 
   async function handleSave() {
-    const title = buildTitle(row);
+    const title = buildTitle(row, allServices);
     if (!title.trim() || row.scheduleDays.length === 0) return;
     setSaving(true);
     try {
@@ -435,6 +440,8 @@ export function EditableTaskCard({
         setName: row.setName || null,
       });
       setEditing(false);
+    } catch {
+      alert("수정 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally { setSaving(false); }
   }
 
@@ -443,6 +450,7 @@ export function EditableTaskCard({
       <div className="mb-2">
         <TaskRowEditor
           row={row}
+          services={allServices}
           availableServices={availableServices}
           c5Data={c5Data}
           onChange={setRow}
@@ -452,9 +460,13 @@ export function EditableTaskCard({
           {role === "student" ? (
             <button onClick={async () => {
               if (!confirm("삭제 요청을 보낼까요?")) return;
-              const { updateDoc, doc: docRef, serverTimestamp: ts } = await import("firebase/firestore");
-              await updateDoc(docRef(db, "tasks", task.id), { deleteRequested: true, deleteRequestedAt: ts() });
-              setEditing(false);
+              try {
+                const { updateDoc, doc: docRef, serverTimestamp: ts } = await import("firebase/firestore");
+                await updateDoc(docRef(db, "tasks", task.id), { deleteRequested: true, deleteRequestedAt: ts() });
+                setEditing(false);
+              } catch {
+                alert("삭제 요청에 실패했어요. 잠시 후 다시 시도해 주세요.");
+              }
             }}
               className="flex-1 h-9 rounded-lg text-[12px] font-semibold cursor-pointer bg-white text-p-muted"
               style={{ border: "1px solid rgba(0,0,0,0.1)" }}>

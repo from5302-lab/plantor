@@ -121,7 +121,7 @@ function Dashboard({ user }: { user: User }) {
       unsubChildren = onSnapshot(query(collection(db, "children")), (snap) => {
         setAllChildren(snap.docs.map((d) => {
           const data = d.data();
-          return { id: d.id, familyId: data.familyId ?? "", name: data.name ?? "", grade: data.grade ?? "", loginId: data.loginId ?? "", createdAt: tsToDate(data.createdAt) };
+          return { id: d.id, familyId: data.familyId ?? "", name: data.name ?? "", grade: data.grade ?? "", loginId: data.loginId ?? "", classcardLoginId: data.classcardLoginId ?? "", autovocaLoginId: data.autovocaLoginId ?? "", studentPhone: data.studentPhone ?? "", createdAt: tsToDate(data.createdAt) };
         }));
       });
 

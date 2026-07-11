@@ -2,13 +2,13 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as functions from "firebase-functions";
-import { db } from "./config";
+import { db, solapiApiKey, solapiApiSecret } from "./config";
 import { writeAutoLog } from "./auto-log";
 import { scrapeAutovocaAll, autovocaDonePartSlugs } from "./scraper-autovoca";
 import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClasscardAll, classcardDonePartSlugs } from "./scraper-classcard";
 import { loadClasscardConfig } from "./verify-auto";
-import { reconcileAutoChecks } from "./completion-notify";
+import { reconcileAutoChecks, runIncompleteNotify } from "./completion-notify";
 
 // 클릭 없이 전 학생 자동인증(오토보카·매일국어·클래스카드)을 스케줄로 기록한다.
 // 클래스카드는 교사 "엑셀 저장" 엔드포인트를 사용(문법·어휘·본문·듣기, 점수 무관 완료 판정).
@@ -63,9 +63,11 @@ async function runBatch(date: string) {
     for (const s of dk) {
       const childId = matchName(s.name);
       if (!childId) { summary.dailykor.miss++; continue; }
-      await writeAutoLog({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: { source: "dailykor", units: s.units, totalStudyMinutes: 0 } });
-      // sreport는 "오늘의 학습"만 반영 → daily 파트. 완료는 done, 그 외는 미인증 자기체크 해제.
-      await reconcileAutoChecks(childId, "dailykor", date, s.autoStatus === "완료" ? DAILYKOR_REPORT_PARTS : [], s.autoStatus === "완료").catch(() => undefined);
+      await writeAutoLog({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: { source: "dailykor", units: s.units, totalStudyMinutes: 0, detail: s.detail ?? null, voca: s.voca ?? null } });
+      // sreport 완료 → daily 파트, 오늘 어휘 세트 있으면 vocab-center 파트. 그 외는 미인증 자기체크 해제.
+      const dkParts = s.autoStatus === "완료" ? [...DAILYKOR_REPORT_PARTS] : [];
+      if ((s.voca?.length ?? 0) > 0) dkParts.push("vocab-center");
+      await reconcileAutoChecks(childId, "dailykor", date, dkParts, s.autoStatus === "완료").catch(() => undefined);
       summary.dailykor.ok++;
     }
   } catch (e) { functions.logger.error("[batch] dailykor 실패", { error: String(e) }); }
@@ -95,9 +97,18 @@ async function runBatch(date: string) {
 }
 
 // 스케줄: 매일 09/13/17/21시 KST 자동 실행 (하루 학습을 반복 갱신)
+// 21시 실행에서는 스크랩 완료 후 미완료 알림까지 체이닝 — "싹 긁어 완료 갱신 → 그래도 안 한 학생만 알림".
 export const autoVerifyScheduled = onSchedule(
-  { schedule: "0 9,13,17,21 * * *", timeZone: "Asia/Seoul", secrets: SECRETS, timeoutSeconds: 540, memory: "512MiB" },
-  async () => { await runBatch(todayKst()); },
+  { schedule: "0 9,13,17,21 * * *", timeZone: "Asia/Seoul", secrets: [...SECRETS, solapiApiKey, solapiApiSecret], timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    await runBatch(todayKst());
+    // 21시 실행: 스크랩이 완료 마크를 모두 갱신한 뒤에 미완료 학생 알림 (순서 보장)
+    const kstHour = new Date(Date.now() + 9 * 3600e3).getUTCHours();
+    if (kstHour === 21) {
+      try { await runIncompleteNotify(); }
+      catch (e) { functions.logger.error("[batch] 미완료 알림 실패", { error: String(e) }); }
+    }
+  },
 );
 
 // 즉시 실행 트리거 (운영자용, COWORK_SECRET 필요)

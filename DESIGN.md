@@ -143,6 +143,14 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 - Focus: green outline ring
 - Placeholder: warm gray `#a39e98`
 
+### Select Dropdowns
+- `appearance: none; -webkit-appearance: none;` — 브라우저 기본 화살표 제거
+- Custom chevron: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a39e98'/%3E%3C/svg%3E") no-repeat right 10px center`
+- **좌우 안쪽 여백 통일**: padding-left 10px, 화살표는 오른쪽 가장자리에서 10px — 좌우 여백이 항상 동일하게 보이도록
+- Padding-right: 32px (화살표 공간 확보)
+- Border: `1px solid rgba(0,0,0,0.1)`, radius 8px (rounded-lg), background `#ffffff`
+- 같은 줄에 놓이는 필터 드롭다운들은 반드시 동일한 클래스/스타일을 공유해 여백이 어긋나지 않게 한다
+
 ### Navigation
 - Clean horizontal nav on white, not sticky
 - Brand logo left-aligned (33x34px icon + wordmark)
@@ -309,3 +317,4 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 8. Plantor Green (#38a848) is the only saturated color in core UI -- use it sparingly for CTAs and links
 9. **No placeholder text in inputs** -- Do NOT add placeholder/example text (e.g. "예: 수학 프로그램", "₩33,000/월") to input fields unless the user explicitly requests it. Labels are sufficient.
 10. **No opacity on elements** -- 카드, 리스트 아이템 등 UI 요소에 `opacity` 값을 적용하지 마라. 비활성/사용됨/만료 등 상태 구분은 뱃지 색상, 텍스트 색상, 배경색으로 표현한다. `opacity`로 흐리게 만들면 가독성이 떨어진다.
+11. **Select dropdown 좌우 여백 통일** -- select에는 `appearance: none` + 커스텀 SVG 화살표(#a39e98, right 10px center)를 쓰고, padding-left 10px / padding-right 32px로 좌우 안쪽 여백을 통일한다. 같은 줄의 필터 드롭다운들은 동일한 스타일을 공유한다. (§4 Select Dropdowns 참고)

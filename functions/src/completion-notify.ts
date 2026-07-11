@@ -1,5 +1,4 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as functions from "firebase-functions";
 import { FieldValue } from "firebase-admin/firestore";
 import { db, solapiApiKey, solapiApiSecret, KAKAO_TEMPLATES, SERVICE_META } from "./config";
@@ -7,7 +6,7 @@ import { sendAlimtalk, sendSms } from "./sms";
 
 // 과제 완료/미완료 카카오 알림
 //   완료(실시간): taskChecks 변경 → 그 학생 오늘 과제 전부 done 이면 부모에게 1건
-//   미완료(마감): 매일 21시 KST → 오늘 과제 미완료 학생에게 1건
+//   미완료(마감): 21시 자동인증 스크랩 직후(autoVerifyScheduled 체이닝) → 오늘 과제 미완료 학생에게 1건
 //   완료 truth = 오늘 스케줄된 confirmed tasks + 그날 taskChecks.done (클릭/자동인증 공통)
 
 const SECRETS = [solapiApiKey, solapiApiSecret];
@@ -189,41 +188,40 @@ export const onTaskCheckWritten = onDocumentWritten(
   },
 );
 
-// ── 미완료 마감 스케줄 (학생 톡) ─────────────────────────────────────────────
-export const notifyIncompleteScheduled = onSchedule(
-  { schedule: "0 21 * * *", timeZone: "Asia/Seoul", secrets: SECRETS, timeoutSeconds: 540, memory: "512MiB" },
-  async () => {
-    const cfg = await loadNotifyConfig();
-    if (!cfg.enabled) { functions.logger.info("[notify] 미완료 배치 스킵 (OFF)"); return; }
-    const date = todayKst();
-    const dow = dowMon0(date);
-    // 오늘 스케줄된 confirmed 과제가 있는 학생 집합
-    const snap = await db.collection("tasks").where("status", "==", "confirmed").get();
-    const childIds = new Set<string>();
-    snap.docs.forEach((d) => {
-      const data = d.data();
-      if (data.active !== false && Array.isArray(data.scheduleDays) && data.scheduleDays.includes(dow)) childIds.add(String(data.childId));
-    });
+// ── 미완료 마감 (학생 톡) ─────────────────────────────────────────────
+// 21시 자동인증 스크랩(autoVerifyScheduled)이 끝난 뒤 그 함수에서 직접 호출한다.
+// → "스크랩(완료 마크 갱신) → 미완료 판정·알림"을 한 실행 안에서 순서 보장(경쟁/헛알림 방지).
+export async function runIncompleteNotify(): Promise<void> {
+  const cfg = await loadNotifyConfig();
+  if (!cfg.enabled) { functions.logger.info("[notify] 미완료 배치 스킵 (OFF)"); return; }
+  const date = todayKst();
+  const dow = dowMon0(date);
+  // 오늘 스케줄된 confirmed 과제가 있는 학생 집합
+  const snap = await db.collection("tasks").where("status", "==", "confirmed").get();
+  const childIds = new Set<string>();
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    if (data.active !== false && Array.isArray(data.scheduleDays) && data.scheduleDays.includes(dow)) childIds.add(String(data.childId));
+  });
 
-    let sent = 0; let skipNoPhone = 0;
-    for (const childId of childIds) {
-      try {
-        const res = await evalCompletion(childId, date);
-        if (res.total === 0 || res.allDone) continue; // 다 했으면 스킵
-        const contacts = await resolveContacts(childId);
-        const realTo = contacts?.studentPhone ?? "";
-        if (!realTo) { skipNoPhone++; continue; } // 학생폰 없으면 스킵(가족 학생폰 미입력 등)
-        const to = cfg.testPhone || realTo; // 테스트 모드면 사장님 폰으로
-        const key = `${childId}_${date}_incomplete`;
-        if (!(await claim(key, { type: "incomplete", childId, date, to }))) continue; // 하루 1건
-        const remainStr = serviceNames(res.remaining.map((t) => t.serviceSlug));
-        const fallback = `[플랜토] ${contacts!.name} 학생, 오늘(${date}) 아직 안 끝난 과제가 있어요: ${remainStr}. 오늘 안에 마무리해요! 💪`;
-        await sendKakaoOrSms(to, KAKAO_TEMPLATES.TASK_INCOMPLETE_STUDENT, { 학생명: contacts!.name, 날짜: date, 남은과목: remainStr }, fallback);
-        sent++;
-      } catch (e) {
-        functions.logger.error("[notify] 미완료 발송 실패", { childId, error: String(e) });
-      }
+  let sent = 0; let skipNoPhone = 0;
+  for (const childId of childIds) {
+    try {
+      const res = await evalCompletion(childId, date);
+      if (res.total === 0 || res.allDone) continue; // 다 했으면 스킵
+      const contacts = await resolveContacts(childId);
+      const realTo = contacts?.studentPhone ?? "";
+      if (!realTo) { skipNoPhone++; continue; } // 학생폰 없으면 스킵(가족 학생폰 미입력 등)
+      const to = cfg.testPhone || realTo; // 테스트 모드면 사장님 폰으로
+      const key = `${childId}_${date}_incomplete`;
+      if (!(await claim(key, { type: "incomplete", childId, date, to }))) continue; // 하루 1건
+      const remainStr = serviceNames(res.remaining.map((t) => t.serviceSlug));
+      const fallback = `[플랜토] ${contacts!.name} 학생, 오늘(${date}) 아직 안 끝난 과제가 있어요: ${remainStr}. 오늘 안에 마무리해요! 💪`;
+      await sendKakaoOrSms(to, KAKAO_TEMPLATES.TASK_INCOMPLETE_STUDENT, { 학생명: contacts!.name, 날짜: date, 남은과목: remainStr }, fallback);
+      sent++;
+    } catch (e) {
+      functions.logger.error("[notify] 미완료 발송 실패", { childId, error: String(e) });
     }
-    functions.logger.info("[notify] 미완료 마감 배치 완료", { date, sent, skipNoPhone, candidates: childIds.size });
-  },
-);
+  }
+  functions.logger.info("[notify] 미완료 마감 배치 완료", { date, sent, skipNoPhone, candidates: childIds.size });
+}

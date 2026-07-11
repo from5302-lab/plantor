@@ -12,6 +12,10 @@ import { doc, setDoc, deleteDoc, deleteField } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 
+function normalizeSlug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+}
+
 async function saveService(service: Service, isNew: boolean) {
   await setDoc(doc(db, "serviceOverrides", service.slug), isNew ? { ...service, _extra: true } : service, { merge: true });
 }
@@ -160,10 +164,36 @@ function ServiceFormModal({
     setForm((p) => ({ ...p, bullets: b }));
   }
 
+  function setPartName(i: number, name: string) {
+    setForm((p) => {
+      const parts = [...(p.parts ?? [])];
+      parts[i] = { ...parts[i], name };
+      return { ...p, parts };
+    });
+  }
+
+  function movePart(i: number, dir: -1 | 1) {
+    setForm((p) => {
+      const parts = [...(p.parts ?? [])];
+      const j = i + dir;
+      if (j < 0 || j >= parts.length) return p;
+      [parts[i], parts[j]] = [parts[j], parts[i]];
+      return { ...p, parts };
+    });
+  }
+
+  function removePart(i: number) {
+    setForm((p) => ({ ...p, parts: (p.parts ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  function addPart() {
+    setForm((p) => ({ ...p, parts: [...(p.parts ?? []), { slug: "", name: "" }] }));
+  }
+
   async function handleSave() {
     if (!form.name.trim()) { setError("서비스명을 입력해주세요."); return; }
     const slug = (isNew && !form.slug.trim())
-      ? `${form.name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "") || "service"}-${Date.now()}`
+      ? `${normalizeSlug(form.name) || "service"}-${Date.now()}`
       : form.slug;
     setSaving(true); setError("");
     try {
@@ -180,6 +210,23 @@ function ServiceFormModal({
 
       const priceNum = Number(formattedPriceLabel.replace(/[^0-9]/g, "")) || null;
 
+      // 파트 정리: 빈 이름 제거, slug 없는 새 파트에 고유 slug 부여
+      const cleanedParts = (form.parts ?? [])
+        .filter((p) => p.name.trim())
+        .map((p) => ({ ...p, name: p.name.trim() }));
+      const usedPartSlugs = new Set(cleanedParts.filter((p) => p.slug).map((p) => p.slug));
+      const partsWithSlugs = cleanedParts.map((p, i) => {
+        let partSlug = p.slug;
+        if (!partSlug) {
+          const base = normalizeSlug(p.name) || `part-${i + 1}`;
+          partSlug = base;
+          let n = 2;
+          while (usedPartSlugs.has(partSlug)) partSlug = `${base}-${n++}`;
+          usedPartSlugs.add(partSlug);
+        }
+        return p.category ? { slug: partSlug, name: p.name, category: p.category } : { slug: partSlug, name: p.name };
+      });
+
       const svc: Service = {
         ...form,
         slug,
@@ -188,6 +235,7 @@ function ServiceFormModal({
         pricePerMonth: priceNum,
         iconUrl: resolvedIconUrl,
         emoji: iconMode === "emoji" ? form.emoji : "📌",
+        parts: partsWithSlugs.length > 0 ? partsWithSlugs : undefined,
       };
       const firestoreData: Record<string, unknown> = {
         ...svc,
@@ -195,6 +243,8 @@ function ServiceFormModal({
         signupUrl: svc.signupUrl ?? deleteField(),
         studentUrl: svc.studentUrl ?? deleteField(),
         parentUrl: svc.parentUrl ?? deleteField(),
+        parts: partsWithSlugs.length > 0 ? partsWithSlugs : deleteField(),
+        progressLabel: svc.progressLabel ?? deleteField(),
       };
       if (isNew) firestoreData._extra = true;
       await setDoc(doc(db, "serviceOverrides", svc.slug), firestoreData, { merge: true });
@@ -339,7 +389,7 @@ function ServiceFormModal({
                         const file = e.target.files?.[0];
                         if (!file) return;
                         const slug = form.slug.trim()
-                          || `${form.name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "") || "service"}-${Date.now()}`;
+                          || `${normalizeSlug(form.name) || "service"}-${Date.now()}`;
                         if (!slug || slug === `service-${Date.now()}`) { setError("서비스명을 먼저 입력해주세요."); return; }
                         if (!form.slug.trim()) setForm((p) => ({ ...p, slug }));
                         setUploading(true); setError("");
@@ -488,6 +538,50 @@ function ServiceFormModal({
               onClick={() => setForm((p) => ({ ...p, bullets: [...p.bullets, ""] }))}
               className="text-xs text-p-green bg-transparent border-none cursor-pointer p-0"
             >+ 항목 추가</button>
+          </div>
+
+          {/* 학습 파트 — 플랜 과제 추가/편집의 파트 드롭다운 항목 */}
+          <div>
+            <label className={LABEL_CLS}>
+              학습 파트 <span className="font-normal text-p-muted">(플랜 과제의 파트 드롭다운 항목)</span>
+            </label>
+            {(form.parts ?? []).map((p, i) => (
+              <div key={i} className="flex gap-1.5 mb-1.5 items-center">
+                <input className={INPUT_CLS} value={p.name} onChange={(e) => setPartName(i, e.target.value)} />
+                <button
+                  type="button"
+                  onClick={() => movePart(i, -1)}
+                  disabled={i === 0}
+                  className="shrink-0 w-8 h-8 rounded border border-black/10 bg-white text-p-muted cursor-pointer text-xs"
+                  style={{ opacity: i === 0 ? 0.3 : 1 }}
+                >↑</button>
+                <button
+                  type="button"
+                  onClick={() => movePart(i, 1)}
+                  disabled={i === (form.parts?.length ?? 0) - 1}
+                  className="shrink-0 w-8 h-8 rounded border border-black/10 bg-white text-p-muted cursor-pointer text-xs"
+                  style={{ opacity: i === (form.parts?.length ?? 0) - 1 ? 0.3 : 1 }}
+                >↓</button>
+                <button
+                  type="button"
+                  onClick={() => removePart(i)}
+                  className="shrink-0 w-8 h-8 rounded border border-[rgba(200,0,0,0.25)] bg-white text-[#c00] cursor-pointer text-xs"
+                >✕</button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addPart}
+              className="text-xs text-p-green bg-transparent border-none cursor-pointer p-0"
+            >+ 파트 추가</button>
+            <label className="flex items-center gap-1.5 mt-2 text-xs text-p-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.progressLabel ?? false}
+                onChange={(e) => setForm((p) => ({ ...p, progressLabel: e.target.checked }))}
+              />
+              파트 대신 진도 라벨(n권 n유닛) 입력 사용
+            </label>
           </div>
 
           {error && <p className="m-0 text-[#c00] text-[13px]">{error}</p>}

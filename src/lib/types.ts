@@ -41,6 +41,7 @@ export type Child = {
   name: string;
   grade: string;
   loginId: string;
+  studentPhone?: string;   // 학생 연락처 (학부모 입력, 미완료 알림용)
 };
 
 export type Subscription = {
@@ -61,6 +62,56 @@ export type Subscription = {
 
 export type AutoStatus = "시작전" | "진행중" | "완료";
 
+// 자동인증 스크래핑 상세 (오토보카/클래스카드) — 값은 원본 보존 위해 number|string 허용
+export type AutoUnit = {
+  type?: string;            // "문법" | "듣기" | "본문" 등 (클래스카드)
+  unitLabel?: string;       // "4권 유닛 9", "감각동사+형용사"
+  studyMinutes?: number;
+  dateRangeRaw?: string;    // 듣기 등 자정 넘김 케이스 원본
+  avgScore?: number | null; // 클래스카드 문법 평균
+  testScore?: number | null;
+  wrongReviewCount?: number | null;
+  points?: number | null;
+  completed?: boolean;
+  scores?: Record<string, number | string>;
+};
+
+// 매일국어 "오늘의 학습" 지문 1개 상세 (지문코드·유형·정답률 등)
+export type DailykorPassage = {
+  passageCode?: string;
+  type?: string;
+  accuracy?: string;
+  readingSpeed?: string;
+  prepTime?: string;
+  readingTime?: string;
+  practiceTime?: string;
+};
+
+// 매일국어 "오늘의 학습" 일별 상세 — 하루에 여러 지문 학습 시 지문별로 배열
+export type DailykorDetail = {
+  passages?: DailykorPassage[];  // 오늘 학습한 지문들 (열 단위)
+  xp?: string;                   // 오늘 총 획득/최대 경험치
+  // ── 레거시(단일 지문) 호환: 과거 로그의 평면 필드 ──
+  passageCode?: string;
+  type?: string;
+  accuracy?: string;
+  readingSpeed?: string;
+  prepTime?: string;
+  readingTime?: string;
+  practiceTime?: string;
+};
+
+// 어휘력 센터 완료 세트 (누적) — { category:"문학", sets:["08","09"] }
+export type DailykorVocaItem = { category: string; sets: string[] };
+
+export type AutoScrapedData = {
+  source?: string;
+  units?: AutoUnit[];
+  totalStudyMinutes?: number;
+  detail?: DailykorDetail | null;
+  voca?: DailykorVocaItem[] | null;
+};
+
 export type LearningLog = {
   id: string;
   serviceSlug: string;
@@ -68,6 +119,7 @@ export type LearningLog = {
   flagged?: boolean;
   method?: "self" | "auto";
   autoStatus?: AutoStatus;
+  scrapedData?: AutoScrapedData | null;
 };
 
 export type WeeklyLog = {
@@ -98,6 +150,9 @@ export type MemberChild = {
   name: string;
   grade: string;
   loginId: string;
+  classcardLoginId?: string;
+  autovocaLoginId?: string;
+  studentPhone?: string;   // 가족 학생 연락처 (미완료 알림용)
   createdAt: Date | null;
 };
 
@@ -174,6 +229,8 @@ export type DirectClassStudent = {
   serviceSlugs?: string[];   // 학생별 이용 서비스
   studentPhone: string;
   studentLoginId: string;
+  studentClasscardId?: string;  // 외부 클래스카드 아이디 (자동인증용)
+  studentAutovocaId?: string;   // 외부 오토보카 아이디 (자동인증용)
   parentPhone: string;
   parentLoginId: string;
 };

@@ -23,6 +23,8 @@ export const KAKAO_TEMPLATES = {
   LESSON_PAYMENT_CONFIRM: "KA01TP260522031622317b31iGLVTcIl", // 수업료 입금 확인 (PENDING — 검수 통과 후 admin-api에서 사용)
   PASSWORD_RESET:         "KA01TP260518085232857UYCxn63ljYJ", // 비밀번호 초기화 (INSPECTING — 승인 시 자동 활성, 그 전엔 SMS fallback)
   AI_PACKAGE_CONFIRM:     "KA01TP260518085232905tujFnlMrDoP", // AI 패키지 입금확인 (INSPECTING — 승인 시 자동 활성, 그 전엔 SMS fallback)
+  TASK_COMPLETE_PARENT:   "", // 과제 완료(부모용) — 카카오 템플릿 등록 후 ID 입력. 빈 값이면 SMS 발송.
+  TASK_INCOMPLETE_STUDENT:"", // 과제 미완료(학생용) — 카카오 템플릿 등록 후 ID 입력. 빈 값이면 SMS 발송.
 } as const;
 
 export const solapiApiKey = defineSecret("SOLAPI_API_KEY");

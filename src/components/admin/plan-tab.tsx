@@ -1,16 +1,26 @@
 "use client";
 
 // 플랜 관리 탭 — 확정 대기 초안(확정/거절) 중심 + 전체 학생 계획
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
-import { SERVICES } from "@/data/site";
+import type { Service } from "@/data/site";
+import { useServices } from "@/lib/services-context";
 import type { MemberChild, Subscription } from "@/lib/types";
 
 const GRADE_ORDER = ["미취학", "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3", "고1", "고2", "고3"];
 function gradeIdx(g: string) { const i = GRADE_ORDER.indexOf(g); return i === -1 ? GRADE_ORDER.length : i; }
-function svcName(slug: string) { return SERVICES.find((s) => s.slug === slug)?.name ?? slug; }
+function svcName(slug: string, services: Service[]) { return services.find((s) => s.slug === slug)?.name ?? slug; }
 
 type TodayStatus = "pending" | "done" | "none";
+
+const SELECT_CLS = "h-9 appearance-none rounded-lg border border-black/10 bg-white pl-2.5 pr-8 text-[13px] text-black/90 cursor-pointer outline-none focus:border-p-green";
+const SELECT_ARROW = {
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a39e98'/%3E%3C/svg%3E")`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 10px center",
+} as const;
 
 // 오늘 완료 현황 → 라벨/정렬 등급
 function classify(t?: { total: number; done: number }): TodayStatus {
@@ -35,13 +45,34 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
   draftByChild: Record<string, number>;
   todayByChild: Record<string, { total: number; done: number }>;
 }) {
+  const { allServices } = useServices();
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | TodayStatus>("");
   const [sortKey, setSortKey] = useState<"status" | "name" | "grade">("status");
 
-  // 구독 있는 학생만 추림
+  // 직강(1:1) 학생 수강과목: 구독 문서가 아니라 directClasses에 저장 → loginId로 매핑
+  const [directSlugsByLogin, setDirectSlugsByLogin] = useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    const todayKst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    return onSnapshot(query(collection(db, "directClasses"), where("status", "==", "active")), (snap) => {
+      const map = new Map<string, string[]>();
+      snap.forEach((d) => {
+        const cls = d.data();
+        if (cls.expiry && cls.expiry < todayKst) return; // 만료 수업 제외
+        for (const st of (cls.students ?? []) as Array<{ studentLoginId?: string; serviceSlugs?: string[] }>) {
+          const lid = (st.studentLoginId ?? "").toLowerCase();
+          if (!lid) continue;
+          const slugs = st.serviceSlugs ?? (cls.serviceSlugs as string[] | undefined) ?? [];
+          map.set(lid, [...new Set([...(map.get(lid) ?? []), ...slugs])]);
+        }
+      });
+      setDirectSlugsByLogin(map);
+    });
+  }, []);
+
+  // 계정(로그인 아이디)이 있는 학생 전원 — 구독/직강 수강과목을 합쳐 표시
   const students = useMemo(() => {
     const slugsByChild = new Map<string, string[]>();
     for (const s of allSubs) {
@@ -51,12 +82,15 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
       slugsByChild.set(s.childId, arr);
     }
     return allChildren
-      .filter((c) => slugsByChild.has(c.id))
+      .filter((c) => c.loginId) // 계정 있는 학생 전원
       .map((c) => {
+        const subSlugs = slugsByChild.get(c.id) ?? [];
+        const dirSlugs = directSlugsByLogin.get(c.loginId.toLowerCase()) ?? [];
+        const slugs = [...new Set([...subSlugs, ...dirSlugs])];
         const today = todayByChild[c.id] ?? { total: 0, done: 0 };
-        return { id: c.id, name: c.name, grade: c.grade, slugs: slugsByChild.get(c.id) ?? [], drafts: draftByChild[c.id] ?? 0, today, status: classify(today) };
+        return { id: c.id, name: c.name, grade: c.grade, loginId: c.loginId, slugs, drafts: draftByChild[c.id] ?? 0, today, status: classify(today) };
       });
-  }, [allChildren, allSubs, draftByChild, todayByChild]);
+  }, [allChildren, allSubs, draftByChild, todayByChild, directSlugsByLogin]);
 
   // 필터 옵션 (실제 데이터 기준)
   const gradeOpts = useMemo(() => [...new Set(students.map((s) => s.grade).filter(Boolean))].sort((a, b) => gradeIdx(a) - gradeIdx(b)), [students]);
@@ -87,8 +121,6 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
   const noneCnt = students.filter((s) => s.status === "none").length;
   const activeFilterCount = (gradeFilter ? 1 : 0) + (subjectFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (q ? 1 : 0);
   function resetFilters() { setSearch(""); setGradeFilter(""); setSubjectFilter(""); setStatusFilter(""); }
-
-  const SELECT_CLS = "h-9 rounded-lg border border-black/10 bg-white px-2.5 text-[13px] text-black/90 cursor-pointer outline-none focus:border-p-green";
 
   return (
     <div>
@@ -122,21 +154,21 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
           placeholder="학생 이름 검색"
           className="h-9 flex-1 min-w-[140px] rounded-lg border border-black/10 px-3 text-[13px] outline-none focus:border-p-green"
         />
-        <select className={SELECT_CLS} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
+        <select className={SELECT_CLS} style={SELECT_ARROW} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
           <option value="">전체 학년</option>
           {gradeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
-        <select className={SELECT_CLS} value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+        <select className={SELECT_CLS} style={SELECT_ARROW} value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
           <option value="">전체 과목</option>
-          {subjectOpts.map((slug) => <option key={slug} value={slug}>{svcName(slug)}</option>)}
+          {subjectOpts.map((slug) => <option key={slug} value={slug}>{svcName(slug, allServices)}</option>)}
         </select>
-        <select className={SELECT_CLS} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "" | TodayStatus)}>
+        <select className={SELECT_CLS} style={SELECT_ARROW} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "" | TodayStatus)}>
           <option value="">전체 상태</option>
           <option value="pending">안 한 사람</option>
           <option value="done">오늘 완료</option>
           <option value="none">오늘 과제 없음</option>
         </select>
-        <select className={SELECT_CLS} value={sortKey} onChange={(e) => setSortKey(e.target.value as "status" | "name" | "grade")}>
+        <select className={SELECT_CLS} style={SELECT_ARROW} value={sortKey} onChange={(e) => setSortKey(e.target.value as "status" | "name" | "grade")}>
           <option value="status">정렬: 오늘 상태순</option>
           <option value="name">정렬: 이름순</option>
           <option value="grade">정렬: 학년순</option>
@@ -172,7 +204,7 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
                   </span>
                 )}
               </div>
-              <StudentLearningGrid childId={s.id} childName={s.name} subscribedSlugs={s.slugs} />
+              <StudentLearningGrid childId={s.id} childName={s.name} subscribedSlugs={s.slugs} defaultExpanded={s.drafts > 0} adminLoginId={s.loginId} />
             </div>
           ))}
         </div>

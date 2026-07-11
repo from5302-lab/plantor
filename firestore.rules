@@ -164,6 +164,16 @@ service cloud.firestore {
         && resource.data.status == "draft"
         && resource.data.createdBy == "student"
         && studentMatchesChild(resource.data.childId);
+      // 학생 본인 과제 내용 수정 (상태/소유 필드는 변경 불가)
+      allow update: if request.auth != null
+        && studentMatchesChild(resource.data.childId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['serviceSlug', 'partSlug', 'title', 'scheduleDays', 'progressLabel', 'level', 'setName']);
+      // 학생 본인 과제 삭제 요청 (플래그 필드만)
+      allow update: if request.auth != null
+        && studentMatchesChild(resource.data.childId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['deleteRequested', 'deleteRequestedAt']);
       // 어드민 전체
       allow read, write: if isAdmin();
     }

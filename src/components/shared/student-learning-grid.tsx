@@ -5,17 +5,24 @@ import {
   addDoc, collection, deleteDoc, doc, getDocs,
   onSnapshot, query, serverTimestamp, updateDoc, where, orderBy,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { SERVICES } from "@/data/site";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
+
+// 클릭 시 교사 계정으로 진도를 실시간 스크래핑하는 서비스
+const AUTO_VERIFIED_SLUGS_GRID = new Set(["autovoca", "classcard-middle", "dailykor"]);
+const AUTO_SLUG_NAME: Record<string, string> = { autovoca: "오토보카", "classcard-middle": "클래스카드", dailykor: "매일국어" };
+import { useServices } from "@/lib/services-context";
 import { Check, X, ChevronDown } from "lucide-react";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { AddTaskFormBatch, EditableTaskCard } from "@/components/shared/add-task-form";
-import { getWeekDates, todayStr } from "@/lib/learn-utils";
+import { AutoResultCard } from "@/components/learn/auto-result-card";
+import { getWeekDates, todayStr, taskLabel } from "@/lib/learn-utils";
 import { REASONS_6HDL } from "@/lib/types";
-import type { Task, TaskCheck } from "@/lib/types";
+import type { Task, TaskCheck, LearningLog } from "@/lib/types";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
-const GRID = "180px repeat(7, 1fr)";
+// 라벨 칸은 화면 폭에 따라 축소(모바일에서 날짜 7칸이 밀리지 않도록), 날짜 칸은 minmax(0,1fr)로 넘침 방지
+const GRID = "clamp(84px, 22vw, 172px) repeat(7, minmax(0, 1fr))";
 
 function tsToDate(ts: unknown): Date | null {
   if (!ts) return null;
@@ -57,7 +64,8 @@ function DraftTaskRow({ task, onConfirm, onReject, onDelete }: {
   onDelete: () => void;
 }) {
   const [comment, setComment] = useState(task.adminComment ?? "");
-  const svc = SERVICES.find(s => s.slug === task.serviceSlug);
+  const { allServices } = useServices();
+  const svc = allServices.find(s => s.slug === task.serviceSlug);
   const isStudentDraft = task.status === "draft" && task.createdBy === "student";
   return (
     <div className="bg-white rounded-[10px] mb-1.5 p-[12px_14px]"
@@ -97,20 +105,69 @@ export function StudentLearningGrid({
   childName,
   subscribedSlugs,
   weekOffset = 0,
+  defaultExpanded = false,
+  adminLoginId,
 }: {
   childId: string;
   childName: string;
   subscribedSlugs: string[];
   weekOffset?: number;
+  defaultExpanded?: boolean;
+  adminLoginId?: string; // 어드민이 수동으로 자동인증 실행할 때의 학생 loginId
 }) {
+  const { allServices } = useServices();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskChecks, setTaskChecks] = useState<TaskCheck[]>([]);
   const [toggling, setToggling] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  // 오늘 자동인증(스크래핑) 로그 — 서비스별
+  const [autoLogs, setAutoLogs] = useState<Record<string, LearningLog>>({});
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoRunMsg, setAutoRunMsg] = useState("");
 
   const weekDates = getWeekDates(weekOffset);
   const today = todayStr();
+
+  // 어드민 수동 자동인증 실행 — 학생의 자동인증 과목을 교사 계정으로 스크래핑
+  const autoSlugs = subscribedSlugs.filter((s) => AUTO_VERIFIED_SLUGS_GRID.has(s));
+  async function runAutoVerify() {
+    if (!adminLoginId || autoSlugs.length === 0) return;
+    setAutoRunning(true);
+    setAutoRunMsg("");
+    const call = httpsCallable(functions, "verifyAutoProgress");
+    const results: string[] = [];
+    for (const slug of autoSlugs) {
+      try {
+        const res = await call({ serviceSlug: slug, loginId: adminLoginId });
+        const status = (res.data as { autoStatus?: string })?.autoStatus ?? "완료";
+        results.push(`${AUTO_SLUG_NAME[slug] ?? slug} ${status}`);
+      } catch (e) {
+        results.push(`${AUTO_SLUG_NAME[slug] ?? slug} 실패: ${e instanceof Error ? e.message : ""}`);
+      }
+    }
+    setAutoRunMsg(results.join(" · "));
+    setAutoRunning(false);
+  }
+
+  // 오늘 자동인증 로그 구독 (클래스카드/오토보카 스크래핑 결과)
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(db, "learningLogs"), where("childId", "==", childId), where("date", "==", todayStr())),
+      (snap) => {
+        const map: Record<string, LearningLog> = {};
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data.method !== "auto") return;
+          map[data.serviceSlug] = {
+            id: d.id, serviceSlug: data.serviceSlug ?? "", date: data.date ?? "",
+            method: "auto", autoStatus: data.autoStatus, scrapedData: data.scrapedData ?? null, flagged: data.flagged,
+          };
+        });
+        setAutoLogs(map);
+      }
+    );
+  }, [childId]);
 
   // tasks 구독
   useEffect(() => {
@@ -120,13 +177,11 @@ export function StudentLearningGrid({
     );
   }, [childId]);
 
-  // taskChecks 구독
+  // taskChecks 구독 — 복합 인덱스(childId+date범위) 회피: childId== 단일 조회 후 주간은 렌더에서 필터.
+  // (범위 쿼리는 인덱스 미존재 시 onSnapshot이 조용히 실패해 과거 완료가 통째로 안 뜨는 버그가 있었음)
   useEffect(() => {
-    const dates = getWeekDates(weekOffset);
     return onSnapshot(
-      query(collection(db, "taskChecks"),
-        where("childId", "==", childId),
-        where("date", ">=", dates[0]), where("date", "<=", dates[6])),
+      query(collection(db, "taskChecks"), where("childId", "==", childId)),
       (snap) => setTaskChecks(snap.docs.map(d => ({
         id: d.id,
         taskId: d.data().taskId ?? "",
@@ -138,9 +193,10 @@ export function StudentLearningGrid({
         reasonNote: d.data().reasonNote ?? null,
         checkedBy: d.data().checkedBy ?? "admin",
         checkedAt: tsToDate(d.data().checkedAt),
-      })))
+      }))),
+      (err) => console.error("[grid] taskChecks 구독 실패", err),
     );
-  }, [childId, weekOffset]);
+  }, [childId]);
 
   const confirmedTasks = tasks.filter(t => t.status === "confirmed");
   const draftTasks = tasks.filter(t => t.status === "draft");
@@ -218,11 +274,8 @@ export function StudentLearningGrid({
 
       {/* 과제 그리드 행 */}
       {confirmedTasks.map((task, idx) => {
-        const svc = SERVICES.find(s => s.slug === task.serviceSlug);
-        const part = svc?.parts?.find(p => p.slug === task.partSlug);
-        const label = task.progressLabel
-          ? `${svc?.name ?? task.serviceSlug} ${task.progressLabel}`
-          : part ? part.name : task.title;
+        const svc = allServices.find(s => s.slug === task.serviceSlug);
+        const label = taskLabel(task, allServices);
 
         return (
           <div key={task.id} className="items-center px-4 py-2"
@@ -256,7 +309,7 @@ export function StudentLearningGrid({
                 <div key={date} className="flex flex-col items-center gap-0.5">
                   <div onClick={() => !isFuture && !toggling && handleToggleCheck(task, date)}
                     title={isDone ? "완료 (클릭→취소)" : isNotDone ? `미완료${reasonInfo ? ` (${reasonInfo.name})` : ""}` : isFuture ? "" : "클릭→완료"}
-                    className="w-[26px] h-[26px] rounded-md flex items-center justify-center"
+                    className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-md flex items-center justify-center"
                     style={{
                       backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isNotDone ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
                       border: isToday ? "2px solid rgba(0,0,0,0.95)" : isNotDone ? "1.5px solid #c00000" : "1.5px solid transparent",
@@ -278,6 +331,23 @@ export function StudentLearningGrid({
       {confirmedTasks.length === 0 && !expanded && (
         <div className="px-4 py-3 text-[12px] text-p-muted text-center">등록된 과제가 없어요</div>
       )}
+
+      {/* 어드민 수동 자동인증 실행 버튼 */}
+      {adminLoginId && autoSlugs.length > 0 && (
+        <div className="px-4 py-2 flex items-center gap-2 flex-wrap border-t border-black/[0.04]">
+          <button onClick={runAutoVerify} disabled={autoRunning}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-md cursor-pointer disabled:opacity-50"
+            style={{ background: "#eef6ff", color: "#2563a8", border: "1px solid rgba(37,99,168,0.2)" }}>
+            {autoRunning ? "자동인증 실행 중…" : "🔄 자동인증 실행"}
+          </button>
+          {autoRunMsg && <span className="text-[11px] text-p-secondary">{autoRunMsg}</span>}
+        </div>
+      )}
+
+      {/* 자동인증 상세 (클래스카드/오토보카 스크래핑 결과) */}
+      {Object.values(autoLogs)
+        .filter((l) => (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료")
+        .map((l) => <AutoResultCard key={l.serviceSlug} log={l} />)}
 
       {/* 펼침 토글 */}
       <div onClick={() => setExpanded(v => !v)}

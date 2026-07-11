@@ -46,7 +46,7 @@ export function buildPaymentGuide(signup: Pick<Signup,
   lines.push("입금 확인 후 안내드리겠습니다.");
   lines.push("");
   lines.push("※ 신청 후 24시간 이내에 입금이 확인되지 않으면 신청이 취소될 수 있어요.");
-  lines.push("멤버십 오픈톡방: https://open.kakao.com/o/gs9aP64h");
+  // 오픈톡방 안내는 입금 확인(가입 승인) 후 메시지에서 보낸다 (functions/src/auth.ts approveSignup)
 
   return lines.join("\n");
 }

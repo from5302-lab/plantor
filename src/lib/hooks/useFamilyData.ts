@@ -22,6 +22,7 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
         name: d.data().name ?? "",
         grade: d.data().grade ?? "",
         loginId: d.data().loginId ?? "",
+        studentPhone: d.data().studentPhone ?? "",
       })))
     );
   }, [familyId]);

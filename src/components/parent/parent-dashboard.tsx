@@ -6,13 +6,13 @@ import {
   doc, getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { SERVICES } from "@/data/site";
+import { useServices } from "@/lib/services-context";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { REASONS_6HDL } from "@/lib/types";
-import { todayStr, getWeekDates, calcStreak } from "@/lib/learn-utils";
+import { todayStr, getWeekDates, calcStreak, taskLabel } from "@/lib/learn-utils";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -48,6 +48,7 @@ type ChildData = {
 };
 
 export function ParentDashboard({ userId }: { userId: string }) {
+  const { allServices } = useServices();
   const [children, setChildren] = useState<Child[]>([]);
   const [childDataMap, setChildDataMap] = useState<Record<string, ChildData>>({});
   const [ready, setReady] = useState(false);
@@ -302,11 +303,8 @@ export function ParentDashboard({ userId }: { userId: string }) {
                 ) : (
                   <div className="py-2">
                     {todayTasks.map((task, idx) => {
-                      const svc = SERVICES.find((s) => s.slug === task.serviceSlug);
-                      const part = svc?.parts?.find((p) => p.slug === task.partSlug);
-                      const label = task.progressLabel
-                        ? `${svc?.name ?? task.serviceSlug} ${task.progressLabel}`
-                        : part ? part.name : task.title;
+                      const svc = allServices.find((s) => s.slug === task.serviceSlug);
+                      const label = taskLabel(task, allServices);
                       const check = weekChecks.find((c) => c.taskId === task.id && c.date === today);
                       const done = check?.status === "done";
                       const reasonInfo = check?.status === "not_done" && check.reason
@@ -382,7 +380,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                 {(() => {
                   const expandedShot = todayShots.find((l) => l.id === expandedScreenshot && l.screenshotUrl);
                   if (!expandedShot?.screenshotUrl) return null;
-                  const svc = SERVICES.find((s) => s.slug === expandedShot.serviceSlug);
+                  const svc = allServices.find((s) => s.slug === expandedShot.serviceSlug);
                   return (
                     <div className="px-[18px] pb-4">
                       <div className="text-[11px] font-semibold text-p-muted mb-2">

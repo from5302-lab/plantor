@@ -6,6 +6,50 @@ import { db } from "./config";
 const coworkSecret = defineSecret("COWORK_SECRET");
 
 /**
+ * 자동인증 학습 로그를 기록/갱신하는 공용 함수.
+ * autoLog 엔드포인트(외부 스크래퍼용)와 verifyAutoProgress 콜러블(클릭 실시간)이 공유한다.
+ * 오늘·동일 서비스의 method:"auto" 로그가 있으면 update, 없으면 create.
+ */
+export async function writeAutoLog(params: {
+  childId: string;
+  serviceSlug: string;
+  date: string;
+  autoStatus: string;
+  scrapedData?: Record<string, unknown> | null;
+}): Promise<"created" | "updated"> {
+  const { childId, serviceSlug, date, autoStatus, scrapedData } = params;
+
+  const existing = await db.collection("learningLogs")
+    .where("childId", "==", childId)
+    .where("serviceSlug", "==", serviceSlug)
+    .where("date", "==", date)
+    .where("method", "==", "auto")
+    .get();
+
+  if (!existing.empty) {
+    await existing.docs[0].ref.update({
+      autoStatus,
+      scrapedData: scrapedData ?? null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return "updated";
+  }
+
+  await db.collection("learningLogs").add({
+    childId,
+    serviceSlug,
+    date,
+    method: "auto",
+    autoStatus,
+    scrapedData: scrapedData ?? null,
+    confirmedAt: FieldValue.serverTimestamp(),
+    flagged: false,
+    reportCount: 0,
+  });
+  return "created";
+}
+
+/**
  * Cowork 스크래퍼가 Classcard 학습 결과를 기록하는 엔드포인트.
  *
  * POST /autoLog
@@ -54,36 +98,7 @@ export const autoLog = onRequest(
       return;
     }
 
-    // 오늘 동일 서비스의 auto 로그가 있으면 update, 없으면 create
-    const existing = await db.collection("learningLogs")
-      .where("childId", "==", childId)
-      .where("serviceSlug", "==", serviceSlug)
-      .where("date", "==", date)
-      .where("method", "==", "auto")
-      .get();
-
-    if (!existing.empty) {
-      await existing.docs[0].ref.update({
-        autoStatus,
-        scrapedData: scrapedData ?? null,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      res.json({ result: "updated" });
-      return;
-    }
-
-    await db.collection("learningLogs").add({
-      childId,
-      serviceSlug,
-      date,
-      method: "auto",
-      autoStatus,
-      scrapedData: scrapedData ?? null,
-      confirmedAt: FieldValue.serverTimestamp(),
-      flagged: false,
-      reportCount: 0,
-    });
-
-    res.json({ result: "created" });
+    const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus, scrapedData });
+    res.json({ result });
   }
 );

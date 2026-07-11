@@ -168,6 +168,48 @@ function EditableGrade({ childId, grade }: { childId: string; grade: string }) {
   );
 }
 
+// ── 편집 가능한 학생 연락처 (미완료 알림용) ──────────────────────────────────
+function EditableStudentPhone({ childId, phone }: { childId: string; phone: string }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(phone);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "children", childId), { studentPhone: val.replace(/[^\d]/g, "") });
+    } catch (err) { alert(err instanceof Error ? err.message : "연락처 저장 오류"); }
+    finally { setSaving(false); setEditing(false); }
+  }
+
+  if (editing) {
+    return (
+      <input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+        autoFocus
+        disabled={saving}
+        placeholder="학생폰"
+        style={{ fontSize: 11, width: 100, border: "1px solid #097fe8", borderRadius: 4, padding: "2px 4px", outline: "none", color: "rgba(0,0,0,0.95)", backgroundColor: "#ffffff" }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => { setVal(phone); setEditing(true); }}
+      title="클릭하여 학생 연락처 수정 (미완료 알림 발송용)"
+      style={{ fontSize: 11, color: phone ? "#5a9" : "#c9c4be", cursor: "pointer", borderRadius: 3, padding: "1px 4px" }}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(9,127,232,0.08)")}
+      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+    >
+      {phone ? `📱 ${phone}` : "📱 학생폰+"}
+    </span>
+  );
+}
+
 // ── 편집 가능한 날짜 ──────────────────────────────────────────────────────────
 
 function EditableDate({ sub }: { sub: MemberSub }) {
@@ -1288,6 +1330,8 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
                     </div>
                     <div><label className={LABEL_CLS}>학생 연락처</label><input className={INPUT_CLS} value={s.studentPhone} onChange={(e) => setStudentField(idx, "studentPhone", e.target.value)} /></div>
                     <div><label className={LABEL_CLS}>학생 아이디</label><input className={INPUT_CLS} value={s.studentLoginId} onChange={(e) => setStudentField(idx, "studentLoginId", e.target.value)} /></div>
+                    <div><label className={LABEL_CLS}>클래스카드 아이디 <span style={{ fontWeight: 400, color: "#a39e98" }}>(자동인증)</span></label><input className={INPUT_CLS} value={s.studentClasscardId ?? ""} placeholder="외부 클래스카드 ID" onChange={(e) => setStudentField(idx, "studentClasscardId", e.target.value)} /></div>
+                    <div><label className={LABEL_CLS}>오토보카 아이디 <span style={{ fontWeight: 400, color: "#a39e98" }}>(자동인증)</span></label><input className={INPUT_CLS} value={s.studentAutovocaId ?? ""} placeholder="외부 오토보카 ID" onChange={(e) => setStudentField(idx, "studentAutovocaId", e.target.value)} /></div>
                     <div style={{ gridColumn: "1 / -1" }}>
                       <label className={LABEL_CLS}>이용 서비스</label>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1431,8 +1475,8 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
   onClose: () => void;
 }) {
   const [parentForm, setParentForm] = useState({ name: family.parentName, phone: family.phone });
-  const [childForms, setChildForms] = useState<{ id: string; name: string; grade: string; loginId: string }[]>(
-    children.map((c) => ({ id: c.id, name: c.name, grade: c.grade, loginId: c.loginId }))
+  const [childForms, setChildForms] = useState<{ id: string; name: string; grade: string; loginId: string; classcardLoginId: string; autovocaLoginId: string }[]>(
+    children.map((c) => ({ id: c.id, name: c.name, grade: c.grade, loginId: c.loginId, classcardLoginId: c.classcardLoginId ?? "", autovocaLoginId: c.autovocaLoginId ?? "" }))
   );
   const [schedules, setSchedules] = useState<Record<string, DaySchedule[]>>({});
   const [loading, setLoading] = useState(true);
@@ -1470,6 +1514,8 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
           name: cf.name.trim(),
           grade: cf.grade,
           loginId: cf.loginId.trim(),
+          classcardLoginId: cf.classcardLoginId.trim() || null,
+          autovocaLoginId: cf.autovocaLoginId.trim() || null,
         });
         await setDoc(doc(db, "studentProfiles", cf.id), {
           childId: cf.id,
@@ -1597,6 +1643,16 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                     <input className={INPUT_CLS + " font-mono"} value={cf.loginId}
                       onChange={(e) => setChildForms((prev) => prev.map((x, i) => i === ci ? { ...x, loginId: e.target.value } : x))} />
                   </div>
+                  <div>
+                    <label className={LABEL_CLS}>클래스카드 아이디 <span style={{ fontWeight: 400, color: "#a39e98" }}>(자동인증용)</span></label>
+                    <input className={INPUT_CLS + " font-mono"} value={cf.classcardLoginId} placeholder="외부 클래스카드 ID"
+                      onChange={(e) => setChildForms((prev) => prev.map((x, i) => i === ci ? { ...x, classcardLoginId: e.target.value } : x))} />
+                  </div>
+                  <div>
+                    <label className={LABEL_CLS}>오토보카 아이디 <span style={{ fontWeight: 400, color: "#a39e98" }}>(자동인증용)</span></label>
+                    <input className={INPUT_CLS + " font-mono"} value={cf.autovocaLoginId} placeholder="외부 오토보카 ID"
+                      onChange={(e) => setChildForms((prev) => prev.map((x, i) => i === ci ? { ...x, autovocaLoginId: e.target.value } : x))} />
+                  </div>
                 </div>
                 <label className={LABEL_CLS}>학습 스케줄</label>
                 <ScheduleEditor
@@ -1652,7 +1708,9 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
   const [editing, setEditing] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [expandedLearningLoginId, setExpandedLearningLoginId] = useState<string | null>(null);
-  const [childIdMap, setChildIdMap] = useState<Record<string, string>>({});
+  // loginId → childId. null = 조회했으나 children 문서 없음(계정 미생성), undefined = 조회 전
+  const [childIdMap, setChildIdMap] = useState<Record<string, string | null>>({});
+  const [creatingAccounts, setCreatingAccounts] = useState(false);
   const { startTask } = useSendToast();
   const parentStudent = cls.students[0] ?? { name: "", studentPhone: "", studentLoginId: "", parentPhone: "", parentLoginId: "" };
 
@@ -1663,13 +1721,25 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
     const unsubs = loginIds.map((lid) => {
       const q = query(collection(db, "children"), where("loginId", "==", lid));
       return onSnapshot(q, (snap) => {
-        if (!snap.empty) {
-          setChildIdMap((prev) => ({ ...prev, [lid]: snap.docs[0].id }));
-        }
+        setChildIdMap((prev) => ({ ...prev, [lid]: snap.empty ? null : snap.docs[0].id }));
       });
     });
     return () => unsubs.forEach((u) => u());
   }, [cls.students]);
+
+  // 직강 학생 계정(Auth+users+children) 일괄 생성 — children 문서 없는 학생 대상
+  async function handleCreateAccounts() {
+    setCreatingAccounts(true);
+    try {
+      const fn = httpsCallable<{ classId: string }, { created: number }>(functions, "ensureDirectClassAccounts");
+      await fn({ classId: cls.id });
+      // children onSnapshot이 자동 갱신 → 미생성 배지/버튼 사라짐
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "계정 생성 실패");
+    } finally {
+      setCreatingAccounts(false);
+    }
+  }
   const firstStudentName = cls.students[0]?.name ?? cls.name;
   const parentLabel = cls.parentName || `${firstStudentName}맘`;
   const className = cls.name !== firstStudentName ? cls.name : null;
@@ -1818,6 +1888,17 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                       <CopyBtn text={student.studentLoginId} />
                     </>
                   )}
+                  {/* 계정 미생성(children 문서 없음) → 생성 버튼. loginId 있고 조회 결과 없음일 때만 노출 */}
+                  {student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] === null && (
+                    <button
+                      onClick={handleCreateAccounts}
+                      disabled={creatingAccounts}
+                      title="학생 계정(로그인+과제관리)을 생성합니다"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#fff", backgroundColor: "#5c4edc", border: "none", borderRadius: 5, padding: "3px 9px", cursor: creatingAccounts ? "default" : "pointer", opacity: creatingAccounts ? 0.6 : 1 }}
+                    >
+                      {creatingAccounts ? "생성 중…" : "＋계정 생성"}
+                    </button>
+                  )}
                   <KeyBtn onClick={() => onReset(cls.id, student.studentLoginId ?? "")} />
                   {student.studentPhone && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
@@ -1886,7 +1967,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                 {/* 학습 그리드 */}
                 {expandedLearningLoginId === student.studentLoginId && student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] && (
                   <StudentLearningGrid
-                    childId={childIdMap[student.studentLoginId.toLowerCase()]}
+                    childId={childIdMap[student.studentLoginId.toLowerCase()]!}
                     childName={student.name}
                     subscribedSlugs={studentSlugs}
                   />
@@ -1963,6 +2044,8 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
           ? { ...baseTotals, revenue: baseTotals.revenue + AI_PACKAGE_PRICE, profit: baseTotals.profit + AI_PACKAGE_PRICE }
           : baseTotals;
         const parentId = family.momId ?? family.parentPlantorId ?? (family.userId ? `uid:${family.userId.slice(0, 8)}` : "-");
+        // 헤더 아래 여백과 서비스 박스 렌더 조건을 일치시킨다 (학부모 서비스 구독만 있는 가족도 포함)
+        const hasServiceBox = children.length > 0 || !!family.aiPackageEndDate || allSubs.some((s) => !s.childId && s.familyId === family.id);
 
         return (
           <div key={family.id} className="relative bg-white border border-black/10 rounded-xl p-5" style={{ boxShadow: T.shadow }}>
@@ -1971,7 +2054,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
             )}
             {/* 가족/자녀 삭제는 수정 모달에서 처리 */}
             {/* 학부모 헤더 */}
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: (children.length > 0 || !!family.aiPackageEndDate) ? 14 : 0 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: hasServiceBox ? 14 : 0 }}>
               <div className="mt-family-info">
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                   <span
@@ -2004,7 +2087,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
             </div>
 
             {/* 자녀 목록 + AI 패키지 */}
-            {(children.length > 0 || !!family.aiPackageEndDate || allSubs.some((s) => !s.childId && s.familyId === family.id)) && (
+            {hasServiceBox && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* 학부모 서비스 (AI패키지 + 고전독서모임 등) */}
                 {(() => {
@@ -2086,6 +2169,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                           </span>
                           {child.loginId && <CopyBtn text={child.loginId} />}
                           <KeyBtn onClick={() => onResetByFamily(family.id, child.loginId || parentId)} />
+                          <EditableStudentPhone childId={child.id} phone={child.studentPhone ?? ""} />
                           <button
                             onClick={() => setExpandedLearningChildId(expandedLearningChildId === child.id ? null : child.id)}
                             className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer"

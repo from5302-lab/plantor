@@ -1,5 +1,18 @@
+import type { Service } from "@/data/site";
+
 export function todayStr(): string {
   return new Date().toLocaleDateString("sv-SE"); // "YYYY-MM-DD"
+}
+
+/** 과제 표시 라벨: 진도형은 "서비스명 진도", 파트형은 파트명, 그 외 저장된 제목 */
+export function taskLabel(
+  task: { serviceSlug: string; partSlug?: string | null; progressLabel?: string | null; title: string },
+  services: Service[],
+): string {
+  const svc = services.find((s) => s.slug === task.serviceSlug);
+  if (task.progressLabel) return `${svc?.name ?? task.serviceSlug} ${task.progressLabel}`;
+  const part = svc?.parts?.find((p) => p.slug === task.partSlug);
+  return part ? part.name : task.title;
 }
 
 /** 이번 주(또는 offset주 전) 월요일~일요일 날짜 배열. offset=-1이면 지난주 */

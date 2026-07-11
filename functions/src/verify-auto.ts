@@ -132,11 +132,16 @@ export const verifyAutoProgress = onCall(
           date,
         );
         const scrapedData: Record<string, unknown> = {
-          source: "dailykor", units: res.units, totalStudyMinutes: res.totalStudyMinutes,
+          source: "dailykor", units: res.units, totalStudyMinutes: res.totalStudyMinutes, detail: res.detail ?? null, voca: res.voca ?? null,
         };
         const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus: res.autoStatus, scrapedData });
         // 학생 이름이 리포트에서 확정 매칭됐을 때만 정합. 미발견이면 스킵.
-        if (res.matchedName) await reconcileAutoChecks(childId, serviceSlug, date, res.autoStatus === "완료" ? DAILYKOR_REPORT_PARTS : [], res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        // sreport 완료 → daily 파트, 오늘 어휘 세트 있으면 vocab-center 파트.
+        if (res.matchedName) {
+          const dkParts = res.autoStatus === "완료" ? [...DAILYKOR_REPORT_PARTS] : [];
+          if ((res.voca?.length ?? 0) > 0) dkParts.push("vocab-center");
+          await reconcileAutoChecks(childId, serviceSlug, date, dkParts, res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        }
         return { result, autoStatus: res.autoStatus, scrapedData };
       }
 
