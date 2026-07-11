@@ -1968,7 +1968,6 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                 {expandedLearningLoginId === student.studentLoginId && student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] && (
                   <StudentLearningGrid
                     childId={childIdMap[student.studentLoginId.toLowerCase()]!}
-                    childName={student.name}
                     subscribedSlugs={studentSlugs}
                   />
                 )}
@@ -2223,7 +2222,6 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                       {expandedLearningChildId === child.id && (
                         <StudentLearningGrid
                           childId={child.id}
-                          childName={child.name}
                           subscribedSlugs={allChildSubs.filter(s => effectiveStatus(s) === "active").map(s => s.serviceSlug)}
                         />
                       )}

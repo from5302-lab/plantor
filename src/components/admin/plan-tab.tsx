@@ -204,7 +204,7 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
                   </span>
                 )}
               </div>
-              <StudentLearningGrid childId={s.id} childName={s.name} subscribedSlugs={s.slugs} defaultExpanded={s.drafts > 0} adminLoginId={s.loginId} />
+              <StudentLearningGrid childId={s.id} subscribedSlugs={s.slugs} defaultExpanded={s.drafts > 0} adminLoginId={s.loginId} />
             </div>
           ))}
         </div>

@@ -102,14 +102,12 @@ function DraftTaskRow({ task, onConfirm, onReject, onDelete }: {
 
 export function StudentLearningGrid({
   childId,
-  childName,
   subscribedSlugs,
   weekOffset = 0,
   defaultExpanded = false,
   adminLoginId,
 }: {
   childId: string;
-  childName: string;
   subscribedSlugs: string[];
   weekOffset?: number;
   defaultExpanded?: boolean;
