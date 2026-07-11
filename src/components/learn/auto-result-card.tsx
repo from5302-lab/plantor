@@ -254,24 +254,28 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
         );
       })}
 
-      {/* 요약: 전체 학습시간 + 오늘 총 경험치 */}
+      {/* 요약: 전체 학습시간 + 오늘 총 경험치 — '오늘의 학습'에 속하므로 구분선 위 */}
       {(totalSec > 0 || detail?.xp) && (
-        <div className="mt-2.5 pt-2.5 border-t border-black/[0.08] flex gap-8">
+        <div className="mt-2.5 flex gap-8">
           {totalSec > 0 && <Stat label="전체 학습시간" value={formatKoTime(totalSec)} strong />}
           {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong />}
         </div>
       )}
       {voca && voca.length > 0 && (
-        <div className="mt-2.5 pt-2.5 border-t border-black/[0.06]">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold text-p-secondary mb-1.5">
-            <span>어휘력 센터 <span className="font-normal text-p-muted">오늘 {voca.reduce((n, v) => n + v.sets.length, 0)}세트</span></span>
+        // 구분선으로 '오늘의 학습'(+요약)과 '어휘력 센터' 분리
+        <div className="mt-3 pt-3 border-t border-black/[0.08]">
+          {/* 섹션 헤더 — '오늘의 학습' 헤더와 동일 양식(제목 → 완료뱃지 → 카운트) */}
+          <div className="flex items-center gap-1.5 text-[13px]">
+            <span className="text-black/80">어휘력 센터</span>
             <CompletionBadge done />
+            <span className="text-[11px] text-p-muted">{voca.reduce((n, v) => n + v.sets.length, 0)}세트</span>
           </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {voca.map((v) => (
-              <span key={v.category} className="text-[12px] leading-relaxed">
-                <span className="font-semibold text-p-secondary">{v.category}</span>{" "}
-                <span className="text-black/80">{v.sets.join("·")}</span>
+          {/* 카테고리 → 세트: 이 detail만 박스 안 */}
+          <div className="mt-2 rounded-[10px] border border-black/[0.06] bg-p-bg/50 px-3 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+            {voca.map((v, i) => (
+              <span key={i}>
+                <span className="text-p-muted">{v.category}</span>{" "}
+                <span className="text-black/80 font-medium tabular-nums">{v.sets.join("·")}</span>
               </span>
             ))}
           </div>
