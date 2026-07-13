@@ -55,7 +55,7 @@ function AutovocaTable({ units }: { units: AutoUnit[] }) {
           {units.map((u, i) => (
             <tr key={i}>
               <td className={td} style={{ color: "#615d59", fontWeight: 600 }}>오늘</td>
-              <td className={td} style={{ textAlign: "left" }}>{u.unitLabel ?? "-"}</td>
+              <td className={td}>{u.unitLabel ?? "-"}</td>
               <td className={td}>{u.studyMinutes != null ? `${u.studyMinutes}분` : "-"}</td>
               <td className={td}>{u.testScore != null ? `${u.testScore}점` : "-"}</td>
               <td className={td}>{u.wrongReviewCount != null ? `${u.wrongReviewCount}개` : "-"}</td>
