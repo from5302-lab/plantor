@@ -219,9 +219,9 @@ function EditableDate({ sub }: { sub: MemberSub }) {
   const toInputVal = (d: Date | null) =>
     d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
 
-  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
     const val = e.target.value;
-    if (!val) { setEditing(false); return; }
+    if (!val || val === toInputVal(sub.endDate)) { setEditing(false); return; }
     setSaving(true);
     try {
       const ts = Timestamp.fromDate(new Date(val + "T00:00:00+09:00"));
@@ -235,8 +235,8 @@ function EditableDate({ sub }: { sub: MemberSub }) {
       <input
         type="date"
         defaultValue={toInputVal(sub.endDate)}
-        onChange={handleChange}
-        onBlur={() => setEditing(false)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); else if (e.key === "Escape") setEditing(false); }}
         autoFocus
         disabled={saving}
         style={{ fontSize: 11, border: "1px solid #097fe8", borderRadius: 4, padding: "2px 4px", outline: "none", width: 110 }}
@@ -548,9 +548,9 @@ function AiPackageEditableDate({ familyId, userId, endDate }: { familyId: string
   const daysLeft = Math.ceil((new Date(endDate + "T00:00:00+09:00").getTime() - Date.now()) / 86400000);
   const isUrgent = daysLeft <= 7 && isActive;
 
-  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
     const val = e.target.value;
-    if (!val) { setEditing(false); return; }
+    if (!val || val === endDate) { setEditing(false); return; }
     setSaving(true);
     try {
       await updateDoc(doc(db, "families", familyId), { aiPackageEndDate: val });
@@ -564,8 +564,8 @@ function AiPackageEditableDate({ familyId, userId, endDate }: { familyId: string
       <input
         type="date"
         defaultValue={endDate}
-        onChange={handleChange}
-        onBlur={() => setEditing(false)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); else if (e.key === "Escape") setEditing(false); }}
         autoFocus
         disabled={saving}
         style={{ fontSize: 11, border: "1px solid #097fe8", borderRadius: 4, padding: "2px 4px", outline: "none", width: 110 }}
