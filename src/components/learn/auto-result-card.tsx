@@ -30,7 +30,20 @@ function formatKoTime(sec: number): string {
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
 function CompletionBadge({ done }: { done: boolean }) {
   const s = done ? { bg: "#f0faf1", fg: "#2a8438", label: "완료 ✓" } : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
-  return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
+  return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
+}
+
+// ── 공통 항목 행 — 클래스카드/클래스5/매일국어 완료 인증의 단일 문법 ─────────────
+//   [파트 뱃지] 라벨 (보조) ··· 완료/미완료 pill(우측 끝)
+function UnitRow({ badge, label, sub, done }: { badge?: string; label: string; sub?: string; done: boolean }) {
+  return (
+    <div className="flex items-center gap-2 py-1.5 border-t border-black/[0.05] first:border-t-0">
+      {badge && <span className="text-[9px] font-bold px-1 py-px rounded bg-black/5 text-p-secondary shrink-0">{badge}</span>}
+      <span className="text-[13px] text-black/80 flex-1 min-w-0 truncate">{label}</span>
+      {sub && <span className="text-[11px] text-p-muted shrink-0">{sub}</span>}
+      <CompletionBadge done={done} />
+    </div>
+  );
 }
 
 const th = "px-2.5 py-1.5 text-[11px] font-bold text-center whitespace-nowrap";
@@ -120,16 +133,50 @@ function ClasscardUnit({ unit }: { unit: AutoUnit }) {
   );
 }
 
-// ── 클래스카드: 성적표 대신 완료 인증만 표기 ──────────────────────────────────
+// ── 클래스카드/클래스5: 성적표 대신 완료 인증만 표기 (공통 항목 행) ─────────────
 function ClasscardCompletion({ units }: { units: AutoUnit[] }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div>
       {units.map((u, i) => (
-        <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-black/[0.08] bg-p-bg px-2 py-1 text-[12px]">
-          {u.type && <span className="text-[9px] font-bold px-1 py-px rounded bg-black/5 text-p-secondary">{u.type}</span>}
-          <span className="text-black/80">{u.unitLabel ?? "학습"}</span>
-          {u.completed && <span className="font-bold" style={{ color: "#2a8438" }}>✓</span>}
-        </span>
+        <UnitRow key={i} badge={u.type} label={u.unitLabel ?? "학습"} done={u.completed ?? false} />
+      ))}
+    </div>
+  );
+}
+
+/** 카드에 보여줄 내용이 있는 로그인지 (유닛/어휘 있거나 완료). 3개 화면 공용 필터. */
+export function hasAutoResultContent(log: LearningLog): boolean {
+  return (log.scrapedData?.units?.length ?? 0) > 0 || (log.scrapedData?.voca?.length ?? 0) > 0 || log.autoStatus === "완료";
+}
+
+/** 날짜 라벨: "7/13 (월)" + 오늘이면 " · 오늘" — 3개 화면 공용 표기. */
+export function autoDateLabel(date: string, today: string): string {
+  const d = new Date(date + "T00:00:00");
+  const label = `${d.getMonth() + 1}/${d.getDate()} (${"일월화수목금토"[d.getDay()]})`;
+  return date === today ? `${label} · 오늘` : label;
+}
+
+/** 자동인증 학습결과 섹션 — 어드민 그리드/학부모 계정/학부모 대시보드 공용.
+ *  타이틀 + 날짜 라벨 + 카드 목록을 한 양식으로 렌더한다. 표시할 로그 없으면 null. */
+export function AutoResultSection({ logsByDate, today, className }: {
+  logsByDate: Array<{ date: string; logs: LearningLog[] }>;  // 최신 날짜가 앞
+  today: string;
+  className?: string;  // 래퍼 여백 — 내용 없으면 래퍼째 렌더 안 함
+}) {
+  const groups = logsByDate
+    .map((g) => ({ ...g, logs: g.logs.filter(hasAutoResultContent) }))
+    .filter((g) => g.logs.length > 0);
+  if (groups.length === 0) return null;
+  return (
+    <div className={className}>
+      <div className="text-[10px] font-bold text-p-muted tracking-[0.06em] mb-1.5">자동인증 학습결과</div>
+      {groups.map((g) => (
+        <div key={g.date} className="mb-2.5 last:mb-0">
+          <div className="mb-1 text-[11px] font-semibold text-p-secondary">{autoDateLabel(g.date, today)}</div>
+          <div className="flex flex-col gap-2">
+            {g.logs.map((l) => <AutoResultCard key={l.id || l.serviceSlug} log={l} />)}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -142,10 +189,10 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const isEmpty = units.length === 0 && voca.length === 0; // 어휘만 학습한 경우도 표시
 
   if (loading && isEmpty) {
-    return <div className="mx-4 mb-3 rounded-lg bg-p-bg px-4 py-3 text-[12px] text-p-muted">진도 확인 중…</div>;
+    return <div className="rounded-lg bg-p-bg px-4 py-3 text-[12px] text-p-muted">진도 확인 중…</div>;
   }
   if (error && isEmpty) {
-    return <div className="mx-4 mb-3 rounded-lg bg-[#fff5f5] px-4 py-3 text-[12px] text-[#c00000]">진도 자동 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</div>;
+    return <div className="rounded-lg bg-[#fff5f5] px-4 py-3 text-[12px] text-[#c00000]">진도 자동 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</div>;
   }
   if (!log || isEmpty) return null;
 
@@ -159,7 +206,7 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const isClass5 = log.serviceSlug === "class5";
 
   return (
-    <div className="mx-4 mb-3 rounded-xl border border-black/[0.08] bg-white p-3">
+    <div className="rounded-xl border border-black/[0.08] bg-white p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isClasscard || isDailykor || isClass5 ? "완료 인증" : "성적표"}</span>
         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
@@ -225,11 +272,8 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[13px]">
-        <span className="text-black/80">오늘의 학습</span>
-        <CompletionBadge done={done} />
-        {multi && <span className="text-[11px] text-p-muted">지문 {passages.length}개</span>}
-      </div>
+      {/* 파트 행 — 클래스카드/클래스5 유닛 행과 동일 문법 */}
+      <UnitRow label="오늘의 학습" sub={multi ? `지문 ${passages.length}개` : undefined} done={done} />
 
       {passages.map((p, i) => {
         const hasBody = p.accuracy || p.readingSpeed || p.prepTime || p.readingTime || p.practiceTime;
@@ -264,14 +308,9 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
         </div>
       )}
       {voca && voca.length > 0 && (
-        // 구분선으로 '오늘의 학습'(+요약)과 '어휘력 센터' 분리
-        <div className="mt-3 pt-3 border-t border-black/[0.08]">
-          {/* 섹션 헤더 — '오늘의 학습' 헤더와 동일 양식(제목 → 완료뱃지 → 카운트) */}
-          <div className="flex items-center gap-1.5 text-[13px]">
-            <span className="text-black/80">어휘력 센터</span>
-            <CompletionBadge done />
-            <span className="text-[11px] text-p-muted">{voca.reduce((n, v) => n + v.sets.length, 0)}세트</span>
-          </div>
+        // '오늘의 학습'(+요약) 아래 '어휘력 센터'도 동일한 파트 행 문법
+        <div className="mt-2">
+          <UnitRow label="어휘력 센터" sub={`${voca.reduce((n, v) => n + v.sets.length, 0)}세트`} done />
           {/* 카테고리 → 세트: 이 detail만 박스 안 */}
           <div className="mt-2 rounded-[10px] border border-black/[0.06] bg-p-bg/50 px-3 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
             {voca.map((v, i) => (

@@ -243,13 +243,15 @@ export function TaskChecklist({
               </div>
             )}
 
-            {/* 자동인증 결과 (오토보카/클래스카드) */}
+            {/* 자동인증 결과 (오토보카/클래스카드) — 카드 여백은 래퍼 책임 */}
             {AUTO_VERIFIED_SLUGS.has(task.serviceSlug) && (
-              <AutoResultCard
-                log={autoLogsBySlug[task.serviceSlug]}
-                loading={autoVerifying[task.id]}
-                error={autoError[task.id]}
-              />
+              <div className="mx-4 mb-3 empty:hidden">
+                <AutoResultCard
+                  log={autoLogsBySlug[task.serviceSlug]}
+                  loading={autoVerifying[task.id]}
+                  error={autoError[task.id]}
+                />
+              </div>
             )}
 
             {!isLast && <div className="h-px bg-black/5 mx-5" />}

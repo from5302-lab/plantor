@@ -14,7 +14,7 @@ import { CenterMsg } from "@/components/ui/center-msg";
 import { REASONS_6HDL } from "@/lib/types";
 import type { LearningLog } from "@/lib/types";
 import { todayStr, getWeekDates, calcStreak, taskLabel } from "@/lib/learn-utils";
-import { AutoResultCard } from "@/components/learn/auto-result-card";
+import { AutoResultSection } from "@/components/learn/auto-result-card";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -227,8 +227,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
             const checks = data?.checks ?? [];
             const weekChecks = checks.filter((c) => c.date >= weekDates[0] && c.date <= weekDates[6]);
             const todayShots = data?.todayShots ?? [];
-            const todayAuto = (data?.todayAuto ?? []).filter((l) =>
-              (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료");
+            const todayAuto = data?.todayAuto ?? []; // 내용 필터는 AutoResultSection이 담당
             const streak = calcStreak(checks.filter((c) => c.status === "done").map((c) => ({ date: c.date })));
 
             const todayTasks = tasks.filter((t) => t.scheduleDays.includes(todayDow));
@@ -391,13 +390,12 @@ export function ParentDashboard({ userId }: { userId: string }) {
                   </div>
                 )}
 
-                {/* 오늘 자동인증 학습결과 — 과제 등록과 무관하게 표시 */}
-                {todayAuto.length > 0 && (
-                  <div className="pt-2 pb-1" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>
-                    <div className="px-[18px] mb-1.5 text-[11px] font-semibold text-p-muted">오늘 자동인증 학습결과</div>
-                    {todayAuto.map((l) => <AutoResultCard key={l.id} log={l} />)}
-                  </div>
-                )}
+                {/* 자동인증 학습결과 — 과제 등록과 무관하게 표시 (3개 화면 공용 섹션) */}
+                <AutoResultSection
+                  className="px-[18px] pt-2.5 pb-3"
+                  today={today}
+                  logsByDate={[{ date: today, logs: todayAuto }]}
+                />
 
                 {/* 인증샷 확대 */}
                 {(() => {

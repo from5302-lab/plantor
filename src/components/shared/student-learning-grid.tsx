@@ -15,7 +15,7 @@ import { useServices } from "@/lib/services-context";
 import { Check, X, ChevronDown } from "lucide-react";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { AddTaskFormBatch, EditableTaskCard } from "@/components/shared/add-task-form";
-import { AutoResultCard } from "@/components/learn/auto-result-card";
+import { AutoResultSection } from "@/components/learn/auto-result-card";
 import { getWeekDates, todayStr, taskLabel } from "@/lib/learn-utils";
 import { REASONS_6HDL } from "@/lib/types";
 import type { Task, TaskCheck, LearningLog } from "@/lib/types";
@@ -360,23 +360,13 @@ export function StudentLearningGrid({
       )}
 
       {/* 자동인증 상세 (스크래핑 결과) — 선택한 주의 날짜별. 최신 날짜가 위 */}
-      {[...weekDates.entries()].reverse().map(([dayIdx, date]) => {
-        if (date > today || !autoLogs[date]) return null;
-        const logs = Object.values(autoLogs[date])
-          .filter((l) => (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료");
-        if (logs.length === 0) return null;
-        const d = new Date(date + "T00:00:00");
-        return (
-          <div key={date}>
-            {date !== today && (
-              <div className="mx-4 mb-1 text-[10px] font-semibold text-p-muted">
-                {d.getMonth() + 1}/{d.getDate()} ({DAY_LABELS[dayIdx]})
-              </div>
-            )}
-            {logs.map((l) => <AutoResultCard key={l.serviceSlug} log={l} />)}
-          </div>
-        );
-      })}
+      <AutoResultSection
+        className="px-4 pb-3"
+        today={today}
+        logsByDate={[...weekDates].reverse()
+          .filter((date) => date <= today && autoLogs[date])
+          .map((date) => ({ date, logs: Object.values(autoLogs[date]) }))}
+      />
 
       {/* 펼침 토글 */}
       <div onClick={() => setExpanded(v => !v)}
