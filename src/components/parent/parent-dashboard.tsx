@@ -12,7 +12,9 @@ import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { REASONS_6HDL } from "@/lib/types";
+import type { LearningLog } from "@/lib/types";
 import { todayStr, getWeekDates, calcStreak, taskLabel } from "@/lib/learn-utils";
+import { AutoResultCard } from "@/components/learn/auto-result-card";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -45,6 +47,7 @@ type ChildData = {
   tasks: TaskT[];
   checks: CheckT[];
   todayShots: ShotLog[];
+  todayAuto: LearningLog[]; // 오늘 자동인증(스크래핑) 결과 — 과제 등록과 무관하게 표시
 };
 
 export function ParentDashboard({ userId }: { userId: string }) {
@@ -153,7 +156,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
         }
       ));
 
-      // 인증샷 (learningLogs — 표시 전용). childId 단일 필드 조회 후 오늘 것만 파생
+      // 인증샷 + 자동인증 결과 (learningLogs — 표시 전용). childId 단일 필드 조회 후 오늘 것만 파생
       unsubs.push(onSnapshot(
         query(collection(db, "learningLogs"), where("childId", "==", childId)),
         (snap) => {
@@ -164,9 +167,19 @@ export function ParentDashboard({ userId }: { userId: string }) {
               serviceSlug: d.data().serviceSlug ?? "",
               screenshotUrl: d.data().screenshotUrl ?? null,
             }));
+          const todayAuto: LearningLog[] = snap.docs
+            .filter((d) => (d.data().date ?? "") === today && d.data().method === "auto")
+            .map((d) => ({
+              id: d.id,
+              serviceSlug: d.data().serviceSlug ?? "",
+              date: d.data().date ?? "",
+              method: "auto",
+              autoStatus: d.data().autoStatus,
+              scrapedData: d.data().scrapedData ?? null,
+            }));
           setChildDataMap((prev) => ({
             ...prev,
-            [childId]: { ...prev[childId], child, todayShots },
+            [childId]: { ...prev[childId], child, todayShots, todayAuto },
           }));
         }
       ));
@@ -214,6 +227,8 @@ export function ParentDashboard({ userId }: { userId: string }) {
             const checks = data?.checks ?? [];
             const weekChecks = checks.filter((c) => c.date >= weekDates[0] && c.date <= weekDates[6]);
             const todayShots = data?.todayShots ?? [];
+            const todayAuto = (data?.todayAuto ?? []).filter((l) =>
+              (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료");
             const streak = calcStreak(checks.filter((c) => c.status === "done").map((c) => ({ date: c.date })));
 
             const todayTasks = tasks.filter((t) => t.scheduleDays.includes(todayDow));
@@ -373,6 +388,14 @@ export function ParentDashboard({ userId }: { userId: string }) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* 오늘 자동인증 학습결과 — 과제 등록과 무관하게 표시 */}
+                {todayAuto.length > 0 && (
+                  <div className="pt-2 pb-1" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>
+                    <div className="px-[18px] mb-1.5 text-[11px] font-semibold text-p-muted">오늘 자동인증 학습결과</div>
+                    {todayAuto.map((l) => <AutoResultCard key={l.id} log={l} />)}
                   </div>
                 )}
 

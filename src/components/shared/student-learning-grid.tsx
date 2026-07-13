@@ -9,8 +9,8 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 
 // 클릭 시 교사 계정으로 진도를 실시간 스크래핑하는 서비스
-const AUTO_VERIFIED_SLUGS_GRID = new Set(["autovoca", "classcard-middle", "dailykor"]);
-const AUTO_SLUG_NAME: Record<string, string> = { autovoca: "오토보카", "classcard-middle": "클래스카드", dailykor: "매일국어" };
+const AUTO_VERIFIED_SLUGS_GRID = new Set(["autovoca", "classcard-middle", "dailykor", "class5"]);
+const AUTO_SLUG_NAME: Record<string, string> = { autovoca: "오토보카", "classcard-middle": "클래스카드", dailykor: "매일국어", class5: "클래스5" };
 import { useServices } from "@/lib/services-context";
 import { Check, X, ChevronDown } from "lucide-react";
 import { ServiceIcon } from "@/components/ui/service-icon";
@@ -106,12 +106,14 @@ export function StudentLearningGrid({
   weekOffset = 0,
   defaultExpanded = false,
   adminLoginId,
+  showWeekNav = false,
 }: {
   childId: string;
   subscribedSlugs: string[];
   weekOffset?: number;
   defaultExpanded?: boolean;
   adminLoginId?: string; // 어드민이 수동으로 자동인증 실행할 때의 학생 loginId
+  showWeekNav?: boolean; // 그리드 안에 주 이동(‹ ›) 컨트롤 내장 (어드민용)
 }) {
   const { allServices } = useServices();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -119,12 +121,15 @@ export function StudentLearningGrid({
   const [toggling, setToggling] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
-  // 오늘 자동인증(스크래핑) 로그 — 서비스별
-  const [autoLogs, setAutoLogs] = useState<Record<string, LearningLog>>({});
+  // 자동인증(스크래핑) 로그 — 날짜별 → 서비스별 (주 이동 시 과거 결과 카드 표시)
+  const [autoLogs, setAutoLogs] = useState<Record<string, Record<string, LearningLog>>>({});
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoRunMsg, setAutoRunMsg] = useState("");
+  // 주 이동 (showWeekNav일 때만 내부 상태 사용, 아니면 prop 그대로)
+  const [weekOff, setWeekOff] = useState(weekOffset);
+  const effectiveOffset = showWeekNav ? weekOff : weekOffset;
 
-  const weekDates = getWeekDates(weekOffset);
+  const weekDates = getWeekDates(effectiveOffset);
   const today = todayStr();
 
   // 어드민 수동 자동인증 실행 — 학생의 자동인증 과목을 교사 계정으로 스크래핑
@@ -148,17 +153,19 @@ export function StudentLearningGrid({
     setAutoRunning(false);
   }
 
-  // 오늘 자동인증 로그 구독 (클래스카드/오토보카 스크래핑 결과)
+  // 자동인증 로그 구독 (스크래핑 결과) — childId 단일 조회 후 주간은 렌더에서 필터.
+  // (범위 쿼리는 인덱스 미존재 시 onSnapshot이 조용히 실패하는 버그가 있어 taskChecks와 동일 패턴 유지)
   useEffect(() => {
     return onSnapshot(
-      query(collection(db, "learningLogs"), where("childId", "==", childId), where("date", "==", todayStr())),
+      query(collection(db, "learningLogs"), where("childId", "==", childId)),
       (snap) => {
-        const map: Record<string, LearningLog> = {};
+        const map: Record<string, Record<string, LearningLog>> = {};
         snap.forEach((d) => {
           const data = d.data();
           if (data.method !== "auto") return;
-          map[data.serviceSlug] = {
-            id: d.id, serviceSlug: data.serviceSlug ?? "", date: data.date ?? "",
+          const date = data.date ?? "";
+          (map[date] ??= {})[data.serviceSlug] = {
+            id: d.id, serviceSlug: data.serviceSlug ?? "", date,
             method: "auto", autoStatus: data.autoStatus, scrapedData: data.scrapedData ?? null, flagged: data.flagged,
           };
         });
@@ -247,8 +254,18 @@ export function StudentLearningGrid({
     await updateDoc(doc(db, "tasks", task.id), { adminComment: comment || null });
   }
 
+  const weekLabel = effectiveOffset === 0 ? "이번 주" : effectiveOffset === -1 ? "지난 주" : `${Math.abs(effectiveOffset)}주 전`;
+
   return (
     <div className="border-t border-black/[0.06]">
+      {/* 주 이동 (어드민) */}
+      {showWeekNav && (
+        <div className="px-4 pt-2 flex items-center gap-1.5">
+          <button onClick={() => setWeekOff(w => w - 1)} className="bg-transparent border-none cursor-pointer text-sm text-p-muted px-0.5 leading-none">‹</button>
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-p-muted">{weekLabel}</span>
+          <button onClick={() => setWeekOff(w => Math.min(0, w + 1))} disabled={weekOff === 0} className="bg-transparent border-none text-sm px-0.5 leading-none" style={{ cursor: weekOff === 0 ? "default" : "pointer", color: weekOff === 0 ? "rgba(0,0,0,0.15)" : "#a39e98" }}>›</button>
+        </div>
+      )}
       {/* 날짜 헤더 */}
       <div className="px-4 pt-2 pb-1" style={{ display: "grid", gridTemplateColumns: GRID }}>
         <div className="text-[10px] text-p-muted font-semibold flex items-center gap-1">
@@ -342,10 +359,24 @@ export function StudentLearningGrid({
         </div>
       )}
 
-      {/* 자동인증 상세 (클래스카드/오토보카 스크래핑 결과) */}
-      {Object.values(autoLogs)
-        .filter((l) => (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료")
-        .map((l) => <AutoResultCard key={l.serviceSlug} log={l} />)}
+      {/* 자동인증 상세 (스크래핑 결과) — 선택한 주의 날짜별. 최신 날짜가 위 */}
+      {[...weekDates.entries()].reverse().map(([dayIdx, date]) => {
+        if (date > today || !autoLogs[date]) return null;
+        const logs = Object.values(autoLogs[date])
+          .filter((l) => (l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료");
+        if (logs.length === 0) return null;
+        const d = new Date(date + "T00:00:00");
+        return (
+          <div key={date}>
+            {date !== today && (
+              <div className="mx-4 mb-1 text-[10px] font-semibold text-p-muted">
+                {d.getMonth() + 1}/{d.getDate()} ({DAY_LABELS[dayIdx]})
+              </div>
+            )}
+            {logs.map((l) => <AutoResultCard key={l.serviceSlug} log={l} />)}
+          </div>
+        );
+      })}
 
       {/* 펼침 토글 */}
       <div onClick={() => setExpanded(v => !v)}

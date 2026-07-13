@@ -1969,6 +1969,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                   <StudentLearningGrid
                     childId={childIdMap[student.studentLoginId.toLowerCase()]!}
                     subscribedSlugs={studentSlugs}
+                    showWeekNav
                   />
                 )}
               </div>
@@ -2223,6 +2224,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                         <StudentLearningGrid
                           childId={child.id}
                           subscribedSlugs={allChildSubs.filter(s => effectiveStatus(s) === "active").map(s => s.serviceSlug)}
+                          showWeekNav
                         />
                       )}
                     </div>

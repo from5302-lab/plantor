@@ -155,16 +155,18 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   // 매일국어 리포트의 셀 숫자(점수)·색상(등급)은 오늘 학습 여부를 나타내는 것이지 성취 점수가 아님
   //  → 오해 방지 위해 점수·등급 표시하지 않고 "했나/안했나"(완료 여부)만 표기
   const isDailykor = log.serviceSlug === "dailykor";
+  // 클래스5: 카테고리(type)+유닛 칩에 완료 ✓ — 클래스카드와 동일한 완료 인증 형태
+  const isClass5 = log.serviceSlug === "class5";
 
   return (
     <div className="mx-4 mb-3 rounded-xl border border-black/[0.08] bg-white p-3">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isClasscard || isDailykor ? "완료 인증" : "성적표"}</span>
+        <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isClasscard || isDailykor || isClass5 ? "완료 인증" : "성적표"}</span>
         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
       </div>
       {isAutovoca ? (
         <AutovocaTable units={units} />
-      ) : isClasscard ? (
+      ) : isClasscard || isClass5 ? (
         <ClasscardCompletion units={units} />
       ) : isDailykor ? (
         <DailykorCompletion units={units} detail={log.scrapedData?.detail} voca={log.scrapedData?.voca} />

@@ -12,6 +12,9 @@ import { REASONS_6HDL } from "@/lib/types";
 import type { Child, Subscription, WeeklyLog, WalletCoupon, Task, TaskCheck } from "@/lib/types";
 import type { RenewalTarget } from "./renewal-modal";
 import { StudentWeekJournal, type JournalStudent } from "./direct-journal-panel";
+import { AutoResultCard } from "@/components/learn/auto-result-card";
+
+const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
 function tsToDate(ts: unknown): Date | null {
   if (!ts) return null;
@@ -187,6 +190,11 @@ export function ChildrenSection({
           });
           const completionPct = scheduled > 0 ? Math.round((done / scheduled) * 100) : 0;
 
+          // 자동인증 학습결과 (스크래핑) — 과제 등록과 무관하게 표시
+          const childAutoLogs = weeklyLogs.filter((l) =>
+            l.childId === child.id && l.method === "auto" &&
+            ((l.scrapedData?.units?.length ?? 0) > 0 || (l.scrapedData?.voca?.length ?? 0) > 0 || l.autoStatus === "완료"));
+
           // 6Hdl 사유 통계
           const weekReasons = childChecks.filter(c => c.status === "not_done" && c.reason);
           const reasonCounts: Record<string, number> = {};
@@ -264,6 +272,30 @@ export function ChildrenSection({
                   <div className="text-[11px] text-p-muted text-center py-2">등록된 과제가 없어요</div>
                 )}
               </div>
+
+              {/* 자동인증 학습결과 — 선택한 주의 날짜별. 최신 날짜가 위. 과제 미등록이어도 표시 */}
+              {childAutoLogs.length > 0 && (
+                <div className="mb-3.5">
+                  <div className="text-[10px] font-bold text-p-muted tracking-[0.06em] mb-1.5">자동인증 학습결과</div>
+                  {[...weekDates.entries()].reverse().map(([dayIdx, date]) => {
+                    if (date > today) return null;
+                    const logs = childAutoLogs.filter((l) => l.date === date);
+                    if (logs.length === 0) return null;
+                    const d = new Date(date + "T00:00:00");
+                    return (
+                      <div key={date}>
+                        <div className="mb-1 text-[10px] font-semibold text-p-muted">
+                          {d.getMonth() + 1}/{d.getDate()} ({DAY_LABELS[dayIdx]}){date === today ? " · 오늘" : ""}
+                        </div>
+                        {/* AutoResultCard의 mx-4를 상쇄해 카드 폭을 섹션에 맞춤 */}
+                        <div className="-mx-4">
+                          {logs.map((l) => <AutoResultCard key={l.id} log={l} />)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* 수업일지 (직강 자녀만 — 일지가 있을 때) */}
               {childJournal && childJournal.logs.length > 0 && (

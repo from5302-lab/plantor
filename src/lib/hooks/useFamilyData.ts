@@ -60,8 +60,14 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
         where("date", "<=", weekDates[6])
       ),
       (snap) => setWeeklyLogs(snap.docs.map((d) => ({
+        id: d.id,
         childId: d.data().childId ?? "",
         date: d.data().date ?? "",
+        serviceSlug: d.data().serviceSlug ?? "",
+        method: d.data().method,
+        autoStatus: d.data().autoStatus,
+        scrapedData: d.data().scrapedData ?? null,
+        flagged: d.data().flagged,
       })))
     );
   }, [familyId, children, weekOffset]);

@@ -7,6 +7,7 @@ import { writeAutoLog } from "./auto-log";
 import { scrapeAutovocaAll, autovocaDonePartSlugs } from "./scraper-autovoca";
 import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClasscardAll, classcardDonePartSlugs } from "./scraper-classcard";
+import { scrapeClass5All, class5DonePartSlugs } from "./scraper-class5";
 import { loadClasscardConfig } from "./verify-auto";
 import { reconcileAutoChecks, runIncompleteNotify } from "./completion-notify";
 
@@ -31,17 +32,20 @@ async function runBatch(date: string) {
     id: d.id, name: norm(d.data().name),
     av: String(d.data().autovocaLoginId ?? "").toLowerCase(),
     cc: String(d.data().classcardLoginId ?? "").toLowerCase(),
+    c5: String(d.data().class5StudentId ?? ""),
   }));
   const byAv = new Map<string, string>();
   children.forEach((c) => { if (c.av) byAv.set(c.av, c.id); });
   const byCc = new Map<string, string>();
   children.forEach((c) => { if (c.cc) byCc.set(c.cc, c.id); });
+  const byC5 = new Map<string, string>();
+  children.forEach((c) => { if (c.c5) byC5.set(c.c5, c.id); });
   const matchName = (nm: string): string | undefined => {
     const n = norm(nm);
     return children.find((c) => c.name && (n === c.name || n.endsWith(c.name) || n.includes(c.name) || c.name.endsWith(n)))?.id;
   };
 
-  const summary = { autovoca: { ok: 0, miss: 0 }, dailykor: { ok: 0, miss: 0 }, classcard: { ok: 0, miss: 0 } };
+  const summary = { autovoca: { ok: 0, miss: 0 }, dailykor: { ok: 0, miss: 0 }, classcard: { ok: 0, miss: 0 }, class5: { ok: 0, miss: 0 } };
 
   // 오토보카
   try {
@@ -91,6 +95,25 @@ async function runBatch(date: string) {
       summary.classcard.ok++;
     }
   } catch (e) { functions.logger.error("[batch] classcard 실패", { error: String(e) }); }
+
+  // 클래스5 (Phonics·Song·Movie·Reading·Writing) — 교사 계정은 클래스카드와 동일
+  try {
+    const c5 = await scrapeClass5All({ id: classcardId.value(), pw: teacherPw.value() }, date);
+    for (const s of c5) {
+      const childId = byC5.get(s.studentId) || matchName(s.name);
+      if (!childId) { summary.class5.miss++; continue; }
+      await writeAutoLog({
+        childId, serviceSlug: "class5", date, autoStatus: s.autoStatus,
+        scrapedData: { source: "class5", units: s.units, totalStudyMinutes: 0 },
+      });
+      // 파트(카테고리) 단위 정밀 체크: 완료 카테고리는 done, 그 외 오늘 과제의 미인증 자기체크는 해제.
+      await reconcileAutoChecks(childId, "class5", date, class5DonePartSlugs(s.units), s.autoStatus === "완료").catch(() => undefined);
+      if (!byC5.has(s.studentId)) {
+        await db.collection("children").doc(childId).update({ class5StudentId: s.studentId }).catch(() => undefined);
+      }
+      summary.class5.ok++;
+    }
+  } catch (e) { functions.logger.error("[batch] class5 실패", { error: String(e) }); }
 
   functions.logger.info("[batch] 완료", { date, summary });
   return summary;

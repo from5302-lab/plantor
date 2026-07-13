@@ -122,10 +122,8 @@ export type LearningLog = {
   scrapedData?: AutoScrapedData | null;
 };
 
-export type WeeklyLog = {
-  childId: string;
-  date: string;
-};
+// 주간 학습 로그 (가족 단위 조회) — 자동인증 결과 카드 표시를 위해 LearningLog 전체 필드 포함
+export type WeeklyLog = LearningLog & { childId: string };
 
 // ── Admin 전용 ────────────────────────────────────────────────────────────────
 

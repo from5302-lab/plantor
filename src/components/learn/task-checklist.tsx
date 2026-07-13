@@ -11,7 +11,7 @@ import type { Task, TaskCheck, LearningLog } from "@/lib/types";
 import { AutoResultCard } from "./auto-result-card";
 
 // 클릭 시 교사 계정으로 진도를 실시간 스크래핑하는 서비스
-const AUTO_VERIFIED_SLUGS = new Set(["autovoca", "classcard-middle", "dailykor"]);
+const AUTO_VERIFIED_SLUGS = new Set(["autovoca", "classcard-middle", "dailykor", "class5"]);
 
 export function TaskChecklist({
   tasks,
