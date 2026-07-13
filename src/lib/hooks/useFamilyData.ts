@@ -52,23 +52,25 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
     if (!familyId || children.length === 0) return;
     const childIds = children.map((c) => c.id);
     const weekDates = getWeekDates(weekOffset);
+    // 복합 인덱스(childId in + date범위) 회피: childId in 만으로 구독하고 주간은 콜백에서 필터.
+    // (범위 쿼리는 인덱스 미존재 시 onSnapshot이 조용히 실패해 로그가 통째로 안 뜨는 버그)
     return onSnapshot(
-      query(
-        collection(db, "learningLogs"),
-        where("childId", "in", childIds),
-        where("date", ">=", weekDates[0]),
-        where("date", "<=", weekDates[6])
-      ),
-      (snap) => setWeeklyLogs(snap.docs.map((d) => ({
-        id: d.id,
-        childId: d.data().childId ?? "",
-        date: d.data().date ?? "",
-        serviceSlug: d.data().serviceSlug ?? "",
-        method: d.data().method,
-        autoStatus: d.data().autoStatus,
-        scrapedData: d.data().scrapedData ?? null,
-        flagged: d.data().flagged,
-      })))
+      query(collection(db, "learningLogs"), where("childId", "in", childIds)),
+      (snap) => setWeeklyLogs(snap.docs
+        .filter((d) => {
+          const date = d.data().date ?? "";
+          return date >= weekDates[0] && date <= weekDates[6];
+        })
+        .map((d) => ({
+          id: d.id,
+          childId: d.data().childId ?? "",
+          date: d.data().date ?? "",
+          serviceSlug: d.data().serviceSlug ?? "",
+          method: d.data().method,
+          autoStatus: d.data().autoStatus,
+          scrapedData: d.data().scrapedData ?? null,
+          flagged: d.data().flagged,
+        })))
     );
   }, [familyId, children, weekOffset]);
 
