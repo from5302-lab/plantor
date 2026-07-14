@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
@@ -58,6 +58,22 @@ export function TaskChecklist({
   const [reasonNote, setReasonNote] = useState("");
   // 6hdl 사유 저장 직후 "언제 다시 할까?" 만회일 선택 스텝
   const [showMakeupFor, setShowMakeupFor] = useState<string | null>(null);
+  // "학습하러 가기"를 누른 과제 — 그 자리가 완료 체크 원으로 바뀐다 (오늘 하루 localStorage 유지)
+  const startedKey = `plantor_startedTasks_${date}`;
+  const [startedTasks, setStartedTasks] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { setStartedTasks(new Set(JSON.parse(localStorage.getItem(startedKey) ?? "[]") as string[])); } catch { /* 무시 */ }
+  }, [startedKey]);
+
+  // 학습 사이트 새 탭으로 열고 시작 상태 기록
+  function handleGoStudy(task: Task, url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setStartedTasks((prev) => {
+      const next = new Set(prev).add(task.id);
+      try { localStorage.setItem(startedKey, JSON.stringify([...next])); } catch { /* 무시 */ }
+      return next;
+    });
+  }
   // 자동인증 진행 상태 (taskId → 로딩/에러/미완료판정)
   const [autoVerifying, setAutoVerifying] = useState<Record<string, boolean>>({});
   const [autoError, setAutoError] = useState<Record<string, string>>({});
@@ -192,10 +208,26 @@ export function TaskChecklist({
           ? REASONS_6HDL.find(r => r.slug === check.reason)
           : null;
 
+        // 학습 사이트 링크: 과제 지정 링크 우선, 없으면 서비스 학생 접속 주소
+        const studyUrl = task.externalUrl || svc?.studentUrl || null;
+        // 아직 시작 전(미완료·체크 없음)이면 좌측에 "학습하러 가기" — 누르면 완료 체크 원으로 전환
+        // (사이트 열기는 데이터 변경이 아니므로 읽기전용 미리보기에서도 노출)
+        const showGoStudy = !isDone && !isNotDone && !startedTasks.has(task.id) && !!studyUrl;
+
         return (
           <div key={task.id}>
             <div className="flex items-center px-5 py-[15px] gap-3.5">
-              {/* 체크 원 */}
+              {showGoStudy ? (
+                /* 학습하러 가기 — 새 탭으로 학습 사이트 열기 */
+                <button
+                  onClick={() => handleGoStudy(task, studyUrl!)}
+                  className="h-[26px] shrink-0 inline-flex items-center gap-1 rounded-lg border-none px-2.5 text-[12px] font-bold text-white cursor-pointer"
+                  style={{ backgroundColor: "#38a848" }}
+                >
+                  학습하러 가기
+                </button>
+              ) : (
+              /* 체크 원 */
               <div
                 onClick={() => !readOnly && !isDone && !isLoading && handleMarkDone(task)}
                 className="w-[26px] h-[26px] rounded-full shrink-0 flex items-center justify-center"
@@ -209,6 +241,7 @@ export function TaskChecklist({
                 {isNotDone && <span className="text-[#c00000] text-xs font-bold leading-none">✕</span>}
                 {isLoading && !isDone && !isNotDone && <span className="w-2 h-2 rounded-full bg-black/15 block" />}
               </div>
+              )}
 
               {/* 과제 정보 */}
               <div className="flex-1 min-w-0">
