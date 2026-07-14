@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
+import { ExternalLink } from "lucide-react";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { REASONS_6HDL } from "@/lib/types";
@@ -38,6 +39,11 @@ export function shortDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+/**
+ * 오늘 할 일 체크리스트 — 과제마다 우측 단일 상태 버튼 하나로 진행한다.
+ *   ①시작 전 [학습하러 가기] → ②학습 중 [완료 확인하기/완료했어요](+↗ 재열기) → ③인증 중 → ④완료
+ * 당일 미완료(6hdl) 입력은 없다 — 다음날 "못한 과제 돌아보기"에서 사유·만회일을 입력한다.
+ */
 export function TaskChecklist({
   tasks,
   taskChecks,
@@ -54,11 +60,7 @@ export function TaskChecklist({
   autoLogsBySlug?: Record<string, LearningLog>;
 }) {
   const [submitting, setSubmitting] = useState<string | null>(null);
-  const [showReasonFor, setShowReasonFor] = useState<string | null>(null);
-  const [reasonNote, setReasonNote] = useState("");
-  // 6hdl 사유 저장 직후 "언제 다시 할까?" 만회일 선택 스텝
-  const [showMakeupFor, setShowMakeupFor] = useState<string | null>(null);
-  // "학습하러 가기"를 누른 과제 — 그 자리가 완료 체크 원으로 바뀐다 (오늘 하루 localStorage 유지)
+  // "학습하러 가기"를 누른 과제 — 버튼이 완료 확인 단계로 넘어간다 (오늘 하루 localStorage 유지)
   const startedKey = `plantor_startedTasks_${date}`;
   const [startedTasks, setStartedTasks] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -80,7 +82,7 @@ export function TaskChecklist({
   // 인증 결과가 "완료"가 아닐 때의 상태(진행중/시작전) — 체크는 남지 않고 안내만
   const [notComplete, setNotComplete] = useState<Record<string, string>>({});
 
-  // "완료" 클릭 = 서버 인증 요청. 교사 계정으로 오늘 진도를 조회해 완료면 서버가 done(agent) 기록
+  // "완료 확인" 클릭 = 서버 인증 요청. 교사 계정으로 오늘 진도를 조회해 완료면 서버가 done(agent) 기록
   //   → 스냅샷으로 체크가 채워짐. 완료가 아니면 done이 안 생기고 안내만 뜬다.
   async function runAutoVerify(task: Task) {
     setAutoError((p) => ({ ...p, [task.id]: "" }));
@@ -98,12 +100,6 @@ export function TaskChecklist({
       setAutoVerifying((p) => ({ ...p, [task.id]: false }));
     }
   }
-
-  // 미완료 태스크 (체크 없거나 not_done)
-  const incompleteTasks = tasks.filter(t => {
-    const check = taskChecks.find(c => c.taskId === t.id && c.date === date);
-    return !check || check.status !== "done";
-  });
 
   async function handleMarkDone(task: Task) {
     if (readOnly) return;
@@ -137,46 +133,6 @@ export function TaskChecklist({
     setSubmitting(null);
   }
 
-  async function handleSubmitReason(taskId: string, reasonSlug: string) {
-    if (readOnly) return;
-    setSubmitting(taskId);
-    try {
-      const existing = taskChecks.find(c => c.taskId === taskId && c.date === date);
-      if (existing) {
-        await updateDoc(doc(db, "taskChecks", existing.id), {
-          status: "not_done", reason: reasonSlug,
-          reasonNote: reasonNote.trim() || null,
-          checkedBy: "student", checkedAt: serverTimestamp(),
-        });
-      } else {
-        await addDoc(collection(db, "taskChecks"), {
-          taskId, childId, date,
-          status: "not_done", detail: null,
-          reason: reasonSlug, reasonNote: reasonNote.trim() || null,
-          checkedBy: "student", checkedAt: serverTimestamp(),
-        });
-      }
-      setShowReasonFor(null);
-      setReasonNote("");
-      setShowMakeupFor(taskId); // 사유 저장 후 만회 계획 스텝으로
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "오류");
-    } finally { setSubmitting(null); }
-  }
-
-  // 만회 예정일 저장 (null = 나중에 정할게)
-  async function handleSetMakeupDate(taskId: string, makeupDate: string | null) {
-    if (readOnly) return;
-    setSubmitting(taskId);
-    try {
-      const existing = taskChecks.find(c => c.taskId === taskId && c.date === date);
-      if (existing) await updateDoc(doc(db, "taskChecks", existing.id), { makeupDate });
-      setShowMakeupFor(null);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "오류");
-    } finally { setSubmitting(null); }
-  }
-
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-7 text-center text-[13px] text-p-muted">
@@ -192,6 +148,7 @@ export function TaskChecklist({
         const check = taskChecks.find(c => c.taskId === task.id && c.date === date);
         const isDone = check?.status === "done";
         const isNotDone = check?.status === "not_done";
+        const isAuto = AUTO_VERIFIED_SLUGS.has(task.serviceSlug);
         const isVerifying = !!autoVerifying[task.id];
         const isLoading = submitting === task.id || isVerifying;
         const notCompleteStatus = notComplete[task.id];
@@ -210,39 +167,12 @@ export function TaskChecklist({
 
         // 학습 사이트 링크: 과제 지정 링크 우선, 없으면 서비스 학생 접속 주소
         const studyUrl = task.externalUrl || svc?.studentUrl || null;
-        // 아직 시작 전(미완료·체크 없음)이면 좌측에 "학습하러 가기" — 누르면 완료 체크 원으로 전환
-        // (사이트 열기는 데이터 변경이 아니므로 읽기전용 미리보기에서도 노출)
-        const showGoStudy = !isDone && !isNotDone && !startedTasks.has(task.id) && !!studyUrl;
+        // ①시작 전: 링크가 있고 아직 안 눌렀으면 [학습하러 가기]. 링크 없는 과제는 곧장 ② 단계
+        const notStarted = !isDone && !isNotDone && !startedTasks.has(task.id) && !!studyUrl;
 
         return (
           <div key={task.id}>
             <div className="flex items-center px-5 py-[15px] gap-3.5">
-              {showGoStudy ? (
-                /* 학습하러 가기 — 새 탭으로 학습 사이트 열기 */
-                <button
-                  onClick={() => handleGoStudy(task, studyUrl!)}
-                  className="h-[26px] shrink-0 inline-flex items-center gap-1 rounded-lg border-none px-2.5 text-[12px] font-bold text-white cursor-pointer"
-                  style={{ backgroundColor: "#38a848" }}
-                >
-                  학습하러 가기
-                </button>
-              ) : (
-              /* 체크 원 */
-              <div
-                onClick={() => !readOnly && !isDone && !isLoading && handleMarkDone(task)}
-                className="w-[26px] h-[26px] rounded-full shrink-0 flex items-center justify-center"
-                style={{
-                  backgroundColor: isDone ? "#2a9d99" : isNotDone ? "#fff5f5" : "transparent",
-                  border: isDone ? "2px solid #2a9d99" : isNotDone ? "2px solid #c00000" : "2px solid rgba(0,0,0,0.2)",
-                  cursor: readOnly ? "default" : isDone ? "default" : isLoading ? "wait" : "pointer",
-                }}
-              >
-                {isDone && <span className="text-white text-xs font-bold leading-none">✓</span>}
-                {isNotDone && <span className="text-[#c00000] text-xs font-bold leading-none">✕</span>}
-                {isLoading && !isDone && !isNotDone && <span className="w-2 h-2 rounded-full bg-black/15 block" />}
-              </div>
-              )}
-
               {/* 과제 정보 */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 text-[15px] font-semibold"
@@ -267,77 +197,40 @@ export function TaskChecklist({
                 )}
               </div>
 
-              {/* 우측 버튼 */}
-              <div className="flex items-center gap-2 shrink-0">
+              {/* 단일 상태 버튼: 학습하러 가기 → 완료 확인(+↗) → 인증 중 → 완료 */}
+              <div className="flex items-center gap-1.5 shrink-0">
                 {isDone ? (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#2a8438]">완료</span>
-                ) : isVerifying ? (
-                  <span className="text-xs font-semibold px-2.5 py-1 text-p-muted">인증 중…</span>
-                ) : readOnly ? null : isNotDone ? (
-                  <button onClick={() => handleMarkDone(task)} disabled={isLoading}
-                    className="text-xs font-semibold px-3 py-1.5 rounded bg-transparent text-p-muted border border-black/10 cursor-pointer"
-                    style={{ opacity: isLoading ? 0.5 : 1 }}>
-                    완료로 변경
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#2a8438]">완료 ✓</span>
+                ) : isNotDone ? (
+                  /* 6hdl 입력된 과거 방식 데이터 호환 — 만회는 만회 과제 섹션에서 */
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-p-bg text-p-muted">만회 대기</span>
+                ) : notStarted ? (
+                  <button onClick={() => handleGoStudy(task, studyUrl!)}
+                    className="h-[30px] inline-flex items-center rounded-lg border-none px-3 text-[12px] font-bold text-white cursor-pointer"
+                    style={{ backgroundColor: "#38a848" }}>
+                    학습하러 가기
                   </button>
                 ) : (
-                  <button onClick={() => setShowReasonFor(task.id)}
-                    className="text-xs font-medium px-2.5 py-1.5 rounded bg-transparent text-p-muted border border-black/10 cursor-pointer">
-                    못했어요
-                  </button>
+                  <>
+                    {/* 학습 사이트 다시 열기 */}
+                    {studyUrl && (
+                      <button onClick={() => window.open(studyUrl, "_blank", "noopener,noreferrer")}
+                        title="학습 사이트 다시 열기"
+                        className="w-[30px] h-[30px] shrink-0 inline-flex items-center justify-center rounded-lg bg-transparent border border-black/10 cursor-pointer">
+                        <ExternalLink size={13} className="text-p-muted" />
+                      </button>
+                    )}
+                    {!readOnly && (
+                      <button onClick={() => !isLoading && handleMarkDone(task)} disabled={isLoading}
+                        className="h-[30px] inline-flex items-center rounded-lg px-3 text-[12px] font-bold cursor-pointer bg-white"
+                        style={{ border: "1.5px solid #38a848", color: "#2a8438", opacity: isLoading ? 0.6 : 1 }}>
+                        {isVerifying ? "인증 중…" : isLoading ? "저장 중…" : isAuto ? "완료 확인하기" : "완료했어요"}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
-
-            {/* 6Hdl 사유 선택 */}
-            {showReasonFor === task.id && (
-              <div className="px-5 pb-4">
-                <div className="bg-p-bg rounded-[10px] p-4">
-                  <div className="text-[11px] font-bold text-p-muted mb-3 tracking-[0.06em]">왜 못했나요?</div>
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {REASONS_6HDL.map(r => (
-                      <button key={r.slug}
-                        onClick={() => handleSubmitReason(task.id, r.slug)}
-                        disabled={isLoading}
-                        className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-black/10 bg-white cursor-pointer"
-                        style={{ opacity: isLoading ? 0.5 : 1 }}>
-                        <span className="text-lg">{r.icon}</span>
-                        <span className="text-[11px] font-semibold text-p-secondary">{r.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <input value={reasonNote} onChange={e => setReasonNote(e.target.value)}
-                    placeholder="메모 (선택)"
-                    className="w-full h-[32px] rounded-[7px] px-2.5 text-xs text-black/95 bg-white box-border mb-2"
-                    style={{ border: "1px solid rgba(0,0,0,0.1)" }} />
-                  <button onClick={() => { setShowReasonFor(null); setReasonNote(""); }}
-                    className="w-full h-[30px] rounded-[7px] text-xs font-semibold cursor-pointer bg-white text-p-muted"
-                    style={{ border: "1px solid rgba(0,0,0,0.1)" }}>
-                    취소
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 만회 계획 — 6hdl 사유 저장 직후 "언제 다시 할까?" (학생이 직접 정한다) */}
-            {showMakeupFor === task.id && (
-              <div className="px-5 pb-4">
-                <div className="bg-p-bg rounded-[10px] p-4">
-                  <div className="text-[11px] font-bold text-p-muted mb-1 tracking-[0.06em]">언제 다시 할까?</div>
-                  <div className="text-[11px] text-p-secondary mb-3">네가 정한 날에 다시 도전! 그날 학습이 확인되면 만회 완료로 기록돼요.</div>
-                  <div className="flex flex-wrap gap-2">
-                    {makeupOptions(date).map(opt => (
-                      <button key={opt.label}
-                        onClick={() => handleSetMakeupDate(task.id, opt.value)}
-                        disabled={isLoading}
-                        className="px-3 py-2 rounded-lg border border-black/10 bg-white cursor-pointer text-[12px] font-semibold text-p-secondary"
-                        style={{ opacity: isLoading ? 0.5 : 1 }}>
-                        {opt.label}{opt.value ? ` (${shortDate(opt.value)})` : ""}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 자동인증 결과 (오토보카/클래스카드) — 카드 여백은 래퍼 책임 */}
             {AUTO_VERIFIED_SLUGS.has(task.serviceSlug) && (
@@ -354,18 +247,6 @@ export function TaskChecklist({
           </div>
         );
       })}
-
-      {/* 전체 미완료 요약 */}
-      {incompleteTasks.length > 0 && incompleteTasks.every(t => {
-        const c = taskChecks.find(ch => ch.taskId === t.id && ch.date === date);
-        return c && c.status === "not_done";
-      }) && (
-        <div className="px-5 py-3 bg-[#fff5f5] border-t border-[rgba(200,0,0,0.1)]">
-          <div className="text-[12px] font-semibold text-[#c00000]">
-            미완료 과제 {incompleteTasks.length}건 — 사유가 모두 입력되었어요
-          </div>
-        </div>
-      )}
     </>
   );
 }

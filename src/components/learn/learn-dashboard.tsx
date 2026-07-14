@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { TaskChecklist } from "./task-checklist";
 import { MakeupSection, makeupTargets } from "./makeup-section";
+import { MissedReviewSection, missedTargets } from "./missed-review-section";
 import { ServiceQuickLinks } from "@/components/shared/service-quick-links";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
@@ -121,7 +122,8 @@ export function LearnDashboard({
             createdBy: d.data().createdBy,
             status: d.data().status,
             adminComment: d.data().adminComment ?? null,
-            createdAt: null, confirmedAt: null,
+            // 못한 과제 돌아보기: 과제 생성일 이전 날짜는 대상에서 제외하기 위해 파싱
+            createdAt: d.data().createdAt?.toDate?.() ?? null, confirmedAt: null,
           });
           if (!scheduleDays.includes(dow)) return;
           tasks.push({
@@ -605,6 +607,14 @@ export function LearnDashboard({
                 />
               )}
             </Card>
+
+            {/* 못한 과제 돌아보기 — 어제(최근 7일) 못한 과제의 6hdl 사유·만회일을 다음날 입력 */}
+            <MissedReviewSection
+              items={missedTargets(allTasks, allTaskChecks, todayStr())}
+              childId={childId!}
+              today={todayStr()}
+              readOnly={readOnly}
+            />
 
             {/* 만회 과제 — 6hdl로 미룬 과제를 학생이 정한 날에 다시 해결 */}
             <MakeupSection
