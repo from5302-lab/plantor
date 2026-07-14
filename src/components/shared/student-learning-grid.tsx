@@ -15,7 +15,7 @@ import { useServices } from "@/lib/services-context";
 import { Check, X, ChevronDown } from "lucide-react";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { AddTaskFormBatch, EditableTaskCard } from "@/components/shared/add-task-form";
-import { AutoResultSection } from "@/components/learn/auto-result-card";
+import { AutoResultSection, autoDateLabel, hasAutoResultContent } from "@/components/learn/auto-result-card";
 import { getWeekDates, todayStr, taskLabel } from "@/lib/learn-utils";
 import { REASONS_6HDL } from "@/lib/types";
 import type { Task, TaskCheck, LearningLog } from "@/lib/types";
@@ -107,6 +107,7 @@ export function StudentLearningGrid({
   defaultExpanded = false,
   adminLoginId,
   showWeekNav = false,
+  readOnly = false,
 }: {
   childId: string;
   subscribedSlugs: string[];
@@ -114,6 +115,7 @@ export function StudentLearningGrid({
   defaultExpanded?: boolean;
   adminLoginId?: string; // 어드민이 수동으로 자동인증 실행할 때의 학생 loginId
   showWeekNav?: boolean; // 그리드 안에 주 이동(‹ ›) 컨트롤 내장 (어드민용)
+  readOnly?: boolean;    // 학부모용: 체크 토글·과제 관리 없이 보기만
 }) {
   const { allServices } = useServices();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -131,6 +133,17 @@ export function StudentLearningGrid({
 
   const weekDates = getWeekDates(effectiveOffset);
   const today = todayStr();
+
+  // 날짜 선택 — 헤더의 날짜(오늘·과거)를 클릭하면 그날의 자동인증 결과를 표시. 기본은 오늘
+  const [selectedDate, setSelectedDate] = useState(today);
+  // 주 이동으로 선택 날짜가 화면 밖이 되면 그 주의 마지막 과거(또는 오늘) 날짜로
+  useEffect(() => {
+    if (!weekDates.includes(selectedDate)) {
+      const past = weekDates.filter((d) => d <= today);
+      setSelectedDate(past[past.length - 1] ?? weekDates[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekDates[0]]);
 
   // 어드민 수동 자동인증 실행 — 학생의 자동인증 과목을 교사 계정으로 스크래핑
   const autoSlugs = subscribedSlugs.filter((s) => AUTO_VERIFIED_SLUGS_GRID.has(s));
@@ -220,7 +233,7 @@ export function StudentLearningGrid({
   const pct = scheduled > 0 ? Math.round((done / scheduled) * 100) : 0;
 
   async function handleToggleCheck(task: Task, date: string) {
-    if (toggling) return;
+    if (readOnly || toggling) return;
     setToggling(`${task.id}-${date}`);
     try {
       const existing = taskChecks.find(c => c.taskId === task.id && c.date === date);
@@ -274,8 +287,14 @@ export function StudentLearningGrid({
         </div>
         {weekDates.map((date, i) => {
           const isToday = date === today;
+          const isSelected = date === selectedDate;
+          const clickable = date <= today;
           return (
-            <div key={date} className="text-center">
+            // 오늘·과거 날짜 클릭 → 그날 자동인증 결과 표시 (선택 날짜는 옅은 배경으로 강조)
+            <div key={date} className="text-center rounded-md py-0.5"
+              onClick={() => clickable && setSelectedDate(date)}
+              title={clickable ? "클릭 → 그날 학습결과 보기" : ""}
+              style={{ cursor: clickable ? "pointer" : "default", backgroundColor: isSelected ? "rgba(0,0,0,0.05)" : "transparent" }}>
               <div className="text-[10px] font-semibold leading-[1.3]"
                 style={{ color: isToday ? "rgba(0,0,0,0.95)" : "#a39e98" }}>{DAY_LABELS[i]}</div>
               <div className="text-[10px]"
@@ -324,12 +343,12 @@ export function StudentLearningGrid({
               return (
                 <div key={date} className="flex justify-center">
                   <div onClick={() => !isFuture && !toggling && handleToggleCheck(task, date)}
-                    title={isDone ? "완료 (클릭→취소)" : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}` : isFuture ? "" : "클릭→완료"}
+                    title={isDone ? `완료${readOnly ? "" : " (클릭→취소)"}` : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}` : isFuture || readOnly ? "" : "클릭→완료"}
                     className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-md flex items-center justify-center"
                     style={{
                       backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
                       border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
-                      cursor: isFuture ? "default" : toggling ? "wait" : "pointer",
+                      cursor: isFuture || readOnly ? "default" : toggling ? "wait" : "pointer",
                       transition: "background-color 0.12s",
                     }}>
                     {isDone && !isThis && <Check size={12} className="text-white" strokeWidth={3} />}
@@ -362,16 +381,19 @@ export function StudentLearningGrid({
         </div>
       )}
 
-      {/* 자동인증 상세 (스크래핑 결과) — 선택한 주의 날짜별. 최신 날짜가 위 */}
-      <AutoResultSection
-        className="px-4 pb-3"
-        today={today}
-        logsByDate={[...weekDates].reverse()
-          .filter((date) => date <= today && autoLogs[date])
-          .map((date) => ({ date, logs: Object.values(autoLogs[date]) }))}
-      />
+      {/* 자동인증 상세 (스크래핑 결과) — 헤더에서 선택한 날짜의 것만 */}
+      {Object.values(autoLogs[selectedDate] ?? {}).some(hasAutoResultContent) ? (
+        <AutoResultSection
+          className="px-4 pb-3"
+          today={today}
+          logsByDate={[{ date: selectedDate, logs: Object.values(autoLogs[selectedDate]) }]}
+        />
+      ) : (
+        <div className="px-4 pb-3 text-[11px] text-p-muted">{autoDateLabel(selectedDate, today)} 자동인증 기록이 없어요</div>
+      )}
 
-      {/* 펼침 토글 */}
+      {/* 펼침 토글 (읽기전용에서는 과제 관리 숨김) */}
+      {!readOnly && (<>
       <div onClick={() => setExpanded(v => !v)}
         className="flex items-center justify-center gap-1 py-1.5 cursor-pointer select-none border-t border-black/[0.04]">
         <span className="text-[10px] text-p-muted font-semibold">
@@ -415,6 +437,7 @@ export function StudentLearningGrid({
           )}
         </div>
       )}
+      </>)}
     </div>
   );
 }

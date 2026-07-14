@@ -47,8 +47,8 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   const { aiPackageEndDate } = useAuth();
   const { familyId, parentName, loaded: familyLoaded } = useFamily(userId);
   const userName = parentName ?? fallbackName;
-  const [weekOffset, setWeekOffset] = useState(0);
-  const { children, subscriptions, weeklyLogs } = useFamilyData(familyId, weekOffset);
+  // 상단 요약은 이번 주 고정 — 주 이동은 자녀별 학습 그리드(StudentLearningGrid)에 내장
+  const { children, subscriptions, weeklyLogs } = useFamilyData(familyId);
   const [renewalTarget, setRenewalTarget] = useState<RenewalTarget | null>(null);
   const [walletCoupons, setWalletCoupons] = useState<WalletCoupon[]>([]);
   const [journalStudents, setJournalStudents] = useState<JournalStudent[]>([]);
@@ -105,9 +105,9 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   const allExpired = subscriptions.length > 0 && !subscriptions.some(isLive);
   const nearestEnd = subscriptions.filter((s) => s.status === "active" && s.endDate).sort((a, b) => a.endDate!.getTime() - b.endDate!.getTime()).at(0)?.endDate;
   const daysLeft = nearestEnd ? Math.ceil((nearestEnd.getTime() - Date.now()) / 86400000) : null;
-  const weekDates = getWeekDates(weekOffset);
+  const weekDates = getWeekDates();
   const today = todayStr();
-  const weekLabel = weekOffset === 0 ? "이번 주" : weekOffset === -1 ? "지난 주" : `${Math.abs(weekOffset)}주 전`;
+  const weekLabel = "이번 주";
 
   const totalPastDays = children.length * weekDates.filter((d) => d <= today).length;
   const totalDoneDays = children.reduce((sum, child) => {
@@ -204,12 +204,6 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
         <ChildrenSection
           children={children}
           subscriptions={subscriptions}
-          weeklyLogs={weeklyLogs}
-          weekOffset={weekOffset}
-          setWeekOffset={setWeekOffset}
-          weekDates={weekDates}
-          today={today}
-          weekLabel={weekLabel}
           now={now}
           setRenewalTarget={setRenewalTarget}
           familyId={familyId!}

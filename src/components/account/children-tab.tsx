@@ -9,10 +9,10 @@ import { SERVICES } from "@/data/site";
 import { formatDate } from "@/lib/format";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { REASONS_6HDL } from "@/lib/types";
-import type { Child, Subscription, WeeklyLog, WalletCoupon, Task, TaskCheck } from "@/lib/types";
+import type { Child, Subscription, WalletCoupon, TaskCheck } from "@/lib/types";
 import type { RenewalTarget } from "./renewal-modal";
 import { StudentWeekJournal, type JournalStudent } from "./direct-journal-panel";
-import { AutoResultSection } from "@/components/learn/auto-result-card";
+import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 
 function tsToDate(ts: unknown): Date | null {
   if (!ts) return null;
@@ -67,12 +67,6 @@ function EditableChildPhone({ childId, phone }: { childId: string; phone: string
 interface ChildrenSectionProps {
   children: Child[];
   subscriptions: Subscription[];
-  weeklyLogs: WeeklyLog[];
-  weekOffset: number;
-  setWeekOffset: React.Dispatch<React.SetStateAction<number>>;
-  weekDates: string[];
-  today: string;
-  weekLabel: string;
   now: Date;
   setRenewalTarget: (target: RenewalTarget | null) => void;
   familyId: string;
@@ -85,12 +79,6 @@ interface ChildrenSectionProps {
 export function ChildrenSection({
   children,
   subscriptions,
-  weeklyLogs,
-  weekOffset,
-  setWeekOffset,
-  weekDates,
-  today,
-  weekLabel,
   now,
   setRenewalTarget,
   familyId,
@@ -99,42 +87,8 @@ export function ChildrenSection({
   walletCoupons,
   journalStudents,
 }: ChildrenSectionProps) {
-  // 태스크 + 체크 실시간 구독
-  const [tasksByChild, setTasksByChild] = useState<Record<string, Task[]>>({});
+  // 체크 실시간 구독 (6Hdl 사유 통계용 — 주간 그리드는 공용 StudentLearningGrid가 자체 구독)
   const [taskChecks, setTaskChecks] = useState<TaskCheck[]>([]);
-
-  useEffect(() => {
-    if (children.length === 0) return;
-    const ids = children.map(c => c.id);
-    const unsub = onSnapshot(
-      query(collection(db, "tasks"), where("childId", "in", ids), where("status", "==", "confirmed")),
-      (snap) => {
-        const grouped: Record<string, Task[]> = {};
-        ids.forEach(id => { grouped[id] = []; });
-        snap.docs.forEach(d => {
-          const cid = d.data().childId as string;
-          if (!grouped[cid]) grouped[cid] = [];
-          grouped[cid].push({
-            id: d.id, childId: cid,
-            serviceSlug: d.data().serviceSlug,
-            partSlug: d.data().partSlug ?? null,
-            title: d.data().title,
-            scheduleDays: d.data().scheduleDays ?? [],
-            externalUrl: d.data().externalUrl ?? null,
-            progressLabel: d.data().progressLabel ?? null,
-            level: d.data().level ?? null,
-            setName: d.data().setName ?? null,
-            deleteRequested: d.data().deleteRequested ?? false,
-            order: d.data().order ?? 0, active: true,
-            createdBy: d.data().createdBy, status: "confirmed",
-            adminComment: null, createdAt: null, confirmedAt: null,
-          });
-        });
-        setTasksByChild(grouped);
-      }
-    );
-    return unsub;
-  }, [children]);
 
   useEffect(() => {
     if (children.length === 0) return;
@@ -157,9 +111,7 @@ export function ChildrenSection({
       })))
     );
     return unsub;
-  }, [children, weekDates[0]]);
-
-  const pastDates = weekDates.filter(d => d <= today);
+  }, [children]);
 
   return (
     <>
@@ -172,24 +124,7 @@ export function ChildrenSection({
         {children.map((child) => {
           const childSubs = subscriptions.filter((s) => s.childId === child.id);
           const childJournal = journalStudents.find((s) => s.studentName === child.name);
-          const childTasks = tasksByChild[child.id] ?? [];
           const childChecks = taskChecks.filter(c => c.childId === child.id);
-
-          // 태스크 기반 완료율
-          let scheduled = 0, done = 0;
-          childTasks.forEach(task => {
-            pastDates.forEach(date => {
-              const dow = (new Date(date + "T00:00:00").getDay() + 6) % 7;
-              if (task.scheduleDays.includes(dow)) {
-                scheduled++;
-                if (childChecks.find(c => c.taskId === task.id && c.date === date)?.status === "done") done++;
-              }
-            });
-          });
-          const completionPct = scheduled > 0 ? Math.round((done / scheduled) * 100) : 0;
-
-          // 자동인증 학습결과 (스크래핑) — 과제 등록과 무관하게 표시. 내용 필터는 섹션이 담당
-          const childAutoLogs = weeklyLogs.filter((l) => l.childId === child.id && l.method === "auto");
 
           // 6Hdl 사유 통계
           const weekReasons = childChecks.filter(c => c.status === "not_done" && c.reason);
@@ -211,78 +146,16 @@ export function ChildrenSection({
                 </div>
               </div>
 
-              {/* 주간 학습 현황 */}
-              <div className="mb-3.5 bg-p-bg rounded-lg px-3.5 py-2.5">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => setWeekOffset(w => w - 1)} className="bg-transparent border-none cursor-pointer text-sm text-p-muted px-0.5 leading-none">‹</button>
-                    <span className="text-[11px] font-semibold tracking-[0.08em] text-p-muted">{weekLabel} 학습</span>
-                    <button onClick={() => setWeekOffset(w => Math.min(0, w + 1))} disabled={weekOffset === 0} className="bg-transparent border-none text-sm px-0.5 leading-none" style={{ cursor: weekOffset === 0 ? "default" : "pointer", color: weekOffset === 0 ? "rgba(0,0,0,0.15)" : "#a39e98" }}>›</button>
-                  </div>
-                  <span className="text-xs font-bold" style={{ color: completionPct >= 80 ? "#38a848" : completionPct >= 50 ? "#92660a" : "#a39e98" }}>
-                    {done}/{scheduled}건 ({completionPct}%)
-                  </span>
-                </div>
-
-                {/* 태스크별 주간 그리드 */}
-                {childTasks.length > 0 ? (
-                  <div className="flex flex-col gap-1">
-                    {childTasks.map(task => {
-                      const svc = SERVICES.find(s => s.slug === task.serviceSlug);
-                      const part = svc?.parts?.find(p => p.slug === task.partSlug);
-                      const label = task.progressLabel
-                        ? `${svc?.name ?? ""} ${task.progressLabel}`
-                        : part ? part.name : task.title;
-                      return (
-                        <div key={task.id} className="flex items-center gap-1.5">
-                          <div className="w-[80px] shrink-0 flex items-center gap-1 overflow-hidden">
-                            {svc && <ServiceIcon service={svc} size={11} />}
-                            <span className="text-[10px] text-p-secondary truncate">{label}</span>
-                          </div>
-                          <div className="flex gap-0.5 flex-1">
-                            {weekDates.map((date, i) => {
-                              const isFuture = date > today;
-                              const isToday = date === today;
-                              const isScheduled = task.scheduleDays.includes(i);
-                              const check = childChecks.find(c => c.taskId === task.id && c.date === date);
-                              const isDone = check?.status === "done";
-                              // 미완료 확정: not_done 체크가 있거나, 자정 지난(과거) 날짜인데 done이 없으면
-                              const isMissed = !isDone && (check?.status === "not_done" || date < today);
-                              const reasonInfo = check?.reason ? REASONS_6HDL.find(r => r.slug === check.reason) : null;
-                              if (!isScheduled) return <div key={date} className="flex-1 h-[18px]" />;
-                              return (
-                                <div key={date} className="flex-1 h-[18px] rounded flex items-center justify-center"
-                                  title={isMissed && reasonInfo ? `${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""}` : undefined}
-                                  style={{
-                                    backgroundColor: isDone ? "#38a848" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.04)" : "rgba(0,0,0,0.08)",
-                                    border: isToday ? "1.5px solid rgba(0,0,0,0.95)" : isMissed ? "1px solid #c00000" : "none",
-                                  }}>
-                                  {isDone && <span className="text-white text-[8px] font-bold">✓</span>}
-                                  {/* 미완료: 6hdl 사유 있으면 사유 이모지, 없으면 ✕ */}
-                                  {isMissed && (reasonInfo
-                                    ? <span className="text-[10px] leading-none">{reasonInfo.icon}</span>
-                                    : <span className="text-[#c00000] text-[8px] font-bold">✕</span>)}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-p-muted text-center py-2">등록된 과제가 없어요</div>
-                )}
+              {/* 주간 학습 현황 — 어드민과 동일한 공용 그리드(읽기전용).
+                  주 이동·완료율·날짜 클릭 시 그날 자동인증 결과까지 그리드에 내장 */}
+              <div className="-mx-5 mb-3.5">
+                <StudentLearningGrid
+                  childId={child.id}
+                  subscribedSlugs={childSubs.map((s) => s.serviceSlug)}
+                  showWeekNav
+                  readOnly
+                />
               </div>
-
-              {/* 자동인증 학습결과 — 선택한 주의 날짜별. 최신 날짜가 위. 과제 미등록이어도 표시 */}
-              <AutoResultSection
-                className="mb-3.5"
-                today={today}
-                logsByDate={[...weekDates].reverse()
-                  .filter((date) => date <= today)
-                  .map((date) => ({ date, logs: childAutoLogs.filter((l) => l.date === date) }))}
-              />
 
               {/* 수업일지 (직강 자녀만 — 일지가 있을 때) */}
               {childJournal && childJournal.logs.length > 0 && (
