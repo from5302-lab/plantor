@@ -136,6 +136,29 @@ export async function reconcileAutoChecks(
       }
     }
   }
+
+  // 만회(made_up): 오늘 학습이 확인된 파트에 대해, 제 날짜가 지난 미완료(not_done) 체크를
+  // 만회 완료로 전환. 원래 날짜·6hdl 사유는 보존해 "제 날짜 완료(done)"와 구분한다.
+  // (같은 파트를 하루 1회 학습으로 오늘 done + 과거 만회가 동시에 인정될 수 있음 — v1 허용, 성적표로 검증 가능)
+  const notDoneSnap = await db.collection("taskChecks")
+    .where("childId", "==", childId).where("status", "==", "not_done").get();
+  if (!notDoneSnap.empty) {
+    const taskById = new Map(snap.docs.map((d) => [d.id, d]));
+    for (const c of notDoneSnap.docs) {
+      const cd = c.data();
+      if ((cd.date ?? "") >= dateKst) continue;           // 제 날짜가 지난 것만
+      const t = taskById.get(cd.taskId ?? "");
+      if (!t) continue;                                    // 같은 서비스의 확정 과제만
+      const ps = t.data().partSlug;
+      const partless = ps == null || ps === "";
+      const madeUp = useFilter
+        ? (partless ? serviceComplete : (donePartSlugs as string[]).includes(String(ps)))
+        : serviceComplete;
+      if (madeUp) {
+        await c.ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
+      }
+    }
+  }
 }
 
 // ── 발송 유틸 (dedup + 알림톡/SMS) ───────────────────────────────────────────

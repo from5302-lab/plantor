@@ -13,6 +13,31 @@ import { AutoResultCard } from "./auto-result-card";
 // 클릭 시 교사 계정으로 진도를 실시간 스크래핑하는 서비스
 const AUTO_VERIFIED_SLUGS = new Set(["autovoca", "classcard-middle", "dailykor", "class5"]);
 
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString("sv-SE");
+}
+
+// 만회일 선택지: 내일 / 모레 / (3일 이상 남았으면) 이번 주 토요일 / 나중에
+export function makeupOptions(today: string): Array<{ label: string; value: string | null }> {
+  const opts: Array<{ label: string; value: string | null }> = [
+    { label: "내일", value: addDays(today, 1) },
+    { label: "모레", value: addDays(today, 2) },
+  ];
+  const dow = new Date(today + "T00:00:00").getDay(); // 0=일 … 6=토
+  const toSat = (6 - dow + 7) % 7;
+  if (toSat >= 3) opts.push({ label: "이번 주 토요일", value: addDays(today, toSat) });
+  opts.push({ label: "나중에 정할게", value: null });
+  return opts;
+}
+
+/** "2026-07-15" → "7/15" */
+export function shortDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export function TaskChecklist({
   tasks,
   taskChecks,
@@ -31,6 +56,8 @@ export function TaskChecklist({
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [showReasonFor, setShowReasonFor] = useState<string | null>(null);
   const [reasonNote, setReasonNote] = useState("");
+  // 6hdl 사유 저장 직후 "언제 다시 할까?" 만회일 선택 스텝
+  const [showMakeupFor, setShowMakeupFor] = useState<string | null>(null);
   // 자동인증 진행 상태 (taskId → 로딩/에러/미완료판정)
   const [autoVerifying, setAutoVerifying] = useState<Record<string, boolean>>({});
   const [autoError, setAutoError] = useState<Record<string, string>>({});
@@ -115,6 +142,20 @@ export function TaskChecklist({
       }
       setShowReasonFor(null);
       setReasonNote("");
+      setShowMakeupFor(taskId); // 사유 저장 후 만회 계획 스텝으로
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "오류");
+    } finally { setSubmitting(null); }
+  }
+
+  // 만회 예정일 저장 (null = 나중에 정할게)
+  async function handleSetMakeupDate(taskId: string, makeupDate: string | null) {
+    if (readOnly) return;
+    setSubmitting(taskId);
+    try {
+      const existing = taskChecks.find(c => c.taskId === taskId && c.date === date);
+      if (existing) await updateDoc(doc(db, "taskChecks", existing.id), { makeupDate });
+      setShowMakeupFor(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "오류");
     } finally { setSubmitting(null); }
@@ -183,6 +224,7 @@ export function TaskChecklist({
                 {isNotDone && reasonInfo && (
                   <div className="text-[11px] text-[#c00000] font-medium mt-0.5 pl-6">
                     {reasonInfo.icon} {reasonInfo.name}{check?.reasonNote ? ` · ${check.reasonNote}` : ""}
+                    {check?.makeupDate && <span className="text-p-secondary"> · 🔁 {shortDate(check.makeupDate)} 만회 예정</span>}
                   </div>
                 )}
                 {!isDone && notCompleteStatus && (
@@ -239,6 +281,27 @@ export function TaskChecklist({
                     style={{ border: "1px solid rgba(0,0,0,0.1)" }}>
                     취소
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* 만회 계획 — 6hdl 사유 저장 직후 "언제 다시 할까?" (학생이 직접 정한다) */}
+            {showMakeupFor === task.id && (
+              <div className="px-5 pb-4">
+                <div className="bg-p-bg rounded-[10px] p-4">
+                  <div className="text-[11px] font-bold text-p-muted mb-1 tracking-[0.06em]">언제 다시 할까?</div>
+                  <div className="text-[11px] text-p-secondary mb-3">네가 정한 날에 다시 도전! 그날 학습이 확인되면 만회 완료로 기록돼요.</div>
+                  <div className="flex flex-wrap gap-2">
+                    {makeupOptions(date).map(opt => (
+                      <button key={opt.label}
+                        onClick={() => handleSetMakeupDate(task.id, opt.value)}
+                        disabled={isLoading}
+                        className="px-3 py-2 rounded-lg border border-black/10 bg-white cursor-pointer text-[12px] font-semibold text-p-secondary"
+                        style={{ opacity: isLoading ? 0.5 : 1 }}>
+                        {opt.label}{opt.value ? ` (${shortDate(opt.value)})` : ""}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

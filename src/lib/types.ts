@@ -279,19 +279,21 @@ export type Task = {
 
 // ── 과제 검사 결과 (co-work 에이전트 + 학생 사유) ─────────────────────────────
 
-export type TaskCheckStatus = "done" | "not_done" | "error";
+export type TaskCheckStatus = "done" | "not_done" | "made_up" | "error";
 
 export type TaskCheck = {
   id: string;
   taskId: string;
   childId: string;
   date: string;                  // YYYY-MM-DD
-  status: TaskCheckStatus;
+  status: TaskCheckStatus;       // made_up = 제 날짜엔 못 했지만 나중에 만회 완료
   detail: string | null;         // 에이전트가 남기는 메모
   reason: string | null;         // 6Hdl slug (미완료 시 학생 선택)
   reasonNote: string | null;     // 추가 메모 (선택)
   checkedBy: "agent" | "student" | "admin";
   checkedAt: Date | null;
+  makeupDate?: string | null;    // 학생이 정한 만회 예정일 (6hdl 직후 선택)
+  madeUpAt?: Date | null;        // 만회 완료 시각
 };
 
 // ── 6Hdl self-assessment ──────────────────────────────────────────────────────

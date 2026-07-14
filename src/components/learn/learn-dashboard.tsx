@@ -21,6 +21,7 @@ import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { TaskChecklist } from "./task-checklist";
+import { MakeupSection, makeupTargets } from "./makeup-section";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
@@ -86,7 +87,8 @@ export function LearnDashboard({
 
   // 태스크 + 체크 상태
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
-  const [todayTaskChecks, setTodayTaskChecks] = useState<TaskCheck[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);       // 요일 무관 확정 과제 (만회 과제 라벨용)
+  const [allTaskChecks, setAllTaskChecks] = useState<TaskCheck[]>([]);
   // 확정 과제 총 개수(요일 무관) — 0이면 아직 학습 계획이 없는 첫 진입 상태
   const [confirmedCount, setConfirmedCount] = useState(0);
 
@@ -99,8 +101,27 @@ export function LearnDashboard({
         const today = new Date();
         const dow = (today.getDay() + 6) % 7; // 0=월
         const tasks: Task[] = [];
+        const all: Task[] = [];
         snap.docs.forEach(d => {
           const scheduleDays = d.data().scheduleDays ?? [];
+          all.push({
+            id: d.id, childId: d.data().childId,
+            serviceSlug: d.data().serviceSlug,
+            partSlug: d.data().partSlug ?? null,
+            title: d.data().title,
+            scheduleDays,
+            externalUrl: d.data().externalUrl ?? null,
+            progressLabel: d.data().progressLabel ?? null,
+            level: d.data().level ?? null,
+            setName: d.data().setName ?? null,
+            deleteRequested: d.data().deleteRequested ?? false,
+            order: d.data().order ?? 0,
+            active: d.data().active ?? true,
+            createdBy: d.data().createdBy,
+            status: d.data().status,
+            adminComment: d.data().adminComment ?? null,
+            createdAt: null, confirmedAt: null,
+          });
           if (!scheduleDays.includes(dow)) return;
           tasks.push({
             id: d.id, childId: d.data().childId,
@@ -122,18 +143,19 @@ export function LearnDashboard({
           });
         });
         setTodayTasks(tasks);
+        setAllTasks(all);
         setConfirmedCount(snap.docs.length);
       }
     );
     return unsub;
   }, [childId, isDemo]);
 
-  // 오늘 taskChecks 구독
+  // taskChecks 구독 — childId 단일 조회(관례), 오늘/만회 필터는 렌더에서
   useEffect(() => {
     if (!childId || isDemo) return;
     const unsub = onSnapshot(
-      query(collection(db, "taskChecks"), where("childId", "==", childId), where("date", "==", todayStr())),
-      (snap) => setTodayTaskChecks(snap.docs.map(d => ({
+      query(collection(db, "taskChecks"), where("childId", "==", childId)),
+      (snap) => setAllTaskChecks(snap.docs.map(d => ({
         id: d.id,
         taskId: d.data().taskId ?? "",
         childId: d.data().childId ?? "",
@@ -144,10 +166,14 @@ export function LearnDashboard({
         reasonNote: d.data().reasonNote ?? null,
         checkedBy: d.data().checkedBy ?? "student",
         checkedAt: null,
+        makeupDate: d.data().makeupDate ?? null,
+        madeUpAt: null,
       })))
     );
     return unsub;
   }, [childId, isDemo]);
+
+  const todayTaskChecks = allTaskChecks.filter((c) => c.date === todayStr());
 
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [startedSlugs, setStartedSlugs] = useState<Set<string>>(new Set());
@@ -573,6 +599,14 @@ export function LearnDashboard({
                 />
               )}
             </Card>
+
+            {/* 만회 과제 — 6hdl로 미룬 과제를 학생이 정한 날에 다시 해결 */}
+            <MakeupSection
+              tasks={allTasks}
+              checks={makeupTargets(allTaskChecks, todayStr())}
+              today={todayStr()}
+              readOnly={readOnly}
+            />
           </>
         )}
 

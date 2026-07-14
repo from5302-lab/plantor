@@ -211,6 +211,8 @@ export function StudentLearningGrid({
         reasonNote: d.data().reasonNote ?? null,
         checkedBy: d.data().checkedBy ?? "admin",
         checkedAt: tsToDate(d.data().checkedAt),
+        makeupDate: d.data().makeupDate ?? null,
+        madeUpAt: tsToDate(d.data().madeUpAt),
       }))),
       (err) => console.error("[grid] taskChecks 구독 실패", err),
     );
@@ -330,11 +332,15 @@ export function StudentLearningGrid({
               const isScheduled = task.scheduleDays.includes(dayIdx);
               const check = taskChecks.find(c => c.taskId === task.id && c.date === date);
               const isDone = check?.status === "done";
+              const isMadeUp = check?.status === "made_up"; // 제 날짜엔 못 했지만 나중에 만회 완료
               // 미완료 확정: not_done 체크가 있거나, 자정 지난(과거) 날짜인데 done이 없으면
-              const isMissed = !isDone && (check?.status === "not_done" || date < today);
+              const isMissed = !isDone && !isMadeUp && (check?.status === "not_done" || date < today);
               const key = `${task.id}-${date}`;
               const isThis = toggling === key;
               const reasonInfo = check?.reason ? REASONS_6HDL.find(r => r.slug === check.reason) : null;
+              const madeUpLabel = isMadeUp
+                ? `만회 완료${check?.madeUpAt ? ` (${check.madeUpAt.getMonth() + 1}/${check.madeUpAt.getDate()})` : ""}${reasonInfo ? ` · 사유 ${reasonInfo.name}` : ""}`
+                : "";
 
               if (!isScheduled) {
                 return <div key={date} className="flex justify-center"><span className="text-[10px] text-black/10">-</span></div>;
@@ -343,15 +349,17 @@ export function StudentLearningGrid({
               return (
                 <div key={date} className="flex justify-center">
                   <div onClick={() => !isFuture && !toggling && handleToggleCheck(task, date)}
-                    title={isDone ? `완료${readOnly ? "" : " (클릭→취소)"}` : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}` : isFuture || readOnly ? "" : "클릭→완료"}
+                    title={isDone ? `완료${readOnly ? "" : " (클릭→취소)"}` : isMadeUp ? madeUpLabel : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}${check?.makeupDate && check.makeupDate > today ? ` · 만회 예정 ${check.makeupDate.slice(5).replace("-", "/")}` : ""}` : isFuture || readOnly ? "" : "클릭→완료"}
                     className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-md flex items-center justify-center"
                     style={{
-                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
-                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
+                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isMadeUp ? "#f0faf1" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
+                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMadeUp ? "1.5px solid #38a848" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
                       cursor: isFuture || readOnly ? "default" : toggling ? "wait" : "pointer",
                       transition: "background-color 0.12s",
                     }}>
                     {isDone && !isThis && <Check size={12} className="text-white" strokeWidth={3} />}
+                    {/* 만회 완료: 초록 아웃라인 박스 + 초록 ✓ (제 날짜 완료의 채움 초록과 구분) */}
+                    {isMadeUp && !isThis && <Check size={12} className="text-[#2a8438]" strokeWidth={3} />}
                     {/* 미완료: 6hdl 사유 있으면 박스 안에 사유 이모지, 없으면 X */}
                     {isMissed && !isThis && (reasonInfo
                       ? <span className="text-[12px] leading-none">{reasonInfo.icon}</span>
