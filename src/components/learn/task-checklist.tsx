@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { addDoc, collection, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
-import { ExternalLink } from "lucide-react";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { REASONS_6HDL } from "@/lib/types";
@@ -60,22 +59,6 @@ export function TaskChecklist({
   autoLogsBySlug?: Record<string, LearningLog>;
 }) {
   const [submitting, setSubmitting] = useState<string | null>(null);
-  // "학습하러 가기"를 누른 과제 — 버튼이 완료 확인 단계로 넘어간다 (오늘 하루 localStorage 유지)
-  const startedKey = `plantor_startedTasks_${date}`;
-  const [startedTasks, setStartedTasks] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    try { setStartedTasks(new Set(JSON.parse(localStorage.getItem(startedKey) ?? "[]") as string[])); } catch { /* 무시 */ }
-  }, [startedKey]);
-
-  // 학습 사이트 새 탭으로 열고 시작 상태 기록
-  function handleGoStudy(task: Task, url: string) {
-    window.open(url, "_blank", "noopener,noreferrer");
-    setStartedTasks((prev) => {
-      const next = new Set(prev).add(task.id);
-      try { localStorage.setItem(startedKey, JSON.stringify([...next])); } catch { /* 무시 */ }
-      return next;
-    });
-  }
   // 자동인증 진행 상태 (taskId → 로딩/에러/미완료판정)
   const [autoVerifying, setAutoVerifying] = useState<Record<string, boolean>>({});
   const [autoError, setAutoError] = useState<Record<string, string>>({});
@@ -98,6 +81,30 @@ export function TaskChecklist({
       setAutoError((p) => ({ ...p, [task.id]: msg }));
     } finally {
       setAutoVerifying((p) => ({ ...p, [task.id]: false }));
+    }
+  }
+
+  // 학습하러 다녀오면 자동 인증: 사이트를 연 자동인증 과제를 기억해 두고,
+  // 학생이 이 화면으로 돌아오는 순간(탭 복귀) 서비스당 1회 진도를 확인한다.
+  const pendingVerify = useRef<Map<string, Task>>(new Map());
+  const runAutoVerifyRef = useRef(runAutoVerify);
+  runAutoVerifyRef.current = runAutoVerify;
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible" || pendingVerify.current.size === 0) return;
+      const tasks = [...pendingVerify.current.values()];
+      pendingVerify.current.clear();
+      tasks.forEach((t) => { void runAutoVerifyRef.current(t); });
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // 학습 사이트 새 탭으로 열기 (자동인증 과목이면 복귀 시 자동 인증 예약)
+  function handleGoStudy(task: Task, url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    if (!readOnly && AUTO_VERIFIED_SLUGS.has(task.serviceSlug)) {
+      pendingVerify.current.set(task.serviceSlug, task); // 같은 서비스는 1회만
     }
   }
 
@@ -167,12 +174,15 @@ export function TaskChecklist({
 
         // 학습 사이트 링크: 과제 지정 링크 우선, 없으면 서비스 학생 접속 주소
         const studyUrl = task.externalUrl || svc?.studentUrl || null;
-        // ①시작 전: 링크가 있고 아직 안 눌렀으면 [학습하러 가기]. 링크 없는 과제는 곧장 ② 단계
-        const notStarted = !isDone && !isNotDone && !startedTasks.has(task.id) && !!studyUrl;
+        const isOpen = !isDone && !isNotDone; // 아직 할 수 있는 과제
+        const rowClickable = isOpen && !!studyUrl;
 
         return (
           <div key={task.id}>
-            <div className="flex items-center px-5 py-[15px] gap-3.5">
+            {/* 미완료 행은 어디를 눌러도 학습하러 가기 */}
+            <div className="flex items-center px-5 py-[15px] gap-3.5"
+              onClick={() => rowClickable && handleGoStudy(task, studyUrl!)}
+              style={{ cursor: rowClickable ? "pointer" : "default" }}>
               {/* 과제 정보 */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 text-[15px] font-semibold"
@@ -197,34 +207,29 @@ export function TaskChecklist({
                 )}
               </div>
 
-              {/* 단일 상태 버튼: 학습하러 가기 → 완료 확인(+↗) → 인증 중 → 완료 */}
+              {/* 버튼 2종: 미완료 [학습하러 가기] / 완료 [완료 ✓]. 완료 확인은 탭 복귀 시 자동 */}
               <div className="flex items-center gap-1.5 shrink-0">
                 {isDone ? (
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#2a8438]">완료 ✓</span>
                 ) : isNotDone ? (
-                  /* 6hdl 입력된 과거 방식 데이터 호환 — 만회는 만회 과제 섹션에서 */
+                  /* 6hdl 입력된 과거 방식 데이터 호환 — 만회는 다시 도전 섹션에서 */
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-p-bg text-p-muted">만회 대기</span>
-                ) : notStarted ? (
-                  <button onClick={() => handleGoStudy(task, studyUrl!)}
-                    className="h-[30px] inline-flex items-center rounded-lg border-none px-3 text-[12px] font-bold text-white cursor-pointer"
-                    style={{ backgroundColor: "#38a848" }}>
-                    학습하러 가기
-                  </button>
                 ) : (
                   <>
-                    {/* 학습 사이트 다시 열기 */}
+                    {isVerifying && <span className="text-[11px] font-semibold text-p-muted">인증 중…</span>}
                     {studyUrl && (
-                      <button onClick={() => window.open(studyUrl, "_blank", "noopener,noreferrer")}
-                        title="학습 사이트 다시 열기"
-                        className="w-[30px] h-[30px] shrink-0 inline-flex items-center justify-center rounded-lg bg-transparent border border-black/10 cursor-pointer">
-                        <ExternalLink size={13} className="text-p-muted" />
+                      <button onClick={(e) => { e.stopPropagation(); handleGoStudy(task, studyUrl); }}
+                        className="h-[30px] inline-flex items-center rounded-lg border-none px-3 text-[12px] font-bold text-white cursor-pointer"
+                        style={{ backgroundColor: "#38a848" }}>
+                        학습하러 가기
                       </button>
                     )}
-                    {!readOnly && (
-                      <button onClick={() => !isLoading && handleMarkDone(task)} disabled={isLoading}
+                    {/* 자동인증 불가(수동) 과목만 학생이 직접 완료 처리 */}
+                    {!isAuto && !readOnly && (
+                      <button onClick={(e) => { e.stopPropagation(); if (!isLoading) handleMarkDone(task); }} disabled={isLoading}
                         className="h-[30px] inline-flex items-center rounded-lg px-3 text-[12px] font-bold cursor-pointer bg-white"
                         style={{ border: "1.5px solid #38a848", color: "#2a8438", opacity: isLoading ? 0.6 : 1 }}>
-                        {isVerifying ? "인증 중…" : isLoading ? "저장 중…" : isAuto ? "완료 확인하기" : "완료했어요"}
+                        {isLoading ? "저장 중…" : "완료했어요"}
                       </button>
                     )}
                   </>
