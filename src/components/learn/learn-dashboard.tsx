@@ -21,8 +21,7 @@ import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { TaskChecklist } from "./task-checklist";
-import { MakeupSection, makeupTargets } from "./makeup-section";
-import { MissedReviewSection, missedTargets } from "./missed-review-section";
+import { RetrySection, retryTargets } from "./retry-section";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
@@ -602,18 +601,10 @@ export function LearnDashboard({
               )}
             </Card>
 
-            {/* 못한 과제 돌아보기 — 어제(최근 7일) 못한 과제의 6hdl 사유·만회일을 다음날 입력 */}
-            <MissedReviewSection
-              items={missedTargets(allTasks, allTaskChecks, todayStr())}
+            {/* 다시 도전 — 못한 과제(사유 미입력 + 만회 계획)를 한 곳에서 해결. 어제만 기본 펼침 */}
+            <RetrySection
+              items={retryTargets(allTasks, allTaskChecks, todayStr())}
               childId={childId!}
-              today={todayStr()}
-              readOnly={readOnly}
-            />
-
-            {/* 만회 과제 — 6hdl로 미룬 과제를 학생이 정한 날에 다시 해결 */}
-            <MakeupSection
-              tasks={allTasks}
-              checks={makeupTargets(allTaskChecks, todayStr())}
               today={todayStr()}
               readOnly={readOnly}
             />
