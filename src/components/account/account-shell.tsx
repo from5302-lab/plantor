@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { T } from "@/lib/design-tokens";
 import { formatDate } from "@/lib/format";
 import { getWeekDates, todayStr } from "@/lib/learn-utils";
+import { ServiceQuickLinks } from "@/components/shared/service-quick-links";
 import { useFamily } from "@/lib/hooks/useFamily";
 import { useFamilyData } from "@/lib/hooks/useFamilyData";
 import Link from "next/link";
@@ -154,6 +155,14 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
             </div>
             <div className="text-[11px] text-p-muted mt-0.5">{totalDoneDays}/{totalPastDays}일</div>
           </div>
+        </div>
+
+        {/* 학습 사이트 바로가기 (자녀 구독 서비스 — 학부모용 주소가 있으면 그쪽으로) */}
+        <div className="mb-5">
+          <ServiceQuickLinks
+            slugs={subscriptions.filter((s) => s.childId && isLive(s)).map((s) => s.serviceSlug)}
+            role="parent"
+          />
         </div>
 
         {/* 구독 만료 배너 */}

@@ -112,8 +112,8 @@ export const SERVICES: Service[] = [
     externalUrl: "https://www.dailykor.com/",
     brandColor: "#29affc",
     agencyFee: 22000,
+    // 학부모 전용 페이지 없음(/academy는 교사 로그인) — 학부모도 학생 페이지(/front)로 접속
     studentUrl: "https://www.dailykor.com/front",
-    parentUrl: "https://www.dailykor.com/academy",
     parts: [
       { slug: "daily", name: "오늘의 학습" },
       { slug: "vocab-center", name: "어휘력 센터" },
