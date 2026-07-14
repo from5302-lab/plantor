@@ -311,7 +311,8 @@ export function StudentLearningGrid({
               const isScheduled = task.scheduleDays.includes(dayIdx);
               const check = taskChecks.find(c => c.taskId === task.id && c.date === date);
               const isDone = check?.status === "done";
-              const isNotDone = check?.status === "not_done";
+              // 미완료 확정: not_done 체크가 있거나, 자정 지난(과거) 날짜인데 done이 없으면
+              const isMissed = !isDone && (check?.status === "not_done" || date < today);
               const key = `${task.id}-${date}`;
               const isThis = toggling === key;
               const reasonInfo = check?.reason ? REASONS_6HDL.find(r => r.slug === check.reason) : null;
@@ -321,21 +322,23 @@ export function StudentLearningGrid({
               }
 
               return (
-                <div key={date} className="flex flex-col items-center gap-0.5">
+                <div key={date} className="flex justify-center">
                   <div onClick={() => !isFuture && !toggling && handleToggleCheck(task, date)}
-                    title={isDone ? "완료 (클릭→취소)" : isNotDone ? `미완료${reasonInfo ? ` (${reasonInfo.name})` : ""}` : isFuture ? "" : "클릭→완료"}
+                    title={isDone ? "완료 (클릭→취소)" : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}` : isFuture ? "" : "클릭→완료"}
                     className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-md flex items-center justify-center"
                     style={{
-                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isNotDone ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
-                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isNotDone ? "1.5px solid #c00000" : "1.5px solid transparent",
+                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
+                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
                       cursor: isFuture ? "default" : toggling ? "wait" : "pointer",
                       transition: "background-color 0.12s",
                     }}>
                     {isDone && !isThis && <Check size={12} className="text-white" strokeWidth={3} />}
-                    {isNotDone && !isThis && <X size={12} className="text-[#c00000]" strokeWidth={3} />}
+                    {/* 미완료: 6hdl 사유 있으면 박스 안에 사유 이모지, 없으면 X */}
+                    {isMissed && !isThis && (reasonInfo
+                      ? <span className="text-[12px] leading-none">{reasonInfo.icon}</span>
+                      : <X size={12} className="text-[#c00000]" strokeWidth={3} />)}
                     {isThis && <span className="text-[8px] text-p-muted">…</span>}
                   </div>
-                  {reasonInfo && <span className="text-[8px] leading-none" title={`${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""}`}>{reasonInfo.icon}</span>}
                 </div>
               );
             })}

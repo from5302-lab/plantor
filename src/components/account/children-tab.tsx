@@ -246,16 +246,22 @@ export function ChildrenSection({
                               const isScheduled = task.scheduleDays.includes(i);
                               const check = childChecks.find(c => c.taskId === task.id && c.date === date);
                               const isDone = check?.status === "done";
-                              const isNotDone = check?.status === "not_done";
+                              // 미완료 확정: not_done 체크가 있거나, 자정 지난(과거) 날짜인데 done이 없으면
+                              const isMissed = !isDone && (check?.status === "not_done" || date < today);
+                              const reasonInfo = check?.reason ? REASONS_6HDL.find(r => r.slug === check.reason) : null;
                               if (!isScheduled) return <div key={date} className="flex-1 h-[18px]" />;
                               return (
                                 <div key={date} className="flex-1 h-[18px] rounded flex items-center justify-center"
+                                  title={isMissed && reasonInfo ? `${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""}` : undefined}
                                   style={{
-                                    backgroundColor: isDone ? "#38a848" : isNotDone ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.04)" : "rgba(0,0,0,0.08)",
-                                    border: isToday ? "1.5px solid rgba(0,0,0,0.95)" : isNotDone ? "1px solid #c00000" : "none",
+                                    backgroundColor: isDone ? "#38a848" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.04)" : "rgba(0,0,0,0.08)",
+                                    border: isToday ? "1.5px solid rgba(0,0,0,0.95)" : isMissed ? "1px solid #c00000" : "none",
                                   }}>
                                   {isDone && <span className="text-white text-[8px] font-bold">✓</span>}
-                                  {isNotDone && <span className="text-[#c00000] text-[8px] font-bold">✕</span>}
+                                  {/* 미완료: 6hdl 사유 있으면 사유 이모지, 없으면 ✕ */}
+                                  {isMissed && (reasonInfo
+                                    ? <span className="text-[10px] leading-none">{reasonInfo.icon}</span>
+                                    : <span className="text-[#c00000] text-[8px] font-bold">✕</span>)}
                                 </div>
                               );
                             })}
