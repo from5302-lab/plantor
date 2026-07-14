@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { TaskChecklist } from "./task-checklist";
 import { RetrySection, retryTargets } from "./retry-section";
+import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
@@ -494,39 +495,51 @@ export function LearnDashboard({
           )}
         </div>
 
-        {/* 주간 스트릭 바 */}
-        <Card style={{ padding: "14px 20px", marginBottom: 12 }}>
-          <div className="flex justify-between items-center">
-            {weekDates.map((date, i) => {
-              const isToday = date === today;
-              const isPast = date < today;
-              const isDone = logDates.has(date);
-              let bgColor = "transparent";
-              let borderStyle = "1.5px solid rgba(0,0,0,0.1)";
-              let textColor: string = "#a39e98";
-              if (isDone) { bgColor = "#38a848"; borderStyle = "2px solid #38a848"; textColor = "#ffffff"; }
-              else if (isToday) { borderStyle = "2px solid rgba(0,0,0,0.95)"; textColor = "rgba(0,0,0,0.95)"; }
-              else if (!isPast) { borderStyle = "1.5px solid rgba(0,0,0,0.08)"; }
-              return (
-                <div key={date} className="flex flex-col items-center gap-[5px]">
-                  <span
-                    className="text-[10px] font-semibold tracking-[0.06em] uppercase"
-                    style={{ color: isToday ? "rgba(0,0,0,0.95)" : "#a39e98" }}
-                  >{DAY_LABELS[i]}</span>
-                  <div
-                    className="w-[30px] h-[30px] rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: bgColor, border: borderStyle }}
-                  >
-                    {isDone
-                      ? <span className="text-white text-xs font-bold">✓</span>
-                      : <span className="text-[10px]" style={{ fontWeight: isToday ? 700 : 400, color: textColor }}>{new Date(date + "T00:00:00").getDate()}</span>
-                    }
+        {/* 주간 학습 그리드 — 학부모/어드민과 동일한 공용 그리드 (읽기전용, 주 이동·날짜 클릭 상세) */}
+        {childId && !isDemo ? (
+          <Card style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
+            <StudentLearningGrid
+              childId={childId}
+              subscribedSlugs={subscriptions.map((s) => s.serviceSlug)}
+              readOnly
+              showWeekNav
+            />
+          </Card>
+        ) : (
+          /* 데모 모드 전용 — 기존 주간 스트립 유지 */
+          <Card style={{ padding: "14px 20px", marginBottom: 12 }}>
+            <div className="flex justify-between items-center">
+              {weekDates.map((date, i) => {
+                const isToday = date === today;
+                const isPast = date < today;
+                const isDone = logDates.has(date);
+                let bgColor = "transparent";
+                let borderStyle = "1.5px solid rgba(0,0,0,0.1)";
+                let textColor: string = "#a39e98";
+                if (isDone) { bgColor = "#38a848"; borderStyle = "2px solid #38a848"; textColor = "#ffffff"; }
+                else if (isToday) { borderStyle = "2px solid rgba(0,0,0,0.95)"; textColor = "rgba(0,0,0,0.95)"; }
+                else if (!isPast) { borderStyle = "1.5px solid rgba(0,0,0,0.08)"; }
+                return (
+                  <div key={date} className="flex flex-col items-center gap-[5px]">
+                    <span
+                      className="text-[10px] font-semibold tracking-[0.06em] uppercase"
+                      style={{ color: isToday ? "rgba(0,0,0,0.95)" : "#a39e98" }}
+                    >{DAY_LABELS[i]}</span>
+                    <div
+                      className="w-[30px] h-[30px] rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: bgColor, border: borderStyle }}
+                    >
+                      {isDone
+                        ? <span className="text-white text-xs font-bold">✓</span>
+                        : <span className="text-[10px]" style={{ fontWeight: isToday ? 700 : 400, color: textColor }}>{new Date(date + "T00:00:00").getDate()}</span>
+                      }
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* 스트릭 stat */}
         <div className="flex items-center gap-2 px-1 py-2 mb-5">
