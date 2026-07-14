@@ -23,7 +23,6 @@ import { CenterMsg } from "@/components/ui/center-msg";
 import { TaskChecklist } from "./task-checklist";
 import { MakeupSection, makeupTargets } from "./makeup-section";
 import { MissedReviewSection, missedTargets } from "./missed-review-section";
-import { ServiceQuickLinks } from "@/components/shared/service-quick-links";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
@@ -531,15 +530,10 @@ export function LearnDashboard({
         </Card>
 
         {/* 스트릭 stat */}
-        <div className="flex items-center gap-2 px-1 py-2 mb-3">
+        <div className="flex items-center gap-2 px-1 py-2 mb-5">
           <span className="text-[13px] font-semibold text-p-secondary">🔥 {streak}일 연속</span>
           <span className="text-black/15">·</span>
           <span className="text-[13px] font-semibold text-p-secondary">오늘 {todayDone}/{todayTotal} 완료</span>
-        </div>
-
-        {/* 학습 사이트 바로가기 (구독 서비스) */}
-        <div className="mb-5">
-          <ServiceQuickLinks slugs={subscriptions.map((s) => s.serviceSlug)} role="student" />
         </div>
 
         {/* 전체 완료 배너 */}
