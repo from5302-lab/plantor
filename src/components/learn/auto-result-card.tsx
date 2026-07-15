@@ -1,6 +1,7 @@
 "use client";
 
 import { SERVICES } from "@/data/site";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVocaItem } from "@/lib/types";
 
 // 자동인증 결과를 원본 성적표 "표 모양" 그대로 페이지에 기록/표시.
@@ -183,7 +184,8 @@ export function AutoResultSection({ logsByDate, today, className }: {
 }
 
 export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loading?: boolean; error?: string }) {
-  const svcName = log ? SERVICES.find((s) => s.slug === log.serviceSlug)?.name : null;
+  const svc = log ? SERVICES.find((s) => s.slug === log.serviceSlug) : null;
+  const svcName = svc?.name ?? null;
   const units = log?.scrapedData?.units ?? [];
   const voca = log?.scrapedData?.voca ?? [];
   const isEmpty = units.length === 0 && voca.length === 0; // 어휘만 학습한 경우도 표시
@@ -208,6 +210,7 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-3">
       <div className="flex items-center gap-2 mb-2">
+        {svc && <ServiceIcon service={svc} size={16} />}
         <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isClasscard || isDailykor || isClass5 ? "완료 인증" : "성적표"}</span>
         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
       </div>
