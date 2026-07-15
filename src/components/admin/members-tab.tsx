@@ -1909,9 +1909,8 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
         )}
       </div>
 
-      {/* 학생 목록 — 다중 학생 지원 */}
-      <div className="rounded-lg bg-p-bg px-[14px] py-3 text-[13px]">
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* 학생 목록 — 다중 학생 지원 (가족 카드와 동일하게 학생별 개별 박스) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(cls.students.length > 0 ? cls.students : [parentStudent])
             .map((student, si) => ({ student, si }))
             .filter(({ student }) => !serviceSlug || (student.serviceSlugs ?? cls.serviceSlugs).includes(serviceSlug))
@@ -1919,7 +1918,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
             const studentGrade = student.grade ?? cls.grades[si] ?? cls.grades[0] ?? "";
             const studentSlugs = student.serviceSlugs ?? cls.serviceSlugs;
             return (
-              <div key={si}>
+              <div key={si} className="rounded-lg bg-p-bg px-[14px] py-3 text-[13px]">
                 {/* 학생 이름/학년/아이디 행 */}
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: studentSlugs.length > 0 ? 6 : 0 }}>
                   <strong
@@ -1991,7 +1990,10 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                     const directParentId = parentStudent.parentLoginId ?? "";
                     return (
                       <div style={{ display: "grid", gridTemplateColumns: showDirectSms ? "1fr 68px 110px 24px" : "1fr 68px 110px", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#615d59", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cls.name}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
+                          <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>🎓</span>
+                          <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cls.name}</span>
+                        </span>
                         <button onClick={() => setConfirmingPayment(true)} style={{ appearance: "none", WebkitAppearance: "none", fontSize: 11, fontWeight: 600, color: "#1a7f4b", backgroundColor: "rgba(26,127,75,0.08)", border: "1px solid rgba(26,127,75,0.2)", borderRadius: 4, padding: "2px 6px", cursor: "pointer", width: 68, textAlign: "center" }}>입금확인</button>
                         <div style={{ textAlign: "right" }}>
                           <InlineDateField value={cls.expiry} onSave={(v) => updateDoc(doc(db, "directClasses", cls.id), { expiry: v })} />
@@ -2014,10 +2016,17 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                   {studentSlugs.map((slug) => {
                     const svc = SERVICES.find((s) => s.slug === slug);
                     if (!svc) return null;
+                    const svcExpiry = cls.serviceExpiry?.[slug] ?? null;
                     return (
-                      <div key={slug} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59" }}>
-                        <ServiceIcon service={svc} size={14} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc.name}</span>
+                      <div key={slug} style={{ display: "grid", gridTemplateColumns: "1fr 68px 110px", alignItems: "center", gap: 8 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
+                          <ServiceIcon service={svc} size={14} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc.name}</span>
+                        </span>
+                        <span />
+                        <span style={{ textAlign: "right", fontSize: 11, color: "#a39e98", whiteSpace: "nowrap" }}>
+                          {svcExpiry ? `~${new Date(svcExpiry + "T00:00:00+09:00").toLocaleDateString("ko-KR")}` : ""}
+                        </span>
                       </div>
                     );
                   })}
@@ -2033,9 +2042,8 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
               </div>
             );
           })}
-        </div>
         {cls.notes && (
-          <div style={{ fontSize: 12, color: "#a39e98", marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: "#a39e98", marginTop: 2, padding: "0 4px" }}>
             <EditableText value={cls.notes} onSave={(v) => updateClass("notes", v)} muted fontSize={12} />
           </div>
         )}
