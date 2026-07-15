@@ -44,12 +44,17 @@ export type Child = {
   studentPhone?: string;   // 학생 연락처 (학부모 입력, 미완료 알림용)
 };
 
+/** 1:1 학습 구독의 serviceSlug 접두사 — "1on1-<과목>" (과목·금액은 어드민 수동 입력) */
+export const ONE_ON_ONE_PREFIX = "1on1-";
+
 export type Subscription = {
   id: string;
   familyId?: string;
   /** 자녀 ID. null이면 학부모 본인 서비스 (great-books 등). */
   childId: string | null;
   serviceSlug: string;
+  /** 1:1 학습 등 SERVICES 라인업에 없는 구독의 표시 이름 (예: "1:1 국어") */
+  customName?: string;
   monthlyPrice: number;
   status: string;
   startDate: Date | null;

@@ -38,6 +38,7 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
           id: d.id,
           childId: data.childId ?? null,
           serviceSlug: data.serviceSlug ?? "",
+          customName: data.customName ?? undefined,
           monthlyPrice: data.monthlyPrice ?? 0,
           status: data.status ?? "active",
           startDate: tsToDate(data.startDate),

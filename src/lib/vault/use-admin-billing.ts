@@ -41,7 +41,7 @@ export type BillingItem = {
   count: number;
 };
 
-type Sub = { id: string; familyId: string; childId: string; serviceSlug: string; monthlyPrice: number; discount: number; agencyFee: number; end: string | null };
+type Sub = { id: string; familyId: string; childId: string; serviceSlug: string; customName?: string; monthlyPrice: number; discount: number; agencyFee: number; end: string | null };
 type Family = { id: string; parentName: string; aiPackageEndDate: string | null; isTest: boolean };
 type DirectClass = { id: string; tuition: number; agencyFee: number; expiry: string | null; studentNames: string; studentSlugs: string[][] };
 
@@ -81,6 +81,7 @@ export function useAdminBilling(month: string) {
             familyId: data.familyId ?? "",
             childId: data.childId ?? "",
             serviceSlug: data.serviceSlug ?? "",
+            customName: data.customName ?? undefined,
             monthlyPrice: data.monthlyPrice ?? 0,
             discount: data.discount ?? 0,
             agencyFee: data.agencyFee ?? 0,
@@ -208,7 +209,7 @@ export function useAdminBilling(month: string) {
       g.amount += amount;
       g.hasSub = true;
       const childName = children[s.childId] || "";
-      const svcName = SERVICE_NAME[s.serviceSlug] || s.serviceSlug;
+      const svcName = SERVICE_NAME[s.serviceSlug] || s.customName || s.serviceSlug;
       if (childName) g.names.add(childName);
       g.parts.push([childName, svcName].filter(Boolean).join(" "));
       if (!g.due || s.end < g.due) g.due = s.end;

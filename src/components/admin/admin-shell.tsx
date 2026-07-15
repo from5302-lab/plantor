@@ -8,6 +8,7 @@ import { auth, db, functions } from "@/lib/firebase";
 import { SERVICES } from "@/data/site";
 import { formatDateTime, formatWon, tsToDate } from "@/lib/format";
 import type { MemberFamily, MemberChild, Subscription as MemberSub, Signup, SignupStatus, SignupChild, RenewalRequest } from "@/lib/types";
+import { ONE_ON_ONE_PREFIX } from "@/lib/types";
 
 import { useAuth } from "@/lib/auth-context";
 import { T } from "@/lib/design-tokens";
@@ -128,7 +129,7 @@ function Dashboard({ user }: { user: User }) {
       unsubSubs = onSnapshot(query(collection(db, "subscriptions")), (snap) => {
         setAllSubs(snap.docs.map((d) => {
           const data = d.data();
-          return { id: d.id, familyId: data.familyId ?? "", childId: data.childId ?? "", serviceSlug: data.serviceSlug ?? "", monthlyPrice: data.monthlyPrice ?? 0, status: data.status ?? "active", startDate: tsToDate(data.startDate), endDate: tsToDate(data.endDate), discount: data.discount ?? 0, agencyFee: data.agencyFee ?? 0 };
+          return { id: d.id, familyId: data.familyId ?? "", childId: data.childId ?? "", serviceSlug: data.serviceSlug ?? "", customName: data.customName ?? undefined, monthlyPrice: data.monthlyPrice ?? 0, status: data.status ?? "active", startDate: tsToDate(data.startDate), endDate: tsToDate(data.endDate), discount: data.discount ?? 0, agencyFee: data.agencyFee ?? 0 };
         }).filter((s) => s.status !== "transferred"));
         setMembersLoading(false);
       });
@@ -396,8 +397,10 @@ function Dashboard({ user }: { user: User }) {
         await updateDoc(doc(db, "subscriptions", targetSubId), { endDate: Timestamp.fromDate(newEnd), status: "active" });
       } else {
         const svc = SERVICES.find((s) => s.slug === req.serviceSlug);
+        const isOneOnOne = req.serviceSlug.startsWith(ONE_ON_ONE_PREFIX);
         await addDoc(collection(db, "subscriptions"), {
           familyId: req.familyId, childId, serviceSlug: req.serviceSlug,
+          ...(isOneOnOne && req.serviceName ? { customName: req.serviceName } : {}),
           monthlyPrice: svc?.pricePerMonth ?? req.amount / req.months,
           agencyFee: svc?.agencyFee ?? 0, status: "active",
           startDate: Timestamp.fromDate(new Date()), endDate: Timestamp.fromDate(newEnd),

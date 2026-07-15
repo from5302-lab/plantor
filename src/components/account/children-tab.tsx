@@ -198,7 +198,7 @@ export function ChildrenSection({
                     return (
                       <li key={sub.id} className="flex items-center gap-2 bg-p-bg rounded-lg px-3.5 py-2.5">
                         <span className="flex items-center gap-1.5 text-sm font-medium text-black/95 flex-1 min-w-0">
-                          {svc && <ServiceIcon service={svc} size={16} />}{svc?.name ?? sub.serviceSlug}
+                          {svc && <ServiceIcon service={svc} size={16} />}{svc?.name ?? sub.customName ?? sub.serviceSlug}
                         </span>
                         <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: badgeActive ? "#f0faf1" : "#fff5f5", color: badgeActive ? "#2da040" : "#c00000" }}>
                           {badgeLabel}

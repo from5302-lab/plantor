@@ -408,7 +408,7 @@ export function LearnDashboard({
                   return (
                     <div key={sub.id} className="flex items-center gap-2.5">
                       <span className="text-base shrink-0">✅</span>
-                      <span className="text-sm font-semibold text-black/95 flex-1">{svc?.name ?? sub.serviceSlug}</span>
+                      <span className="text-sm font-semibold text-black/95 flex-1">{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                       {timeLabel && (
                         <span className="text-xs text-p-muted font-medium">⏱ {timeLabel}</span>
                       )}

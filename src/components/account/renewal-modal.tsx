@@ -61,6 +61,10 @@ export function RenewalModal({
   const [checkedParent, setCheckedParent] = useState<Set<string>>(
     () => new Set(target.allSubs.filter((s) => !s.childId).map((s) => s.serviceSlug))
   );
+  // 라인업에 없는 학부모 구독 — 행을 안 그리면 초기 체크만 남아 제출이 막힌다
+  const extraParentSubs = target.allSubs.filter(
+    (s) => !s.childId && !parentServices.some((svc) => svc.slug === s.serviceSlug)
+  );
 
   function toggleParent(slug: string) {
     setCheckedParent((prev) => {
@@ -192,7 +196,7 @@ export function RenewalModal({
           const base = sub ? calcSubRenewalPrice(sub, months).base : (svc?.pricePerMonth ?? 0) * months;
           requests.push(makeRequest(base, {
             childId: child.id, subscriptionId: sub?.id ?? null,
-            childName: child.name, serviceName: svc?.name ?? slug, serviceSlug: slug, months,
+            childName: child.name, serviceName: svc?.name ?? sub?.customName ?? slug, serviceSlug: slug, months,
             currentEndDate: sub?.endDate ? Timestamp.fromDate(sub.endDate) : null, isNew: !sub,
           }));
         });
@@ -205,7 +209,7 @@ export function RenewalModal({
         const base = parentSub ? calcSubRenewalPrice(parentSub, months).base : (svc?.pricePerMonth ?? 0) * months;
         requests.push(makeRequest(base, {
           childId: null, subscriptionId: parentSub?.id ?? null, childName: null,
-          serviceName: svc?.name ?? slug, serviceSlug: slug, months,
+          serviceName: svc?.name ?? parentSub?.customName ?? slug, serviceSlug: slug, months,
           currentEndDate: parentSub?.endDate ? Timestamp.fromDate(parentSub.endDate) : null,
           isNew: !parentSub, isParentService: true,
         }));
@@ -304,6 +308,32 @@ export function RenewalModal({
                                       </span>
                                     ) : `${formatWon(origPrice)}/월`}
                                   </span>
+                                  <div
+                                    className="flex items-center justify-center shrink-0"
+                                    style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                  >
+                                    {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
+                                  </div>
+                                </div>
+                                {isChecked && <MonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
+                              </div>
+                            );
+                          })}
+                          {/* 라인업에 없는 구독 (1:1 학습 등) — 행을 안 그리면 초기 체크만 남아 기간 선택이 불가능해 제출이 막힌다 */}
+                          {childSubs.filter((s) => !childOnlyServices.some((svc) => svc.slug === s.serviceSlug)).map((sub) => {
+                            const netPrice = sub.monthlyPrice - (sub.discount ?? 0);
+                            const isChecked = checked.has(sub.serviceSlug);
+                            const monthsKey = `child:${child.id}:${sub.serviceSlug}`;
+                            return (
+                              <div key={sub.serviceSlug} style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
+                                <div
+                                  onClick={() => toggleCheck(child.id, sub.serviceSlug)}
+                                  className="flex items-center gap-2 py-2 cursor-pointer"
+                                >
+                                  <span className="flex items-center gap-1.5 flex-1 text-[13px] text-black/95">
+                                    <span className="text-[14px]">🧑‍🏫</span>{sub.customName ?? sub.serviceSlug}
+                                  </span>
+                                  <span className="text-[12px] text-p-secondary text-right">{formatWon(netPrice)}/월</span>
                                   <div
                                     className="flex items-center justify-center shrink-0"
                                     style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
@@ -424,7 +454,7 @@ export function RenewalModal({
                 </button>
 
                 {/* 학부모 서비스 */}
-                {parentServices.length > 0 && (
+                {(parentServices.length > 0 || extraParentSubs.length > 0) && (
                   <div className="border border-black/10 rounded-[10px] overflow-hidden">
                     <div className="flex items-center gap-1.5 px-[14px] py-[10px] bg-p-bg border-b border-black/10">
                       <span className="text-[13px] font-bold text-black/95">학부모 서비스</span>
@@ -445,6 +475,31 @@ export function RenewalModal({
                                 <ServiceIcon service={svc} size={14} />{svc.name}
                               </span>
                               <span className="text-[12px] text-p-secondary">{formatWon(svc.pricePerMonth ?? 0)}/월</span>
+                              <div
+                                className="flex items-center justify-center shrink-0"
+                                style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                              >
+                                {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
+                              </div>
+                            </div>
+                            {isChecked && <MonthsPicker value={getMonths(monthsKey)} onChange={(m) => setMonths(monthsKey, m)} />}
+                          </div>
+                        );
+                      })}
+                      {extraParentSubs.map((sub) => {
+                        const netPrice = sub.monthlyPrice - (sub.discount ?? 0);
+                        const isChecked = checkedParent.has(sub.serviceSlug);
+                        const monthsKey = `parent:${sub.serviceSlug}`;
+                        return (
+                          <div key={sub.serviceSlug} style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
+                            <div
+                              onClick={() => toggleParent(sub.serviceSlug)}
+                              className="flex items-center gap-2 py-2 cursor-pointer"
+                            >
+                              <span className="flex items-center gap-1.5 flex-1 text-[13px] text-black/95">
+                                <span className="text-[14px]">🧑‍🏫</span>{sub.customName ?? sub.serviceSlug}
+                              </span>
+                              <span className="text-[12px] text-p-secondary">{formatWon(netPrice)}/월</span>
                               <div
                                 className="flex items-center justify-center shrink-0"
                                 style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}

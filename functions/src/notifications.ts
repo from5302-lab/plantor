@@ -540,7 +540,7 @@ export async function sendSubscriptionExpiryNotice(
   if (matching.length === 0) return 0;
 
   // familyId 기준 그룹핑
-  const grouped = new Map<string, Array<{ childId: string | null; serviceSlug: string; endDate: admin.firestore.Timestamp; docId: string }>>();
+  const grouped = new Map<string, Array<{ childId: string | null; serviceSlug: string; customName: string | null; endDate: admin.firestore.Timestamp; docId: string }>>();
   for (const d of matching) {
     const data = d.data();
     const fid = data.familyId as string | undefined;
@@ -549,6 +549,7 @@ export async function sendSubscriptionExpiryNotice(
     grouped.get(fid)!.push({
       childId: (data.childId as string | null | undefined) ?? null,
       serviceSlug: data.serviceSlug as string,
+      customName: (data.customName as string | undefined) ?? null,
       endDate: data.endDate as admin.firestore.Timestamp,
       docId: d.id,
     });
@@ -586,7 +587,7 @@ export async function sendSubscriptionExpiryNotice(
       }
 
       const serviceNames = subs
-        .map((s) => meta.get(s.serviceSlug)?.name ?? s.serviceSlug)
+        .map((s) => meta.get(s.serviceSlug)?.name ?? s.customName ?? s.serviceSlug)
         .join(", ");
 
       const endDate = subs[0].endDate.toDate().toLocaleDateString("ko-KR");

@@ -128,6 +128,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
             id: d.id,
             childId: d.data().childId ?? "",
             serviceSlug: d.data().serviceSlug ?? "",
+            customName: d.data().customName ?? undefined,
             monthlyPrice: d.data().monthlyPrice ?? 0,
             status: d.data().status ?? "active",
             startDate: null,

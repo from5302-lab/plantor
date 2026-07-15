@@ -17,6 +17,7 @@ import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 import { X, Settings, BarChart3, KeyRound } from "lucide-react";
 
 import type { MemberFamily, MemberChild, Subscription as MemberSub, DirectClass, DirectClassStudent, DaySchedule } from "@/lib/types";
+import { ONE_ON_ONE_PREFIX } from "@/lib/types";
 export type { MemberFamily, MemberChild, MemberSub };
 
 const INPUT_CLS = "w-full box-border border border-black/10 rounded px-[10px] py-[7px] text-[13px] text-black/90 bg-white outline-none font-[inherit]";
@@ -431,6 +432,9 @@ const PARENT_SERVICE_SLUGS = new Set(
 // 자녀 서비스 (subscription + premium)
 const CHILD_SERVICES = SERVICES.filter((s) => (s.category === "subscription" || s.category === "premium") && s.pricePerMonth !== null && s.pricePerMonth > 0);
 
+// 1:1 학습 (과목·금액 어드민 직접 입력) — serviceSlug는 "1on1-<과목>"
+const ONE_ON_ONE_OPTION = "__1on1__";
+
 function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }: {
   familyId: string;
   children: { id: string; name: string }[];
@@ -440,6 +444,8 @@ function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }
 }) {
   const [slug, setSlug] = useState("");
   const [target, setTarget] = useState(""); // childId or "__parent__"
+  const [oneOnOneSubject, setOneOnOneSubject] = useState("");
+  const [oneOnOnePrice, setOneOnOnePrice] = useState("");
   const [saving, setSaving] = useState(false);
 
   // 사용 가능한 서비스 목록: 대상에 따라 다름
@@ -456,13 +462,45 @@ function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }
     ? parentServices.filter((s) => !existingSlugs.includes(s.slug))
     : CHILD_SERVICES.filter((s) => !existingSlugs.includes(s.slug));
 
+  const isOneOnOne = slug === ONE_ON_ONE_OPTION;
+  const oneOnOnePriceNum = Number(oneOnOnePrice.replace(/[^0-9]/g, ""));
+  const oneOnOneReady = !isOneOnOne || (oneOnOneSubject.trim().length > 0 && oneOnOnePriceNum > 0);
+
   async function handleAdd() {
-    if (!slug || !target) return;
+    if (!slug || !target || !oneOnOneReady) return;
     setSaving(true);
     try {
       const now = new Date();
       const endDate = new Date(now.getFullYear(), now.getMonth() + 1 + 1, 0); // 다음 달 말일
       const endDateStr = endDate.toLocaleDateString("sv-SE"); // YYYY-MM-DD
+
+      if (isOneOnOne) {
+        // 1:1 학습: slug = "1on1-<과목>", 이름·금액은 doc에 저장
+        const subject = oneOnOneSubject.trim();
+        const oneSlug = `${ONE_ON_ONE_PREFIX}${subject}`;
+        if (existingSlugs.includes(oneSlug)) {
+          alert(`이미 ${subject} 1:1 학습이 추가되어 있습니다.`);
+          return;
+        }
+        await addDoc(collection(db, "subscriptions"), {
+          familyId,
+          childId: target,
+          serviceSlug: oneSlug,
+          customName: `1:1 ${subject}`,
+          monthlyPrice: oneOnOnePriceNum,
+          agencyFee: 0,
+          discount: 0,
+          status: "active",
+          startDate: Timestamp.fromDate(now),
+          endDate: Timestamp.fromDate(endDate),
+          createdAt: serverTimestamp(),
+        });
+        setSlug("");
+        setTarget("");
+        setOneOnOneSubject("");
+        setOneOnOnePrice("");
+        return;
+      }
 
       if (isParentTarget && slug === "momsaipack") {
         // AI 패키지: aiPackageEndDate 필드로 관리
@@ -528,10 +566,20 @@ function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }
           {availableServices.map((s) => (
             <option key={s.slug} value={s.slug}>{s.name} ({s.priceLabel})</option>
           ))}
+          {!isParentTarget && target && <option value={ONE_ON_ONE_OPTION}>1:1 학습 (과목·금액 직접 입력)</option>}
         </select>
+        {/* 1:1 학습: 과목·금액 직접 입력 */}
+        {isOneOnOne && (
+          <>
+            <input value={oneOnOneSubject} onChange={(e) => setOneOnOneSubject(e.target.value)} placeholder="과목 (예: 국어)"
+              style={{ fontSize: 12, padding: "6px 10px", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, outline: "none", width: 110 }} />
+            <input value={oneOnOnePrice} onChange={(e) => setOneOnOnePrice(e.target.value.replace(/[^0-9]/g, ""))} placeholder="월 금액 (원)" inputMode="numeric"
+              style={{ fontSize: 12, padding: "6px 10px", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, outline: "none", width: 110 }} />
+          </>
+        )}
         {/* 추가 버튼 */}
-        <button onClick={handleAdd} disabled={!slug || !target || saving}
-          style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: "#38a848", color: "white", cursor: slug && target && !saving ? "pointer" : "default", opacity: !slug || !target || saving ? 0.4 : 1, fontWeight: 600 }}>
+        <button onClick={handleAdd} disabled={!slug || !target || !oneOnOneReady || saving}
+          style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: "#38a848", color: "white", cursor: slug && target && oneOnOneReady && !saving ? "pointer" : "default", opacity: !slug || !target || !oneOnOneReady || saving ? 0.4 : 1, fontWeight: 600 }}>
           {saving ? "추가 중…" : "추가"}
         </button>
       </div>
@@ -1585,9 +1633,9 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                         return (
                           <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#615d59" }}>
                             {svc && <ServiceIcon service={svc} size={14} />}
-                            <span style={{ flex: 1 }}>{svc?.name ?? sub.serviceSlug}</span>
+                            <span style={{ flex: 1 }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                             <span style={{ fontSize: 11, color: "#a39e98" }}>~{sub.endDate?.toLocaleDateString("ko-KR") ?? "-"}</span>
-                            <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
+                            <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.customName ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
                               style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#c0a0a0", padding: "0 2px", lineHeight: 1 }}>×</button>
                           </div>
                         );
@@ -1669,9 +1717,9 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                         return (
                           <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#615d59" }}>
                             {svc && <ServiceIcon service={svc} size={14} />}
-                            <span style={{ flex: 1 }}>{svc?.name ?? sub.serviceSlug}</span>
+                            <span style={{ flex: 1 }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                             <span style={{ fontSize: 11, color: "#a39e98" }}>~{sub.endDate?.toLocaleDateString("ko-KR") ?? "-"}</span>
-                            <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
+                            <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.customName ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
                               style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#c0a0a0", padding: "0 2px", lineHeight: 1 }}>×</button>
                           </div>
                         );
@@ -2106,7 +2154,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                             <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto 24px", alignItems: "center", gap: 8 }}>
                               <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
                                 {svc && <ServiceIcon service={svc} size={14} />}
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.serviceSlug}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                               </span>
                               <SubStatusBadge sub={sub} />
                               <div style={{ textAlign: "right" }}>
@@ -2145,7 +2193,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                   // 자녀 단위 통합 만료 알림 (수강중인 모든 과목을 한 번에)
                   const activeChildSubs = allChildSubs.filter((s) => effectiveStatus(s) === "active");
                   const childSvcNames = activeChildSubs
-                    .map((s) => SERVICES.find((x) => x.slug === s.serviceSlug)?.name ?? s.serviceSlug)
+                    .map((s) => SERVICES.find((x) => x.slug === s.serviceSlug)?.name ?? s.customName ?? s.serviceSlug)
                     .join(", ");
                   const childNearestEnd = activeChildSubs.reduce<Date | null>(
                     (min, s) => (s.endDate && (!min || s.endDate < min) ? s.endDate : min),
@@ -2206,7 +2254,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                                 }}>
                                   <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
                                     {svc && <ServiceIcon service={svc} size={14} />}
-                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.serviceSlug}</span>
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                                   </span>
                                   <SubStatusBadge sub={sub} />
                                   <div style={{ textAlign: "right" }}>
