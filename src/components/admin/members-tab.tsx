@@ -847,7 +847,8 @@ export function MembersTab({
   const isPlantor  = svcFilter === "__plantor__";
   const isAll      = !svcFilter;
   const isSvcSlug  = svcFilter && !isDirect && !isPlantor; // 개별 서비스 slug 필터
-  const dashboardSubs  = isDirect ? [] : isSvcSlug ? realActiveSubs.filter((s) => s.serviceSlug === svcFilter) : realActiveSubs;
+  const is1on1Sub = (s: MemberSub) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX);
+  const dashboardSubs  = isDirect ? realActiveSubs.filter(is1on1Sub) : isSvcSlug ? realActiveSubs.filter((s) => s.serviceSlug === svcFilter) : realActiveSubs;
   const dashboardDirect = (isDirect || isAll) ? activeDirectClasses : [];
   const includeDirectRevenue = isDirect || isAll;
   const directRevenue  = includeDirectRevenue ? dashboardDirect.reduce((a, c) => a + (c.tuition ?? 0), 0) : 0;
@@ -902,8 +903,12 @@ export function MembersTab({
     if (svcFilter === "momsaipack") {
       // AI 패키지는 구독 대신 aiPackageEndDate로 체크
       if (!f.aiPackageEndDate) return false;
-    } else if (svcFilter === "__plantor__" || svcFilter === "__direct__") {
-      // 전체 플랜토 / 직강 필터 — 가족 목록은 서비스 필터 없이 전체 표시
+    } else if (svcFilter === "__plantor__") {
+      // 전체 플랜토 필터 — 가족 목록은 서비스 필터 없이 전체 표시
+    } else if (svcFilter === "__direct__") {
+      // 1:1 필터 — 1:1 학습 구독(1on1-*)이 있는 가족만 (직강 수업은 DirectStudentList로 별도 표시)
+      const has1on1 = allSubs.some((s) => ch.some((c) => c.id === s.childId) && is1on1Sub(s) && effectiveStatus(s) === "active");
+      if (!has1on1) return false;
     } else if (svcFilter) {
       const hasSvc = allSubs.some((s) => (ch.some((c) => c.id === s.childId) || (!s.childId && s.familyId === f.id)) && s.serviceSlug === svcFilter && effectiveStatus(s) === "active");
       if (!hasSvc) return false;
@@ -972,7 +977,7 @@ export function MembersTab({
               {/* 전체 아이콘: 플랜토 + 직강 + 서비스 + AI패키지 — 인원수 내림차순 */}
               {[
                 { key: "__plantor__", icon: <img src="/favicon.svg" width={22} height={22} alt="" style={{ display: "block" }} />, count: activeFamilies.length, color: "#38a848" },
-                { key: "__direct__", icon: <span style={{ fontSize: 22, lineHeight: 1, display: "flex", width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>🎓</span>, count: activeDirectClasses.length, color: "#7a7a7a" },
+                { key: "__direct__", icon: <span style={{ fontSize: 22, lineHeight: 1, display: "flex", width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>🎓</span>, count: activeDirectClasses.length + realActiveSubs.filter(is1on1Sub).length, color: "#7a7a7a" },
                 ...sortedServices.filter((s) => (svcCounts[s.slug] ?? 0) > 0).map((svc) => {
                   const iconUrl = svc.iconUrl || SERVICES.find((s) => s.slug === svc.slug)?.iconUrl;
                   return {
@@ -1101,7 +1106,12 @@ export function MembersTab({
 
       {/* ── 회원 카드 목록 ─────────────────────────────────────────────────────── */}
       {isDirect ? (
-        <DirectStudentList classes={directClasses} searchQuery={searchQuery} onReset={onResetDirectClass} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {sortedFamilies.length > 0 && (
+            <FamilyList families={sortedFamilies} allChildren={allChildren} allSubs={allSubs} onResetByFamily={onResetByFamily} onResetAttendance={onResetAttendance} statusFilter={statusFilter} svcFilter={svcFilter} />
+          )}
+          <DirectStudentList classes={directClasses} searchQuery={searchQuery} onReset={onResetDirectClass} />
+        </div>
       ) : families.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/[0.12] bg-white px-6 py-16 text-center text-sm text-p-muted">
           등록된 회원이 없습니다.
@@ -1632,7 +1642,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                         const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
                         return (
                           <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#615d59" }}>
-                            {svc && <ServiceIcon service={svc} size={14} />}
+                            {svc ? <ServiceIcon service={svc} size={14} /> : sub.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) ? <span style={{ fontSize: 13, lineHeight: 1 }}>🎓</span> : null}
                             <span style={{ flex: 1 }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                             <span style={{ fontSize: 11, color: "#a39e98" }}>~{sub.endDate?.toLocaleDateString("ko-KR") ?? "-"}</span>
                             <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.customName ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
@@ -1716,7 +1726,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
                         const svc = SERVICES.find((s) => s.slug === sub.serviceSlug);
                         return (
                           <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#615d59" }}>
-                            {svc && <ServiceIcon service={svc} size={14} />}
+                            {svc ? <ServiceIcon service={svc} size={14} /> : sub.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) ? <span style={{ fontSize: 13, lineHeight: 1 }}>🎓</span> : null}
                             <span style={{ flex: 1 }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                             <span style={{ fontSize: 11, color: "#a39e98" }}>~{sub.endDate?.toLocaleDateString("ko-KR") ?? "-"}</span>
                             <button onClick={async () => { if (!confirm(`${svc?.name ?? sub.customName ?? sub.serviceSlug} 구독을 삭제하시겠습니까?`)) return; await deleteDoc(doc(db, "subscriptions", sub.id)); }}
@@ -2084,9 +2094,14 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
       {families.map((family) => {
         const children = allChildren.filter((c) => c.familyId === family.id);
         const familySubs = allSubs.filter((s) => children.some((c) => c.id === s.childId) || (!s.childId && s.familyId === family.id));
+        const isDirectFilter = svcFilter === "__direct__";
         const baseTotals = family.isTest
           ? { revenue: 0, discount: 0, agencyFee: 0, profit: 0, count: 0 }
-          : calcTotals(familySubs, undefined, svcFilter && svcFilter !== "__direct__" ? svcFilter : null);
+          : calcTotals(
+              isDirectFilter ? familySubs.filter((s) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX)) : familySubs,
+              undefined,
+              svcFilter && svcFilter !== "__direct__" ? svcFilter : null
+            );
         const aiActive = !family.isTest && family.aiPackageEndDate && family.aiPackageEndDate >= today && (!svcFilter || svcFilter === "momsaipack");
         const totals = aiActive
           ? { ...baseTotals, revenue: baseTotals.revenue + AI_PACKAGE_PRICE, profit: baseTotals.profit + AI_PACKAGE_PRICE }
@@ -2153,7 +2168,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                           return (
                             <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto 24px", alignItems: "center", gap: 8 }}>
                               <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
-                                {svc && <ServiceIcon service={svc} size={14} />}
+                                {svc ? <ServiceIcon service={svc} size={14} /> : sub.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) ? <span style={{ fontSize: 13, lineHeight: 1 }}>🎓</span> : null}
                                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                               </span>
                               <SubStatusBadge sub={sub} />
@@ -2184,10 +2199,13 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                   // 서비스 필터 시 해당 서비스를 안 듣는 자녀 숨김
                   const isSvcSlugFilter = svcFilter && svcFilter !== "__plantor__" && svcFilter !== "__direct__" && svcFilter !== "momsaipack";
                   if (isSvcSlugFilter && !allChildSubs.some((s) => s.serviceSlug === svcFilter)) return null;
+                  // 1:1 필터 시 1:1 학습(1on1-*) 구독이 없는 자녀 숨김 + 1:1 구독만 표시
+                  if (isDirectFilter && !allChildSubs.some((s) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) && effectiveStatus(s) === "active")) return null;
                   const subs = (statusFilter === "all"
                     ? allChildSubs
                     : allChildSubs.filter((s) => effectiveStatus(s) === statusFilter)
-                  ).filter((s) => !isSvcSlugFilter || s.serviceSlug === svcFilter);
+                  ).filter((s) => !isSvcSlugFilter || s.serviceSlug === svcFilter)
+                    .filter((s) => !isDirectFilter || s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX));
                   // 매칭 구독 없는 자녀 숨김 (statusFilter가 active/stopped일 때)
                   if (statusFilter !== "all" && subs.length === 0) return null;
                   // 자녀 단위 통합 만료 알림 (수강중인 모든 과목을 한 번에)
@@ -2253,7 +2271,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                                   gap: 8,
                                 }}>
                                   <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
-                                    {svc && <ServiceIcon service={svc} size={14} />}
+                                    {svc ? <ServiceIcon service={svc} size={14} /> : sub.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) ? <span style={{ fontSize: 13, lineHeight: 1 }}>🎓</span> : null}
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{svc?.name ?? sub.customName ?? sub.serviceSlug}</span>
                                   </span>
                                   <SubStatusBadge sub={sub} />

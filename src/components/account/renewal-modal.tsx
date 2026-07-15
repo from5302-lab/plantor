@@ -331,7 +331,7 @@ export function RenewalModal({
                                   className="flex items-center gap-2 py-2 cursor-pointer"
                                 >
                                   <span className="flex items-center gap-1.5 flex-1 text-[13px] text-black/95">
-                                    <span className="text-[14px]">🧑‍🏫</span>{sub.customName ?? sub.serviceSlug}
+                                    <span className="text-[14px]">🎓</span>{sub.customName ?? sub.serviceSlug}
                                   </span>
                                   <span className="text-[12px] text-p-secondary text-right">{formatWon(netPrice)}/월</span>
                                   <div
@@ -497,7 +497,7 @@ export function RenewalModal({
                               className="flex items-center gap-2 py-2 cursor-pointer"
                             >
                               <span className="flex items-center gap-1.5 flex-1 text-[13px] text-black/95">
-                                <span className="text-[14px]">🧑‍🏫</span>{sub.customName ?? sub.serviceSlug}
+                                <span className="text-[14px]">🎓</span>{sub.customName ?? sub.serviceSlug}
                               </span>
                               <span className="text-[12px] text-p-secondary">{formatWon(netPrice)}/월</span>
                               <div
