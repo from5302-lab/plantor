@@ -47,9 +47,11 @@ function higher(a: string, b: string) { return (STATUS_RANK[a] ?? 0) >= (STATUS_
 // → 자동 완료는 daily 파트 과제만 인정 (vocab-center는 수동 체크 유지).
 export const DAILYKOR_REPORT_PARTS = ["daily"];
 
+// 셀에 색이 있으면 오늘의 학습을 끝낸 것 → 성취 수준(최우수~미흡)과 무관하게 모두 "완료" 인정.
+// 수준 차이는 COLOR_TO_GRADE의 등급으로 넘겨 카드에서 색으로만 구분한다.
 const COLOR_TO_STATUS: Record<string, string> = {
   "bg-primary": "완료", "bg-success": "완료", "bg-secondary": "완료",
-  "bg-warning": "진행중", "bg-danger": "진행중",
+  "bg-warning": "완료", "bg-danger": "완료",
 };
 const COLOR_TO_GRADE: Record<string, string> = {
   "bg-primary": "최우수", "bg-success": "양호", "bg-warning": "보통", "bg-danger": "미흡", "bg-secondary": "완료",

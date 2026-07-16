@@ -7,10 +7,31 @@ import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVo
 // 자동인증 결과를 원본 성적표 "표 모양" 그대로 페이지에 기록/표시.
 // 오토보카·클래스카드(문법/듣기/본문) 각각의 표 레이아웃을 재현한다.
 
-function statusBadge(status?: string) {
-  if (status === "완료") return { bg: "#f0faf1", fg: "#2a8438", label: "완료 ✓" };
+// 매일국어 등급(오늘 획득 경험치 수준) → 완료 뱃지 색. 완료 인정은 동일하고 수준만 색으로 구분한다.
+const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
+  최우수: { bg: "#f0f7ff", fg: "#097fe8" },  // 파랑
+  양호:   { bg: "#f0faf1", fg: "#2a8438" },  // 초록
+  보통:   { bg: "#fff8e6", fg: "#a86a00" },  // 노랑
+  미흡:   { bg: "#fff5f5", fg: "#c00000" },  // 빨강
+};
+const DONE_GREEN = { bg: "#f0faf1", fg: "#2a8438" };
+function gradeColor(grade?: string) {
+  return (grade && GRADE_COLORS[grade]) || DONE_GREEN;
+}
+
+function statusBadge(status?: string, grade?: string) {
+  if (status === "완료") return { ...gradeColor(grade), label: "완료 ✓" };
   if (status === "진행중") return { bg: "#fff8e6", fg: "#a86a00", label: "진행중" };
   return { bg: "#f6f5f4", fg: "#a39e98", label: "시작전" };
+}
+
+/** 유닛들에서 등급(최우수/양호/보통/미흡) 추출 — 매일국어 전용. */
+function unitsGrade(units: AutoUnit[]): string | undefined {
+  for (const u of units) {
+    const g = u.scores?.["등급"];
+    if (typeof g === "string" && GRADE_COLORS[g]) return g;
+  }
+  return undefined;
 }
 
 // "N분 M초"(또는 "N분"/"M초") → 초. 파싱 실패 시 0.
@@ -29,20 +50,23 @@ function formatKoTime(sec: number): string {
 }
 
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
-function CompletionBadge({ done }: { done: boolean }) {
-  const s = done ? { bg: "#f0faf1", fg: "#2a8438", label: "완료 ✓" } : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
-  return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
+// grade가 있으면(매일국어) 완료는 유지한 채 색만 등급별로 바뀐다.
+function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
+  const s = done
+    ? { ...gradeColor(grade), label: "완료 ✓" }
+    : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
+  return <span title={done && grade ? grade : undefined} className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
 }
 
 // ── 공통 항목 행 — 클래스카드/클래스5/매일국어 완료 인증의 단일 문법 ─────────────
 //   [파트 뱃지] 라벨 (보조) ··· 완료/미완료 pill(우측 끝)
-function UnitRow({ badge, label, sub, done }: { badge?: string; label: string; sub?: string; done: boolean }) {
+function UnitRow({ badge, label, sub, done, grade }: { badge?: string; label: string; sub?: string; done: boolean; grade?: string }) {
   return (
     <div className="flex items-center gap-2 py-1.5 border-t border-black/[0.05] first:border-t-0">
       {badge && <span className="text-[9px] font-bold px-1 py-px rounded bg-black/5 text-p-secondary shrink-0">{badge}</span>}
       <span className="text-[13px] text-black/80 flex-1 min-w-0 truncate">{label}</span>
       {sub && <span className="text-[11px] text-p-muted shrink-0">{sub}</span>}
-      <CompletionBadge done={done} />
+      <CompletionBadge done={done} grade={grade} />
     </div>
   );
 }
@@ -198,14 +222,15 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   }
   if (!log || isEmpty) return null;
 
-  const badge = statusBadge(log.autoStatus);
   const isAutovoca = log.serviceSlug === "autovoca";
   const isClasscard = log.serviceSlug === "classcard-middle";
-  // 매일국어 리포트의 셀 숫자(점수)·색상(등급)은 오늘 학습 여부를 나타내는 것이지 성취 점수가 아님
-  //  → 오해 방지 위해 점수·등급 표시하지 않고 "했나/안했나"(완료 여부)만 표기
+  // 매일국어 리포트의 셀 숫자(점수)는 성취 점수가 아니라 오늘 학습 여부 → 표시하지 않는다.
+  // 색상(등급)은 오늘 획득 경험치 수준이므로 완료 뱃지 색으로만 반영한다.
   const isDailykor = log.serviceSlug === "dailykor";
   // 클래스5: 카테고리(type)+유닛 칩에 완료 ✓ — 클래스카드와 동일한 완료 인증 형태
   const isClass5 = log.serviceSlug === "class5";
+  const dkGrade = isDailykor ? unitsGrade(units) : undefined;
+  const badge = statusBadge(log.autoStatus, dkGrade);
 
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-3">
@@ -259,6 +284,7 @@ function TrainTime({ p }: { p: DailykorPassage }) {
 // ── 매일국어: "오늘 학습 완료" 여부 + 오늘의 학습 상세(지문별) ────────────────────
 function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }) {
   const done = units.some((u) => u.completed);
+  const grade = unitsGrade(units);
 
   // 신규(passages) 우선, 없으면 레거시 평면 필드를 지문 1개로 정규화(과거 로그 호환)
   const passages: DailykorPassage[] = detail?.passages
@@ -276,7 +302,7 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
   return (
     <div>
       {/* 파트 행 — 클래스카드/클래스5 유닛 행과 동일 문법 */}
-      <UnitRow label="오늘의 학습" sub={multi ? `지문 ${passages.length}개` : undefined} done={done} />
+      <UnitRow label="오늘의 학습" sub={multi ? `지문 ${passages.length}개` : undefined} done={done} grade={grade} />
 
       {passages.map((p, i) => {
         const hasBody = p.accuracy || p.readingSpeed || p.prepTime || p.readingTime || p.practiceTime;
