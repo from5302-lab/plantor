@@ -3,6 +3,7 @@ import * as functions from "firebase-functions";
 import { FieldValue } from "firebase-admin/firestore";
 import { db, solapiApiKey, solapiApiSecret, KAKAO_TEMPLATES, SERVICE_META } from "./config";
 import { sendAlimtalk, sendSms } from "./sms";
+import { DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 
 // 과제 완료/미완료 카카오 알림
 //   완료(실시간): taskChecks 변경 → 그 학생 오늘 과제 전부 done 이면 부모에게 1건
@@ -156,6 +157,55 @@ export async function reconcileAutoChecks(
         : serviceComplete;
       if (madeUp) {
         await c.ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
+      }
+    }
+  }
+}
+
+/**
+ * 매일국어 과거 날짜 정정 — 월 리포트 기반.
+ *
+ * 매일국어는 날짜마다 다른 지문을 배정하고 결과를 "그 날짜 칸"에 기록한다. 따라서 지난 날짜
+ * 지문을 나중에 하면 그 날짜 칸이 채워진다. 오늘 칸만 보던 기존 로직은 이걸 영영 놓친다.
+ *
+ * 과거 날짜가 리포트상 완료인데 우리 기록이 다르면 정정한다:
+ *   - not_done(학생이 사유까지 남긴 미완료) → made_up (사유·원래 날짜 보존)
+ *   - 기록 없음                              → done  (뒤늦게 확인된 완료)
+ * 매일국어는 "언제 했는지"를 주지 않아 둘을 이렇게 구분한다. (클래스5는 last_ts가 있어 구분 가능)
+ *
+ * @param monthStatus "YYYY-MM-DD" → "완료"|"진행중" (그 달 학습 흔적이 있는 날짜만)
+ */
+export async function reconcileDailykorPast(
+  childId: string, monthStatus: Record<string, string>, todayKst: string,
+): Promise<void> {
+  const doneDates = Object.entries(monthStatus)
+    .filter(([d, s]) => d < todayKst && s === "완료")
+    .map(([d]) => d);
+  if (doneDates.length === 0) return;
+
+  const snap = await db.collection("tasks")
+    .where("childId", "==", childId).where("serviceSlug", "==", "dailykor").where("status", "==", "confirmed").get();
+  // sreport는 '오늘의 학습'만 반영 — 어휘력 센터(vocab-center)는 별도 추정이라 제외
+  const tasks = snap.docs.filter((d) => {
+    if (d.data().active === false) return false;
+    const ps = d.data().partSlug;
+    return ps == null || ps === "" || DAILYKOR_REPORT_PARTS.includes(String(ps));
+  });
+  if (tasks.length === 0) return;
+
+  for (const date of doneDates) {
+    const dow = dowMon0(date);
+    for (const t of tasks) {
+      const days = t.data().scheduleDays;
+      if (!Array.isArray(days) || !days.includes(dow)) continue;   // 그날 예정된 과제만
+      const existing = await db.collection("taskChecks").where("taskId", "==", t.id).where("date", "==", date).limit(1).get();
+      if (existing.empty) {
+        await db.collection("taskChecks").add({
+          taskId: t.id, childId, date, status: "done", detail: "자동인증(과거 날짜 확인)",
+          reason: null, reasonNote: null, checkedBy: "agent", checkedAt: FieldValue.serverTimestamp(),
+        });
+      } else if (existing.docs[0].data().status === "not_done") {
+        await existing.docs[0].ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
       }
     }
   }

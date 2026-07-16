@@ -8,7 +8,7 @@ import { scrapeAutovocaForStudent, autovocaDonePartSlugs } from "./scraper-autov
 import { scrapeClasscardForStudent, classcardDonePartSlugs, CLASSCARD_DEFAULT_CONFIG, type ClasscardConfig } from "./scraper-classcard";
 import { scrapeDailykorForStudent, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClass5ForStudent, class5DonePartSlugs } from "./scraper-class5";
-import { reconcileAutoChecks } from "./completion-notify";
+import { reconcileAutoChecks, reconcileDailykorPast } from "./completion-notify";
 
 // 클릭 실시간 자동인증: 학생이 클래스카드/오토보카 "완료" 클릭 시
 //   교사 계정으로 해당 학생의 오늘 진도를 스크래핑 → learningLogs(method:"auto") 기록.
@@ -142,6 +142,10 @@ export const verifyAutoProgress = onCall(
           const dkParts = res.autoStatus === "완료" ? [...DAILYKOR_REPORT_PARTS] : [];
           if ((res.voca?.length ?? 0) > 0) dkParts.push("vocab-center");
           await reconcileAutoChecks(childId, serviceSlug, date, dkParts, res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        }
+        // 지난 날짜 지문을 나중에 한 경우("했어요!" 재검사 포함) — 오늘 학습이 없어도 실행
+        if (res.monthStatus) {
+          await reconcileDailykorPast(childId, res.monthStatus, date).catch((e) => functions.logger.warn("[reconcile] 과거정정 실패", { error: String(e) }));
         }
         return { result, autoStatus: res.autoStatus, scrapedData };
       }

@@ -9,7 +9,7 @@ import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClasscardAll, classcardDonePartSlugs } from "./scraper-classcard";
 import { scrapeClass5All, class5DonePartSlugs } from "./scraper-class5";
 import { loadClasscardConfig } from "./verify-auto";
-import { reconcileAutoChecks, runIncompleteNotify } from "./completion-notify";
+import { reconcileAutoChecks, reconcileDailykorPast, runIncompleteNotify } from "./completion-notify";
 
 // 클릭 없이 전 학생 자동인증(오토보카·매일국어·클래스카드)을 스케줄로 기록한다.
 // 클래스카드는 교사 "엑셀 저장" 엔드포인트를 사용(문법·어휘·본문·듣기, 점수 무관 완료 판정).
@@ -64,7 +64,7 @@ async function runBatch(date: string) {
   // 매일국어
   try {
     const dk = await scrapeDailykorAll({ id: classcardId.value(), pw: teacherPw.value() }, date);
-    for (const s of dk) {
+    for (const s of dk.students) {
       const childId = matchName(s.name);
       if (!childId) { summary.dailykor.miss++; continue; }
       await writeAutoLog({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: { source: "dailykor", units: s.units, totalStudyMinutes: 0, detail: s.detail ?? null, voca: s.voca ?? null } });
@@ -73,6 +73,12 @@ async function runBatch(date: string) {
       if ((s.voca?.length ?? 0) > 0) dkParts.push("vocab-center");
       await reconcileAutoChecks(childId, "dailykor", date, dkParts, s.autoStatus === "완료").catch(() => undefined);
       summary.dailykor.ok++;
+    }
+    // 과거 날짜 정정 — 오늘 학습이 없는 학생도 대상(지난 날짜 지문만 만회한 경우를 놓치지 않는다)
+    for (const [name, monthStatus] of Object.entries(dk.monthByName)) {
+      const childId = matchName(name);
+      if (!childId) continue;
+      await reconcileDailykorPast(childId, monthStatus, date).catch((e) => functions.logger.warn("[batch] dailykor 과거정정 실패", { name, error: String(e) }));
     }
   } catch (e) { functions.logger.error("[batch] dailykor 실패", { error: String(e) }); }
 

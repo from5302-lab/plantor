@@ -37,6 +37,8 @@ export type DailykorVocaItem = { category: string; sets: string[] };
 
 export type DailykorResult = {
   autoStatus: "시작전" | "진행중" | "완료";
+  /** 그 달 날짜별 상태 ("YYYY-MM-DD" → "완료"|"진행중"). 과거 날짜 만회 판정용. */
+  monthStatus?: Record<string, string>;
   units: Array<{ unitLabel: string; completed: boolean; scores: Record<string, number | string> }>;
   totalStudyMinutes: number;
   matchedName?: string;
@@ -76,6 +78,8 @@ type DkSession = {
 };
 
 type NameInfo = { status: string; scores: Record<string, number | string>; idx?: string; kind?: "mh" | "el" };
+// 이름 → { "YYYY-MM-DD": "완료"|"진행중" } — 그 달에 학습 흔적이 있는 날짜만 (시작전은 미수록)
+export type MonthByName = Record<string, Record<string, string>>;
 
 // 로그인 → 인증된 세션(get/postForm + csrf) 반환. 리포트·상세가 같은 쿠키 세션을 재사용.
 async function dailykorLogin(creds: DailykorCreds): Promise<DkSession> {
@@ -117,9 +121,13 @@ async function dailykorLogin(creds: DailykorCreds): Promise<DkSession> {
 }
 
 // 리포트 파싱 → { 이름: { status, scores, idx, kind } } (전체 학생). idx/kind는 일별 상세 조회용.
-async function reportByName(session: DkSession, dateKst: string): Promise<Record<string, NameInfo>> {
+// 리포트는 원래 월 단위로 받으므로, 같은 응답에서 날짜별 상태(monthByName)도 함께 모은다.
+// 매일국어는 날짜마다 다른 지문을 배정하고 그 날짜 칸에 결과를 기록하므로,
+// 지난 날짜 지문을 나중에 하면 그 날짜 칸이 채워진다 → 과거 날짜 만회 판정에 쓴다.
+async function reportByName(session: DkSession, dateKst: string): Promise<{ byName: Record<string, NameInfo>; monthByName: MonthByName }> {
   const ym = dateKst.slice(0, 7);
   const byName: Record<string, NameInfo> = {};
+  const monthByName: MonthByName = {};
 
   // 리포트 파싱 (중고등 + 초등). 일별 상세(지문코드 등)는 중고등(mh) 리포트만 지원.
   const reports = [
@@ -138,10 +146,17 @@ async function reportByName(session: DkSession, dateKst: string): Promise<Record
         const name = (tds[1]?.text ?? "").trim();
         if (!name) continue;
         for (const td of row.querySelectorAll(`td.${rep.tdClass}`)) {
-          if ((td.getAttribute(rep.dateAttr) ?? "") !== dateKst) continue;
+          const cellDate = td.getAttribute(rep.dateAttr) ?? "";
+          if (!cellDate) continue;
           const cls = (td.getAttribute("class") ?? "").split(/\s+/);
           let status = "시작전"; let grade: string | null = null;
           for (const c of cls) { if (COLOR_TO_STATUS[c]) { status = COLOR_TO_STATUS[c]; grade = COLOR_TO_GRADE[c]; break; } }
+          // 날짜별 상태는 전 날짜 수집 (오늘 칸만 쓰던 기존 동작과 별개)
+          if (status !== "시작전") {
+            const m = (monthByName[name] ??= {});
+            m[cellDate] = higher(m[cellDate] ?? "시작전", status);
+          }
+          if (cellDate !== dateKst) continue;
           const scoreText = (td.text ?? "").trim();
           const score = /^\d+$/.test(scoreText) ? parseInt(scoreText, 10) : null;
           const scores: Record<string, number | string> = {};
@@ -162,7 +177,7 @@ async function reportByName(session: DkSession, dateKst: string): Promise<Record
     }
   }
 
-  return byName;
+  return { byName, monthByName };
 }
 
 // 오늘의 학습 일별 상세: 지문코드·유형·정답률·독해속도·경험치·훈련시간 (중고등 리포트 셀의 data-student_idx 사용)
@@ -379,7 +394,7 @@ export async function scrapeDailykorForStudent(
   dateKst: string,
 ): Promise<DailykorResult> {
   const session = await dailykorLogin(creds);
-  const byName = await reportByName(session, dateKst);
+  const { byName, monthByName } = await reportByName(session, dateKst);
   const vocaMap = await vocaByName(session, dateKst);
   const target = norm(studentName);
 
@@ -391,20 +406,28 @@ export async function scrapeDailykorForStudent(
     voca = items.length ? items : null;
   }
 
+  // 오늘 학습이 없어도 과거 날짜를 만회했을 수 있으므로 monthStatus는 이름 매칭만 되면 반환
+  const monthHit = findName(Object.keys(monthByName), target);
+  const monthStatus = monthHit ? monthByName[monthHit] : undefined;
+
   const hitName = findName(Object.keys(byName), target);
-  if (!hitName) return { autoStatus: "시작전", units: [], totalStudyMinutes: 0, voca };
+  if (!hitName) return { autoStatus: "시작전", units: [], totalStudyMinutes: 0, voca, monthStatus };
   const info = byName[hitName];
   const detail = info.kind === "mh" && info.idx ? await fetchDailykorDetail(session, info.idx, dateKst) : null;
-  return { autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), totalStudyMinutes: 0, matchedName: hitName, detail, voca };
+  return { autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), totalStudyMinutes: 0, matchedName: hitName, detail, voca, monthStatus };
 }
 
-// 전체 학생: 배치(스케줄러)용 — 로그인 1회로 오늘 학습한 모든 학생 반환 (중고등은 상세 포함)
+// 전체 학생: 배치(스케줄러)용 — 로그인 1회로 오늘 학습한 모든 학생 반환 (중고등은 상세 포함).
+// monthByName은 오늘 학습이 없는 학생도 포함 — 과거 날짜만 만회한 학생을 놓치지 않기 위함.
 export async function scrapeDailykorAll(
   creds: DailykorCreds,
   dateKst: string,
-): Promise<Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }>> {
+): Promise<{
+  students: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }>;
+  monthByName: MonthByName;
+}> {
   const session = await dailykorLogin(creds);
-  const byName = await reportByName(session, dateKst);
+  const { byName, monthByName } = await reportByName(session, dateKst);
   const vocaMap = await vocaByName(session, dateKst);
   const studied = Object.entries(byName).filter(([, info]) => Object.keys(info.scores).length);
   const out: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }> = [];
@@ -414,5 +437,5 @@ export async function scrapeDailykorAll(
     const items = vHit && vocaMap[vHit].studiedToday && vocaMap[vHit].idx ? await fetchVocaToday(session, vocaMap[vHit].idx as string, dateKst) : [];
     out.push({ name, autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), detail, voca: items.length ? items : null });
   }
-  return out;
+  return { students: out, monthByName };
 }
