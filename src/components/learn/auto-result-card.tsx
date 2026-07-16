@@ -7,7 +7,7 @@ import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVo
 // 자동인증 결과를 원본 성적표 "표 모양" 그대로 페이지에 기록/표시.
 // 오토보카·클래스카드(문법/듣기/본문) 각각의 표 레이아웃을 재현한다.
 
-// 매일국어 등급(오늘 획득 경험치 수준) → 완료 뱃지 색. 완료 인정은 동일하고 수준만 색으로 구분한다.
+// 매일국어 등급(오늘 획득 경험치 수준) → 완료 뱃지 색·라벨. 완료 인정은 동일하고 수준만 구분한다.
 const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   최우수: { bg: "#f0f7ff", fg: "#097fe8" },  // 파랑
   양호:   { bg: "#f0faf1", fg: "#2a8438" },  // 초록
@@ -15,12 +15,15 @@ const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   미흡:   { bg: "#fff5f5", fg: "#c00000" },  // 빨강
 };
 const DONE_GREEN = { bg: "#f0faf1", fg: "#2a8438" };
-function gradeColor(grade?: string) {
-  return (grade && GRADE_COLORS[grade]) || DONE_GREEN;
+
+// 완료 뱃지: 등급이 있으면 "완료 · 미흡"처럼 등급명을 함께 표기하고 색도 등급을 따른다.
+function doneBadge(grade?: string) {
+  const color = (grade && GRADE_COLORS[grade]) || DONE_GREEN;
+  return { ...color, label: grade ? `완료 · ${grade}` : "완료 ✓" };
 }
 
 function statusBadge(status?: string, grade?: string) {
-  if (status === "완료") return { ...gradeColor(grade), label: "완료 ✓" };
+  if (status === "완료") return doneBadge(grade);
   if (status === "진행중") return { bg: "#fff8e6", fg: "#a86a00", label: "진행중" };
   return { bg: "#f6f5f4", fg: "#a39e98", label: "시작전" };
 }
@@ -50,12 +53,9 @@ function formatKoTime(sec: number): string {
 }
 
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
-// grade가 있으면(매일국어) 완료는 유지한 채 색만 등급별로 바뀐다.
 function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
-  const s = done
-    ? { ...gradeColor(grade), label: "완료 ✓" }
-    : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
-  return <span title={done && grade ? grade : undefined} className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
+  const s = done ? doneBadge(grade) : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
+  return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
 }
 
 // ── 공통 항목 행 — 클래스카드/클래스5/매일국어 완료 인증의 단일 문법 ─────────────
