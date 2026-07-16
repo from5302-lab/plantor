@@ -7,9 +7,9 @@ import { writeAutoLog } from "./auto-log";
 import { scrapeAutovocaAll, autovocaDonePartSlugs, autovocaDonePartCounts } from "./scraper-autovoca";
 import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClasscardAll, classcardDonePartSlugs, classcardDonePartCounts } from "./scraper-classcard";
-import { scrapeClass5All, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
+import { scrapeClass5All, scrapeClass5Past, class5PastDates, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
 import { loadClasscardConfig } from "./verify-auto";
-import { reconcileAutoChecks, reconcileDailykorPast, runIncompleteNotify } from "./completion-notify";
+import { reconcileAutoChecks, reconcileDailykorPast, reconcileClass5Past, runIncompleteNotify } from "./completion-notify";
 
 // 클릭 없이 전 학생 자동인증(오토보카·매일국어·클래스카드)을 스케줄로 기록한다.
 // 클래스카드는 교사 "엑셀 저장" 엔드포인트를 사용(문법·어휘·본문·듣기, 점수 무관 완료 판정).
@@ -118,6 +118,14 @@ async function runBatch(date: string) {
         await db.collection("children").doc(childId).update({ class5StudentId: s.studentId }).catch(() => undefined);
       }
       summary.class5.ok++;
+    }
+    // 과거 배정일 정정 — 배정일 이후 완료(만회)와 뒤늦게 확인된 정시 완료를 구분해 기록.
+    // 오늘 과제가 없는 학생도 대상(지난 날짜만 만회한 경우를 놓치지 않는다).
+    const past = await scrapeClass5Past({ id: classcardId.value(), pw: teacherPw.value() }, class5PastDates(date));
+    for (const [studentId, byDate] of Object.entries(past.byStudentId)) {
+      const childId = byC5.get(studentId) || matchName(past.roster.get(studentId) ?? "");
+      if (!childId) continue;
+      await reconcileClass5Past(childId, byDate, date).catch((e) => functions.logger.warn("[batch] class5 과거정정 실패", { studentId, error: String(e) }));
     }
   } catch (e) { functions.logger.error("[batch] class5 실패", { error: String(e) }); }
 

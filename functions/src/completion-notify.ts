@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, solapiApiKey, solapiApiSecret, KAKAO_TEMPLATES, SERVICE_META } from "./config";
 import { sendAlimtalk, sendSms } from "./sms";
 import { DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
+import type { Class5PastDay } from "./scraper-class5";
 
 // 과제 완료/미완료 카카오 알림
 //   완료(실시간): taskChecks 변경 → 그 학생 오늘 과제 전부 done 이면 부모에게 1건
@@ -224,6 +225,57 @@ export async function reconcileDailykorPast(
         });
       } else if (existing.docs[0].data().status === "not_done") {
         await existing.docs[0].ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
+      }
+    }
+  }
+}
+
+/**
+ * 클래스5 과거 배정일 정정 — 배정일(homework_date) + 마지막 학습 시각(last_ts) 기반.
+ *
+ * 매일국어와 달리 "언제 했는지"를 알 수 있어 만회와 정시 완료를 정확히 구분한다:
+ *   - 배정일 이후에 완료(late)  → made_up (사유·원래 날짜 보존)
+ *   - 배정일 당일에 완료        → done   (뒤늦게 확인된 정시 완료)
+ */
+export async function reconcileClass5Past(
+  childId: string, pastByDate: Record<string, Class5PastDay>, todayKst: string,
+): Promise<void> {
+  const dates = Object.keys(pastByDate).filter((d) => d < todayKst).sort();
+  if (dates.length === 0) return;
+
+  const snap = await db.collection("tasks")
+    .where("childId", "==", childId).where("serviceSlug", "==", "class5").where("status", "==", "confirmed").get();
+  const tasks = snap.docs.filter((d) => d.data().active !== false);
+  if (tasks.length === 0) return;
+
+  for (const date of dates) {
+    const day = pastByDate[date];
+    const dow = dowMon0(date);
+    for (const t of tasks) {
+      const days = t.data().scheduleDays;
+      if (!Array.isArray(days) || !days.includes(dow)) continue;   // 그날 예정된 과제만
+      const ps = t.data().partSlug;
+      const partless = ps == null || ps === "";
+      // 파트 없는 과제는 그날 배정분을 전부 끝냈을 때만 인정
+      const hit = partless
+        ? (day.allDone && Object.keys(day.parts).length > 0 ? { late: day.anyLate } : undefined)
+        : day.parts[String(ps)];
+      if (!hit) continue;
+
+      const existing = await db.collection("taskChecks").where("taskId", "==", t.id).where("date", "==", date).limit(1).get();
+      if (existing.empty) {
+        await db.collection("taskChecks").add({
+          taskId: t.id, childId, date,
+          status: hit.late ? "made_up" : "done",
+          detail: hit.late ? "자동인증(배정일 이후 만회)" : "자동인증(과거 날짜 확인)",
+          reason: null, reasonNote: null, checkedBy: "agent",
+          checkedAt: FieldValue.serverTimestamp(),
+          ...(hit.late ? { madeUpAt: FieldValue.serverTimestamp() } : {}),
+        });
+      } else if (existing.docs[0].data().status === "not_done") {
+        await existing.docs[0].ref.update(hit.late
+          ? { status: "made_up", madeUpAt: FieldValue.serverTimestamp() }
+          : { status: "done", checkedBy: "agent", checkedAt: FieldValue.serverTimestamp(), reason: null, reasonNote: null });
       }
     }
   }

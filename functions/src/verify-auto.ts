@@ -7,8 +7,8 @@ import { writeAutoLog } from "./auto-log";
 import { scrapeAutovocaForStudent, autovocaDonePartSlugs, autovocaDonePartCounts } from "./scraper-autovoca";
 import { scrapeClasscardForStudent, classcardDonePartSlugs, classcardDonePartCounts, CLASSCARD_DEFAULT_CONFIG, type ClasscardConfig } from "./scraper-classcard";
 import { scrapeDailykorForStudent, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
-import { scrapeClass5ForStudent, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
-import { reconcileAutoChecks, reconcileDailykorPast } from "./completion-notify";
+import { scrapeClass5ForStudent, scrapeClass5Past, class5PastDates, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
+import { reconcileAutoChecks, reconcileDailykorPast, reconcileClass5Past } from "./completion-notify";
 
 // 클릭 실시간 자동인증: 학생이 클래스카드/오토보카 "완료" 클릭 시
 //   교사 계정으로 해당 학생의 오늘 진도를 스크래핑 → learningLogs(method:"auto") 기록.
@@ -168,6 +168,12 @@ export const verifyAutoProgress = onCall(
         const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus: res.autoStatus, scrapedData });
         // 학생을 확정 매칭했을 때만 정합(완료 카테고리 파트 done, 그 외 미인증 자기체크 해제).
         if (res.matchedStudentId) await reconcileAutoChecks(childId, serviceSlug, date, class5DonePartSlugs(res.units), res.autoStatus === "완료", class5DonePartCounts(res.units)).catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        // 지난 배정일 과제를 나중에 한 경우("했어요!" 재검사 포함) — 배정일 이후 완료면 만회로 기록
+        if (res.matchedStudentId) {
+          const past = await scrapeClass5Past({ id: classcardId.value(), pw: teacherPw.value() }, class5PastDates(date));
+          const byDate = past.byStudentId[res.matchedStudentId];
+          if (byDate) await reconcileClass5Past(childId, byDate, date).catch((e) => functions.logger.warn("[reconcile] 과거정정 실패", { error: String(e) }));
+        }
         return { result, autoStatus: res.autoStatus, scrapedData };
       }
 

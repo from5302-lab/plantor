@@ -117,7 +117,17 @@ type Class5Item = {
   book_title?: string;
   movie_type?: string;
   grade?: string | number;
+  last_ts?: string;      // 마지막 학습 시각 "2026-07-16 21:41:16" — 배정일 이후면 만회
 };
+
+// 과거 배정일 1일치 판정 (만회 확인용)
+export type Class5PastDay = {
+  parts: Record<string, { late: boolean }>;  // 완료된 파트 → 배정일 이후 완료 여부
+  allDone: boolean;                          // 그날 배정분 전부 완료
+  anyLate: boolean;
+};
+// std_user_idx → "YYYY-MM-DD" → 판정
+export type Class5PastByStudent = Record<string, Record<string, Class5PastDay>>;
 
 /** 페이지에 서버렌더된 `var hw_list = [...]` JS 변수를 파싱. */
 function parseVar(html: string, name: string): unknown[] {
@@ -275,4 +285,49 @@ export async function scrapeClass5All(
     });
   }
   return out;
+}
+
+/** 과거 만회 확인 대상 날짜 — 오늘 제외 직전 N일 (날짜당 요청 1회라 범위를 제한한다). */
+export const CLASS5_PAST_DAYS = 7;
+export function class5PastDates(todayKst: string, days = CLASS5_PAST_DAYS): string[] {
+  const base = new Date(`${todayKst}T00:00:00Z`).getTime();
+  return Array.from({ length: days }, (_, i) => new Date(base - (i + 1) * 86400000).toISOString().slice(0, 10));
+}
+
+/**
+ * 과거 배정일들의 과제 완료 현황 (만회 판정용).
+ * 클래스5는 과제가 날짜별로 배정되고(homework_date) 마지막 학습 시각(last_ts)까지 주므로,
+ * "배정일 7/13 과제를 7/16에 완료" 를 개수 추정 없이 확정할 수 있다.
+ */
+export async function scrapeClass5Past(
+  creds: Class5Creds,
+  dates: string[],
+): Promise<{ byStudentId: Class5PastByStudent; roster: Map<string, string> }> {
+  const client = new Class5Client(creds);
+  await client.login();
+  const roster = await client.fetchRoster();
+  const catMap = await getCategoryMap();
+  const byStudentId: Class5PastByStudent = {};
+
+  for (const date of dates) {
+    let all: Class5Item[];
+    try { all = await client.fetchDateHomework(date); }
+    catch { continue; }  // 하루 실패해도 나머지 날짜는 진행
+    for (const it of all) {
+      const sid = String(it.std_user_idx ?? "");
+      if (!sid) continue;
+      const done = String(it.is_end) === "1";
+      const lastTs = norm(it.last_ts);
+      // 배정일보다 뒤에 학습했으면 만회. (같은 날 마감 후 완료도 배정일 기준으로는 정시로 본다)
+      const late = done && lastTs.length >= 10 && lastTs.slice(0, 10) > date;
+      const day = ((byStudentId[sid] ??= {})[date] ??= { parts: {}, allDone: true, anyLate: false });
+      if (!done) { day.allDone = false; continue; }
+      if (late) day.anyLate = true;
+      const cat = inferCategory(it, catMap);
+      if (!CLASS5_CATEGORIES.has(cat)) continue;
+      const part = cat.toLowerCase();
+      day.parts[part] = { late: (day.parts[part]?.late ?? false) || late };
+    }
+  }
+  return { byStudentId, roster };
 }
