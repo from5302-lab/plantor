@@ -7,7 +7,8 @@ import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVo
 // 자동인증 결과를 원본 성적표 "표 모양" 그대로 페이지에 기록/표시.
 // 오토보카·클래스카드(문법/듣기/본문) 각각의 표 레이아웃을 재현한다.
 
-// 매일국어 등급(오늘 획득 경험치 수준) → 완료 뱃지 색·라벨. 완료 인정은 동일하고 수준만 구분한다.
+// 매일국어 등급(오늘 획득 경험치 수준) → 색. 완료 인정은 동일하고 수준만 색으로 구분한다.
+// 등급 이름은 경험치 옆에 한 번만 표기하므로 뱃지는 색으로만 수준을 나타낸다.
 const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   최우수: { bg: "#f0f7ff", fg: "#097fe8" },  // 파랑
   양호:   { bg: "#f0faf1", fg: "#2a8438" },  // 초록
@@ -15,15 +16,12 @@ const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   미흡:   { bg: "#fff5f5", fg: "#c00000" },  // 빨강
 };
 const DONE_GREEN = { bg: "#f0faf1", fg: "#2a8438" };
-
-// 완료 뱃지: 등급이 있으면 "완료 · 미흡"처럼 등급명을 함께 표기하고 색도 등급을 따른다.
-function doneBadge(grade?: string) {
-  const color = (grade && GRADE_COLORS[grade]) || DONE_GREEN;
-  return { ...color, label: grade ? `완료 · ${grade}` : "완료 ✓" };
+function gradeColor(grade?: string) {
+  return (grade && GRADE_COLORS[grade]) || DONE_GREEN;
 }
 
-function statusBadge(status?: string, grade?: string) {
-  if (status === "완료") return doneBadge(grade);
+function statusBadge(status?: string) {
+  if (status === "완료") return { ...DONE_GREEN, label: "완료 ✓" };
   if (status === "진행중") return { bg: "#fff8e6", fg: "#a86a00", label: "진행중" };
   return { bg: "#f6f5f4", fg: "#a39e98", label: "시작전" };
 }
@@ -54,7 +52,9 @@ function formatKoTime(sec: number): string {
 
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
 function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
-  const s = done ? doneBadge(grade) : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
+  const s = done
+    ? { ...gradeColor(grade), label: "완료 ✓" }
+    : { bg: "#f6f5f4", fg: "#a39e98", label: "미완료" };
   return <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: s.bg, color: s.fg }}>{s.label}</span>;
 }
 
@@ -229,15 +229,18 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const isDailykor = log.serviceSlug === "dailykor";
   // 클래스5: 카테고리(type)+유닛 칩에 완료 ✓ — 클래스카드와 동일한 완료 인증 형태
   const isClass5 = log.serviceSlug === "class5";
-  const dkGrade = isDailykor ? unitsGrade(units) : undefined;
-  const badge = statusBadge(log.autoStatus, dkGrade);
+  // 완료 인증 카드는 항목마다 완료 뱃지가 붙으므로 헤더 뱃지는 중복 → 성적표 카드에만 표시
+  const isCompletion = isClasscard || isDailykor || isClass5;
+  const badge = statusBadge(log.autoStatus);
 
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-3">
       <div className="flex items-center gap-2 mb-2">
         {svc && <ServiceIcon service={svc} size={16} />}
-        <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isClasscard || isDailykor || isClass5 ? "완료 인증" : "성적표"}</span>
-        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
+        <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isCompletion ? "완료 인증" : "성적표"}</span>
+        {!isCompletion && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
+        )}
       </div>
       {isAutovoca ? (
         <AutovocaTable units={units} />
@@ -253,11 +256,18 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
 }
 
 // 라벨 위 / 값 아래의 지표 셀 (Toss식 또렷한 숫자 위계)
-function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+// chip: 값 옆 등급 뱃지 (매일국어 경험치 옆 최우수/양호/보통/미흡)
+function Stat({ label, value, strong, chip }: { label: string; value: string; strong?: boolean; chip?: string }) {
+  const c = chip ? gradeColor(chip) : null;
   return (
     <div>
       <div className="text-[10px] text-p-muted mb-0.5">{label}</div>
-      <div className={`${strong ? "text-[15px]" : "text-[14px]"} font-semibold text-black/90 tabular-nums leading-none`}>{value}</div>
+      <div className={`${strong ? "text-[15px]" : "text-[14px]"} font-semibold text-black/90 tabular-nums leading-none`}>
+        {value}
+        {c && (
+          <span className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full align-middle" style={{ backgroundColor: c.bg, color: c.fg }}>{chip}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -333,7 +343,7 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
       {(totalSec > 0 || detail?.xp) && (
         <div className="mt-2.5 flex gap-8">
           {totalSec > 0 && <Stat label="전체 학습시간" value={formatKoTime(totalSec)} strong />}
-          {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong />}
+          {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong chip={grade} />}
         </div>
       )}
       {voca && voca.length > 0 && (
