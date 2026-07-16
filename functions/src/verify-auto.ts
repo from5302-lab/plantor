@@ -4,10 +4,10 @@ import * as functions from "firebase-functions";
 import { db } from "./config";
 import { assertAdmin } from "./utils";
 import { writeAutoLog } from "./auto-log";
-import { scrapeAutovocaForStudent, autovocaDonePartSlugs } from "./scraper-autovoca";
-import { scrapeClasscardForStudent, classcardDonePartSlugs, CLASSCARD_DEFAULT_CONFIG, type ClasscardConfig } from "./scraper-classcard";
+import { scrapeAutovocaForStudent, autovocaDonePartSlugs, autovocaDonePartCounts } from "./scraper-autovoca";
+import { scrapeClasscardForStudent, classcardDonePartSlugs, classcardDonePartCounts, CLASSCARD_DEFAULT_CONFIG, type ClasscardConfig } from "./scraper-classcard";
 import { scrapeDailykorForStudent, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
-import { scrapeClass5ForStudent, class5DonePartSlugs } from "./scraper-class5";
+import { scrapeClass5ForStudent, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
 import { reconcileAutoChecks, reconcileDailykorPast } from "./completion-notify";
 
 // 클릭 실시간 자동인증: 학생이 클래스카드/오토보카 "완료" 클릭 시
@@ -120,7 +120,7 @@ export const verifyAutoProgress = onCall(
         };
         const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus: res.autoStatus, scrapedData });
         // 학생을 확정적으로 판정했을 때만 정합(완료 표시/미인증 자기체크 해제). 미발견이면 스킵.
-        if (res.matchedLoginId) await reconcileAutoChecks(childId, serviceSlug, date, autovocaDonePartSlugs(res.units), res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        if (res.matchedLoginId) await reconcileAutoChecks(childId, serviceSlug, date, autovocaDonePartSlugs(res.units), res.autoStatus === "완료", autovocaDonePartCounts(res.units) ?? undefined).catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
         // 필드명 확정용 원본: 어드민 debug 호출 때만 반환(로그엔 저장 안 함)
         const rawOut = debug ? res.rawToday : undefined;
         return { result, autoStatus: res.autoStatus, scrapedData, ...(rawOut ? { rawToday: rawOut } : {}) };
@@ -167,7 +167,7 @@ export const verifyAutoProgress = onCall(
         };
         const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus: res.autoStatus, scrapedData });
         // 학생을 확정 매칭했을 때만 정합(완료 카테고리 파트 done, 그 외 미인증 자기체크 해제).
-        if (res.matchedStudentId) await reconcileAutoChecks(childId, serviceSlug, date, class5DonePartSlugs(res.units), res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+        if (res.matchedStudentId) await reconcileAutoChecks(childId, serviceSlug, date, class5DonePartSlugs(res.units), res.autoStatus === "완료", class5DonePartCounts(res.units)).catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
         return { result, autoStatus: res.autoStatus, scrapedData };
       }
 
@@ -191,7 +191,7 @@ export const verifyAutoProgress = onCall(
       };
       const result = await writeAutoLog({ childId, serviceSlug, date, autoStatus: res.autoStatus, scrapedData });
       // 학생을 반 명단에서 확정 매칭했을 때만 정합. 미발견이면 스킵.
-      if (res.matchedLoginId) await reconcileAutoChecks(childId, serviceSlug, date, classcardDonePartSlugs(res.units), res.autoStatus === "완료").catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
+      if (res.matchedLoginId) await reconcileAutoChecks(childId, serviceSlug, date, classcardDonePartSlugs(res.units), res.autoStatus === "완료", classcardDonePartCounts(res.units)).catch((e) => functions.logger.warn("[reconcile] 실패", { error: String(e) }));
       const rawOut = debug ? res.rawToday : undefined;
       return { result, autoStatus: res.autoStatus, scrapedData, ...(rawOut ? { rawToday: rawOut } : {}) };
     } catch (e) {

@@ -102,10 +102,14 @@ function serviceNames(slugs: string[]): string {
  * @param donePartSlugs 완료한 파트 슬러그 목록. 배열이면 partSlug 매칭으로 파트 단위 정밀 판정.
  *   null/undefined면 파트 구분 없이 serviceComplete 로 서비스 전체를 판정(기존 동작).
  * @param serviceComplete 서비스 전체 완료 여부(파트 없는 과제 및 파트-무관 판정에 사용).
+ * @param donePartCounts 파트별 오늘 완료 유닛 수. 있으면 "오늘 예정된 양을 넘긴 초과분"만큼만
+ *   과거 미완료를 만회 인정한다. 없으면 만회 판정을 하지 않는다.
+ *   (매일국어는 날짜별 배정이라 개수 대신 reconcileDailykorPast가 정확히 판정 → counts 미전달)
  */
 export async function reconcileAutoChecks(
   childId: string, serviceSlug: string, dateKst: string,
   donePartSlugs: string[] | null | undefined, serviceComplete: boolean,
+  donePartCounts?: Record<string, number>,
 ): Promise<void> {
   const dow = dowMon0(dateKst);
   const snap = await db.collection("tasks")
@@ -138,27 +142,41 @@ export async function reconcileAutoChecks(
     }
   }
 
-  // 만회(made_up): 오늘 학습이 확인된 파트에 대해, 제 날짜가 지난 미완료(not_done) 체크를
-  // 만회 완료로 전환. 원래 날짜·6hdl 사유는 보존해 "제 날짜 완료(done)"와 구분한다.
-  // (같은 파트를 하루 1회 학습으로 오늘 done + 과거 만회가 동시에 인정될 수 있음 — v1 허용, 성적표로 검증 가능)
+  // 만회(made_up): 오늘 예정된 양을 "넘겨서 더 한 만큼만" 과거 미완료(not_done)를 인정한다.
+  // 원래 날짜·6hdl 사유는 보존해 "제 날짜 완료(done)"와 구분한다.
+  // (하루치만 해도 밀린 게 전부 공짜로 지워지던 문제를 막기 위해 파트별 초과분으로 제한)
+  if (!donePartCounts) return;
+  const partKey = (t: FirebaseFirestore.QueryDocumentSnapshot): string => {
+    const ps = t.data().partSlug;
+    return ps == null || ps === "" ? "" : String(ps);
+  };
+  // 파트별 오늘 예정 과제 수
+  const scheduledCount = new Map<string, number>();
+  for (const t of scheduled) scheduledCount.set(partKey(t), (scheduledCount.get(partKey(t)) ?? 0) + 1);
+  // 파트별 초과분 (파트 없는 과제는 전체 유닛 수 기준)
+  const totalDone = Object.values(donePartCounts).reduce((a, b) => a + b, 0);
+  const surplus = new Map<string, number>();
+  for (const key of new Set([...scheduledCount.keys(), ...Object.keys(donePartCounts)])) {
+    const done = key === "" ? totalDone : (donePartCounts[key] ?? 0);
+    const extra = done - (scheduledCount.get(key) ?? 0);
+    if (extra > 0) surplus.set(key, extra);
+  }
+  if (surplus.size === 0) return;
+
   const notDoneSnap = await db.collection("taskChecks")
     .where("childId", "==", childId).where("status", "==", "not_done").get();
-  if (!notDoneSnap.empty) {
-    const taskById = new Map(snap.docs.map((d) => [d.id, d]));
-    for (const c of notDoneSnap.docs) {
-      const cd = c.data();
-      if ((cd.date ?? "") >= dateKst) continue;           // 제 날짜가 지난 것만
-      const t = taskById.get(cd.taskId ?? "");
-      if (!t) continue;                                    // 같은 서비스의 확정 과제만
-      const ps = t.data().partSlug;
-      const partless = ps == null || ps === "";
-      const madeUp = useFilter
-        ? (partless ? serviceComplete : (donePartSlugs as string[]).includes(String(ps)))
-        : serviceComplete;
-      if (madeUp) {
-        await c.ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
-      }
-    }
+  if (notDoneSnap.empty) return;
+  const taskById = new Map(snap.docs.map((d) => [d.id, d]));
+  // 오래 밀린 것부터 만회 인정 (초과분을 소진할 때까지)
+  const past = notDoneSnap.docs
+    .filter((c) => (c.data().date ?? "") < dateKst && taskById.has(c.data().taskId ?? ""))
+    .sort((a, b) => String(a.data().date ?? "").localeCompare(String(b.data().date ?? "")));
+  for (const c of past) {
+    const key = partKey(taskById.get(c.data().taskId)!);
+    const left = surplus.get(key) ?? 0;
+    if (left <= 0) continue;
+    await c.ref.update({ status: "made_up", madeUpAt: FieldValue.serverTimestamp() });
+    surplus.set(key, left - 1);
   }
 }
 

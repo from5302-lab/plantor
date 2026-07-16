@@ -4,10 +4,10 @@ import { defineSecret } from "firebase-functions/params";
 import * as functions from "firebase-functions";
 import { db, solapiApiKey, solapiApiSecret } from "./config";
 import { writeAutoLog } from "./auto-log";
-import { scrapeAutovocaAll, autovocaDonePartSlugs } from "./scraper-autovoca";
+import { scrapeAutovocaAll, autovocaDonePartSlugs, autovocaDonePartCounts } from "./scraper-autovoca";
 import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
-import { scrapeClasscardAll, classcardDonePartSlugs } from "./scraper-classcard";
-import { scrapeClass5All, class5DonePartSlugs } from "./scraper-class5";
+import { scrapeClasscardAll, classcardDonePartSlugs, classcardDonePartCounts } from "./scraper-classcard";
+import { scrapeClass5All, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
 import { loadClasscardConfig } from "./verify-auto";
 import { reconcileAutoChecks, reconcileDailykorPast, runIncompleteNotify } from "./completion-notify";
 
@@ -55,7 +55,7 @@ async function runBatch(date: string) {
       if (!childId) { summary.autovoca.miss++; continue; }
       await writeAutoLog({ childId, serviceSlug: "autovoca", date, autoStatus: s.autoStatus, scrapedData: { source: "autovoca", units: s.units, totalStudyMinutes: s.totalStudyMinutes } });
       // 배치는 리포트에 나온 학생만 처리 → 확정 판정. 완료는 done, 그 외는 미인증 자기체크 해제.
-      await reconcileAutoChecks(childId, "autovoca", date, autovocaDonePartSlugs(s.units), s.autoStatus === "완료").catch(() => undefined);
+      await reconcileAutoChecks(childId, "autovoca", date, autovocaDonePartSlugs(s.units), s.autoStatus === "완료", autovocaDonePartCounts(s.units) ?? undefined).catch(() => undefined);
       if (s.loginId && !byAv.has(s.loginId.toLowerCase())) await db.collection("children").doc(childId).update({ autovocaLoginId: s.loginId.toLowerCase() }).catch(() => undefined);
       summary.autovoca.ok++;
     }
@@ -94,7 +94,7 @@ async function runBatch(date: string) {
         scrapedData: { source: "classcard", units: s.units, totalStudyMinutes: s.units.reduce((a, u) => a + (u.studyMinutes || 0), 0) },
       });
       // 파트 단위 정밀 체크: 완료 유닛 타입은 done, 그 외 오늘 과제의 미인증 자기체크는 해제.
-      await reconcileAutoChecks(childId, "classcard-middle", date, classcardDonePartSlugs(s.units), s.autoStatus === "완료").catch(() => undefined);
+      await reconcileAutoChecks(childId, "classcard-middle", date, classcardDonePartSlugs(s.units), s.autoStatus === "완료", classcardDonePartCounts(s.units)).catch(() => undefined);
       if (s.loginId && !byCc.has(s.loginId.toLowerCase())) {
         await db.collection("children").doc(childId).update({ classcardLoginId: s.loginId.toLowerCase() }).catch(() => undefined);
       }
@@ -113,7 +113,7 @@ async function runBatch(date: string) {
         scrapedData: { source: "class5", units: s.units, totalStudyMinutes: 0 },
       });
       // 파트(카테고리) 단위 정밀 체크: 완료 카테고리는 done, 그 외 오늘 과제의 미인증 자기체크는 해제.
-      await reconcileAutoChecks(childId, "class5", date, class5DonePartSlugs(s.units), s.autoStatus === "완료").catch(() => undefined);
+      await reconcileAutoChecks(childId, "class5", date, class5DonePartSlugs(s.units), s.autoStatus === "완료", class5DonePartCounts(s.units)).catch(() => undefined);
       if (!byC5.has(s.studentId)) {
         await db.collection("children").doc(childId).update({ class5StudentId: s.studentId }).catch(() => undefined);
       }

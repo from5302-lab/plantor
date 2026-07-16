@@ -355,6 +355,16 @@ export function classcardDonePartSlugs(units: Array<{ type?: string; completed?:
   return [...parts];
 }
 
+/** 파트별 오늘 완료 유닛 수 — 만회 판정(예정량 초과분)용. */
+export function classcardDonePartCounts(units: Array<{ type?: string; completed?: boolean }>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const u of units) {
+    if (u.completed === false) continue;
+    for (const p of CLASSCARD_TYPE_TO_PARTS[u.type ?? ""] ?? []) counts[p] = (counts[p] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /**
  * 교사 계정으로 로그인해 대상 학생의 오늘 클래스카드 활동을 가져온다(클릭 실시간용).
  * 외부 아이디가 없으면 반 명단에서 학생 이름으로 폴백 매칭한다.

@@ -34,6 +34,19 @@ export function class5DonePartSlugs(units: Array<{ type?: string; completed?: bo
   return [...parts];
 }
 
+/** 파트별 오늘 완료 유닛 수 — 만회 판정(예정량 초과분)용. */
+export function class5DonePartCounts(units: Array<{ type?: string; completed?: boolean }>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const u of units) {
+    if (!u.completed) continue;
+    const cat = u.type ?? "";
+    if (!CLASS5_CATEGORIES.has(cat)) continue;
+    const p = cat.toLowerCase();
+    counts[p] = (counts[p] ?? 0) + 1;
+  }
+  return counts;
+}
+
 // ── 쿠키 저장 ──────────────────────────────────────────────────────────────────
 class Jar {
   private m = new Map<string, string>();

@@ -46,6 +46,19 @@ export function autovocaDonePartSlugs(units: Array<{ unitLabel?: string; complet
   return [...parts];
 }
 
+/** 파트별 오늘 완료 유닛 수 — 만회 판정(예정량 초과분)용. 파트 판정 불가 시 null. */
+export function autovocaDonePartCounts(units: Array<{ unitLabel?: string; completed?: boolean }>): Record<string, number> | null {
+  const counts: Record<string, number> = {};
+  for (const u of units) {
+    if (u.completed === false) continue;
+    const m = /(\d+)\s*권/.exec(u.unitLabel ?? "");
+    if (!m) return null;
+    const p = `vol-${parseInt(m[1], 10)}`;
+    counts[p] = (counts[p] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** KST 기준 "YYYY-MM-DD HH:MM:SS" (오토보카 Ts 헤더용). */
 function kstTs(): string {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " ");
