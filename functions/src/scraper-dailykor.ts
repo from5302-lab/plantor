@@ -15,7 +15,10 @@ export type DailykorPassage = {
   passageCode?: string;   // 지문 코드 "B000220"
   type?: string;          // 학습 유형 "비문학 > 사회"
   accuracy?: string;      // 정답률 (실전 문제풀이) "50%"
-  readingSpeed?: string;  // 분당 독해속도 "620/분"
+  // 리포트 셀 원본은 "4473/분 1342자 / 18초" (분당독해속도 / 글자 수 / 독해 시간)
+  readingSpeed?: string;   // 분당 독해속도 "620/분"
+  readingChars?: number;   // 지문 글자 수 1342 (독해속도 산출 근거)
+  readingElapsed?: string; // 실제 읽은 시간 "18초" (독해훈련 시간과 다름)
   prepTime?: string;      // 준비훈련 시간
   readingTime?: string;   // 독해훈련 시간
   practiceTime?: string;  // 실전대비훈련 시간
@@ -26,6 +29,7 @@ export type DailykorPassage = {
 export type DailykorDetail = {
   passages?: DailykorPassage[];  // 오늘 학습한 지문들 (열 단위)
   xp?: string;                   // 오늘 총 획득/최대 경험치 "18xp / 30xp"
+  recommendedSpeed?: number;     // 리포트 각주의 추천 분당 독해속도 600 (매일국어 기준)
 };
 
 // 어휘력 센터 완료 세트 (누적) — { category:"문학", sets:["08","09"] }
@@ -218,7 +222,13 @@ function parseDailykorDetail(html: string): DailykorDetail {
     const p: DailykorPassage = { passageCode: cols[j]!.passageCode };
     if (cols[j]!.type) p.type = cols[j]!.type;
     const acc = clean(accuracy[j]); if (acc) p.accuracy = acc;
-    const spd = speed[j]?.match(/\d+\s*\/\s*분/)?.[0].replace(/\s+/g, ""); if (spd) p.readingSpeed = spd;
+    // 셀 원본 "4473/분 1342자 / 18초" → 속도 + 근거(글자 수·읽은 시간)
+    const rawSpeed = speed[j] ?? "";
+    const spd = rawSpeed.match(/\d+\s*\/\s*분/)?.[0].replace(/\s+/g, ""); if (spd) p.readingSpeed = spd;
+    const chars = Number(rawSpeed.match(/(\d[\d,]*)\s*자/)?.[1].replace(/,/g, ""));
+    if (Number.isFinite(chars) && chars > 0) p.readingChars = chars;
+    const elapsed = rawSpeed.match(/자\s*\/\s*([\d]+분(?:\s*\d+초)?|[\d]+초)/)?.[1].trim();
+    if (elapsed) p.readingElapsed = elapsed;
     const pt = clean(prep[j]); if (pt) p.prepTime = pt;
     const rt = clean(reading[j]); if (rt) p.readingTime = rt;
     const prt = clean(practice[j]); if (prt) p.practiceTime = prt;
@@ -226,9 +236,13 @@ function parseDailykorDetail(html: string): DailykorDetail {
   }
 
   const detail: DailykorDetail = { passages };
+  const flat = root.text.replace(/\s+/g, " ");
   // 오늘 총 획득/최대 경험치 ("오늘 획득 경험치(최대 획득 경험치) 18xp(30xp)")
-  const xpm = root.text.replace(/\s+/g, " ").match(/오늘 획득 경험치[^0-9]*(\d+)xp\s*\(\s*(\d+)xp/);
+  const xpm = flat.match(/오늘 획득 경험치[^0-9]*(\d+)xp\s*\(\s*(\d+)xp/);
   if (xpm) detail.xp = `${xpm[1]}xp / ${xpm[2]}xp`;
+  // 각주 "* 추천 분당 독해속도는 600자 이며, ..." — 기준을 우리가 정하지 않고 리포트에서 그대로 가져온다
+  const rec = Number(flat.match(/추천\s*분당\s*독해속도는\s*(\d+)\s*자/)?.[1]);
+  if (Number.isFinite(rec) && rec > 0) detail.recommendedSpeed = rec;
 
   return detail;
 }

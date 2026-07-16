@@ -16,9 +16,15 @@ const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   미흡:   { bg: "#fff5f5", fg: "#c00000" },  // 빨강
 };
 const DONE_GREEN = { bg: "#f0faf1", fg: "#2a8438" };
+const SPEED_DANGER = { bg: "#fff5f5", fg: "#c00000" };
 function gradeColor(grade?: string) {
   return (grade && GRADE_COLORS[grade]) || DONE_GREEN;
 }
+
+// 매일국어 리포트 각주("추천 분당 독해속도는 600자")에서 스크랩. 파싱 실패·과거 로그 폴백값.
+const DEFAULT_RECOMMENDED_SPEED = 600;
+// 추천치의 2배를 넘으면 지문을 읽지 않고 넘긴 것으로 본다
+const TOO_FAST_MULTIPLE = 2;
 
 function statusBadge(status?: string) {
   if (status === "완료") return { ...DONE_GREEN, label: "완료 ✓" };
@@ -256,19 +262,41 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
 }
 
 // 라벨 위 / 값 아래의 지표 셀 (Toss식 또렷한 숫자 위계)
-// chip: 값 옆 등급 뱃지 (매일국어 경험치 옆 최우수/양호/보통/미흡)
-function Stat({ label, value, strong, chip }: { label: string; value: string; strong?: boolean; chip?: string }) {
-  const c = chip ? gradeColor(chip) : null;
+// chip: 값 옆 뱃지 (등급·독해속도 판정), sub: 값 아래 근거 한 줄
+type StatChip = { label: string; bg: string; fg: string };
+function Stat({ label, value, strong, chip, sub }: { label: string; value: string; strong?: boolean; chip?: StatChip; sub?: string }) {
   return (
     <div>
       <div className="text-[10px] text-p-muted mb-0.5">{label}</div>
       <div className={`${strong ? "text-[15px]" : "text-[14px]"} font-semibold text-black/90 tabular-nums leading-none`}>
         {value}
-        {c && (
-          <span className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full align-middle" style={{ backgroundColor: c.bg, color: c.fg }}>{chip}</span>
+        {chip && (
+          <span className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full align-middle" style={{ backgroundColor: chip.bg, color: chip.fg }}>{chip.label}</span>
         )}
       </div>
+      {sub && <div className="mt-1 text-[11px] text-p-muted leading-snug">{sub}</div>}
     </div>
+  );
+}
+
+// 독해속도 — 매일국어 추천치(각주)와 비교해 "너무 빠름"을 표시.
+// 숫자만으론 높은 게 좋은지 나쁜지 알 수 없어(정답률과 반대) 판정·근거를 함께 보여준다.
+function ReadingSpeedStat({ p, recommended }: { p: DailykorPassage; recommended: number }) {
+  const n = parseInt(p.readingSpeed ?? "", 10);
+  if (!Number.isFinite(n)) return <Stat label="독해속도" value={p.readingSpeed ?? "-"} strong />;
+  const tooFast = n > recommended * TOO_FAST_MULTIPLE;
+  // 근거(글자 수·읽은 시간)는 새로 인증한 로그에만 있다 — 과거 로그는 추천치만 표기
+  const evidence = p.readingChars && p.readingElapsed
+    ? ` · ${p.readingChars.toLocaleString("ko-KR")}자를 ${p.readingElapsed} 만에`
+    : "";
+  return (
+    <Stat
+      label="독해속도"
+      value={`${n.toLocaleString("ko-KR")}자/분`}
+      strong
+      chip={tooFast ? { label: "너무 빠름", ...SPEED_DANGER } : { label: "적정", ...DONE_GREEN }}
+      sub={`추천 ${recommended.toLocaleString("ko-KR")}자/분${evidence}`}
+    />
   );
 }
 
@@ -306,6 +334,8 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
         }]
       : []);
   const multi = passages.length > 1;
+  // 추천 독해속도는 매일국어 리포트 각주에서 스크랩한 값 (없는 과거 로그는 폴백)
+  const recommended = detail?.recommendedSpeed ?? DEFAULT_RECOMMENDED_SPEED;
   // 모든 지문의 훈련시간을 초로 합산 → 전체 학습시간
   const totalSec = passages.reduce((s, p) => s + parseKoTime(p.prepTime) + parseKoTime(p.readingTime) + parseKoTime(p.practiceTime), 0);
 
@@ -327,11 +357,11 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
               </div>
               {p.passageCode && <span className="text-[11px] font-medium text-p-muted shrink-0 tabular-nums">{p.passageCode}</span>}
             </div>
-            {/* 지표: 정답률 · 분당 독해속도 */}
+            {/* 지표: 정답률 · 독해속도 */}
             {(p.accuracy || p.readingSpeed) && (
               <div className="flex gap-6">
                 {p.accuracy && <Stat label="정답률" value={p.accuracy} strong />}
-                {p.readingSpeed && <Stat label="분당 독해속도" value={p.readingSpeed} strong />}
+                {p.readingSpeed && <ReadingSpeedStat p={p} recommended={recommended} />}
               </div>
             )}
             <TrainTime p={p} />
@@ -343,7 +373,7 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
       {(totalSec > 0 || detail?.xp) && (
         <div className="mt-2.5 flex gap-8">
           {totalSec > 0 && <Stat label="전체 학습시간" value={formatKoTime(totalSec)} strong />}
-          {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong chip={grade} />}
+          {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong chip={grade ? { label: grade, ...gradeColor(grade) } : undefined} />}
         </div>
       )}
       {voca && voca.length > 0 && (

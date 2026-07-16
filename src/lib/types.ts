@@ -87,6 +87,8 @@ export type DailykorPassage = {
   type?: string;
   accuracy?: string;
   readingSpeed?: string;
+  readingChars?: number;    // 지문 글자 수 (독해속도 산출 근거)
+  readingElapsed?: string;  // 실제 읽은 시간 "18초"
   prepTime?: string;
   readingTime?: string;
   practiceTime?: string;
@@ -96,6 +98,7 @@ export type DailykorPassage = {
 export type DailykorDetail = {
   passages?: DailykorPassage[];  // 오늘 학습한 지문들 (열 단위)
   xp?: string;                   // 오늘 총 획득/최대 경험치
+  recommendedSpeed?: number;     // 리포트 각주의 추천 분당 독해속도 (매일국어 기준)
   // ── 레거시(단일 지문) 호환: 과거 로그의 평면 필드 ──
   passageCode?: string;
   type?: string;
