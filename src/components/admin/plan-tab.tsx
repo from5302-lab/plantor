@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 import type { Service } from "@/data/site";
 import { useServices } from "@/lib/services-context";
+import { effectiveStatus } from "./members-tab";
 import type { MemberChild, Subscription } from "@/lib/types";
 
 const GRADE_ORDER = ["미취학", "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3", "고1", "고2", "고3"];
@@ -72,24 +73,27 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
     });
   }, []);
 
-  // 계정(로그인 아이디)이 있는 학생 전원 — 구독/직강 수강과목을 합쳐 표시
+  // 수강 중인 학생 — 유효한 구독/직강 수강과목을 합쳐 표시.
+  // 만료·정지 구독만 남은 학생(퇴회)은 계정이 남아 있어도 제외한다.
   const students = useMemo(() => {
     const slugsByChild = new Map<string, string[]>();
     for (const s of allSubs) {
       if (!s.childId) continue;
+      if (effectiveStatus(s) !== "active") continue; // 만료·정지 구독 제외
       const arr = slugsByChild.get(s.childId) ?? [];
       if (!arr.includes(s.serviceSlug)) arr.push(s.serviceSlug);
       slugsByChild.set(s.childId, arr);
     }
     return allChildren
-      .filter((c) => c.loginId) // 계정 있는 학생 전원
+      .filter((c) => c.loginId) // 계정 있는 학생
       .map((c) => {
         const subSlugs = slugsByChild.get(c.id) ?? [];
         const dirSlugs = directSlugsByLogin.get(c.loginId.toLowerCase()) ?? [];
         const slugs = [...new Set([...subSlugs, ...dirSlugs])];
         const today = todayByChild[c.id] ?? { total: 0, done: 0 };
         return { id: c.id, name: c.name, grade: c.grade, loginId: c.loginId, slugs, drafts: draftByChild[c.id] ?? 0, today, status: classify(today) };
-      });
+      })
+      .filter((s) => s.slugs.length > 0); // 수강 중인 과목 없음 = 퇴회 → 숨김
   }, [allChildren, allSubs, draftByChild, todayByChild, directSlugsByLogin]);
 
   // 필터 옵션 (실제 데이터 기준)

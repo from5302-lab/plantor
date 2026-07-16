@@ -47,7 +47,7 @@ function rawStatus(sub: MemberSub): string {
 }
 
 // 필터용: active | stopped
-function effectiveStatus(sub: MemberSub): "active" | "stopped" {
+export function effectiveStatus(sub: MemberSub): "active" | "stopped" {
   return rawStatus(sub) === "active" ? "active" : "stopped";
 }
 
