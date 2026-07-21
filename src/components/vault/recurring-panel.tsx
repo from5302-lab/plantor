@@ -59,14 +59,20 @@ export function RecurringPanel({ recurringItems, entries, categories, month }: P
     entries.forEach((e) => { if (e.sourceKey?.startsWith("agency_")) set.add(e.sourceKey); });
     return set;
   }, [entries]);
-  const paidCount = items.filter((i) => statusOf(i) === "paid").length;
-  // 이번 달 미납분만 합산 (가맹비(만료) 제외)
-  const pendingTotal = items
-    .filter((i) => i.type === "expense")
-    .reduce((s, i) => {
-      if (statusOf(i) === "paid") return s;
-      return s + (i.amount - paidFor(i.id, month)); // 남은 금액
-    }, 0);
+  // 완료 카운트: 고정지출 + 서비스별 가맹비
+  const paidCount =
+    items.filter((i) => statusOf(i) === "paid").length +
+    agencyByService.filter((a) => agencyPaid.has(agencyKey(a.key))).length;
+  const totalCount = items.length + agencyByService.length;
+  // 이번 달 미납분만 합산 (고정지출 + 서비스별 가맹비)
+  const pendingTotal =
+    items
+      .filter((i) => i.type === "expense")
+      .reduce((s, i) => {
+        if (statusOf(i) === "paid") return s;
+        return s + (i.amount - paidFor(i.id, month)); // 남은 금액
+      }, 0) +
+    agencyByService.reduce((s, a) => (agencyPaid.has(agencyKey(a.key)) ? s : s + a.amount), 0);
 
   const dayInMonth = (m: string, dayOfMonth: number) => {
     const [y, mm] = m.split("-").map(Number);
@@ -201,7 +207,7 @@ export function RecurringPanel({ recurringItems, entries, categories, month }: P
           <span style={{ fontSize: "14px", fontWeight: 600, color: "#dd5b00" }}>
             고정 지출
             <span style={{ fontSize: "12px", color: "#e0986f", fontWeight: 400, marginLeft: "8px" }}>
-              {paidCount}/{items.length} 완료
+              {paidCount}/{totalCount} 완료
             </span>
           </span>
           <button
