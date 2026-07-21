@@ -49,7 +49,7 @@ function getC5Sets(data: C5Data, partSlug: string, level: string): C5Set[] {
   // partSlug → API 카테고리명 매핑
   const catMap: Record<string, string> = {
     phonics: "Phonics", song: "Song", movie: "Movie",
-    reading: "Reading", writing: "Writing",
+    reading: "Reading", writing: "Writing", grammar: "Grammar",
   };
   const cat = data[catMap[partSlug] ?? ""];
   if (!cat) return [];
@@ -61,7 +61,7 @@ function getC5Sets(data: C5Data, partSlug: string, level: string): C5Set[] {
 function getC5Levels(data: C5Data, partSlug: string): string[] {
   const catMap: Record<string, string> = {
     phonics: "Phonics", song: "Song", movie: "Movie",
-    reading: "Reading", writing: "Writing",
+    reading: "Reading", writing: "Writing", grammar: "Grammar",
   };
   const cat = data[catMap[partSlug] ?? ""];
   if (!cat?.hasLevel) return [];

@@ -180,6 +180,7 @@ export const SERVICES: Service[] = [
       { slug: "movie", name: "Movie" },
       { slug: "reading", name: "Reading" },
       { slug: "writing", name: "Writing" },
+      { slug: "grammar", name: "Grammar" },
     ],
   },
   {
