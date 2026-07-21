@@ -806,7 +806,6 @@ export function MembersTab({
             students: data.students ?? [],
             notes: data.notes ?? "",
             status: data.status ?? "active",
-            serviceExpiry: data.serviceExpiry ?? {},
             expiry: data.expiry ?? null,
             createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : null,
           };
@@ -1236,7 +1235,6 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
     parentLoginId: firstStudent?.parentLoginId ?? "",
     expiry: cls.expiry ?? "",
     serviceSlugs: cls.serviceSlugs,
-    serviceExpiry: { ...(cls.serviceExpiry ?? {}) } as Record<string, string>,
     grades: cls.grades,
     schedule: cls.schedule,
     tuition: cls.tuition ? String(cls.tuition) : "",
@@ -1286,7 +1284,6 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
         parentName: form.parentName.trim() || null,
         expiry: form.expiry || null,
         serviceSlugs: allStudentSlugs, agencyFee,
-        serviceExpiry: form.serviceExpiry,
         grades: form.grades, schedule: form.schedule,
         tuition: form.tuition ? Number(form.tuition) : 0,
         students: studentsWithParent,
@@ -2016,7 +2013,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                   {studentSlugs.map((slug) => {
                     const svc = SERVICES.find((s) => s.slug === slug);
                     if (!svc) return null;
-                    const svcExpiry = cls.serviceExpiry?.[slug] ?? null;
+                    const svcExpiry = cls.expiry ?? null;   // 학습사이트 만료일 = 수업 만료일
                     return (
                       <div key={slug} style={{ display: "grid", gridTemplateColumns: "1fr 68px 110px", alignItems: "center", gap: 8 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>

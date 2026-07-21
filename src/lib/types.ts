@@ -255,8 +255,7 @@ export type DirectClass = {
   students: DirectClassStudent[];
   notes: string;
   status: "active" | "inactive";
-  serviceExpiry?: Record<string, string | null>;  // slug → "YYYY-MM-DD"
-  expiry?: string | null;                          // 수업 만료일 (단일)
+  expiry?: string | null;    // 수업 만료일 (학습사이트 만료일도 이 값 하나로 통일)
   createdAt: Date | null;
 };
 
