@@ -49,7 +49,7 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   const { familyId, parentName, loaded: familyLoaded } = useFamily(userId);
   const userName = parentName ?? fallbackName;
   // 상단 요약은 이번 주 고정 — 주 이동은 자녀별 학습 그리드(StudentLearningGrid)에 내장
-  const { children, subscriptions, weeklyLogs } = useFamilyData(familyId);
+  const { children, subscriptions, tasks, checks } = useFamilyData(familyId);
   const [renewalTarget, setRenewalTarget] = useState<RenewalTarget | null>(null);
   const [walletCoupons, setWalletCoupons] = useState<WalletCoupon[]>([]);
   const [journalStudents, setJournalStudents] = useState<JournalStudent[]>([]);
@@ -110,16 +110,33 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   const today = todayStr();
   const weekLabel = "이번 주";
 
-  const totalPastDays = children.length * weekDates.filter((d) => d <= today).length;
-  const totalDoneDays = children.reduce((sum, child) => {
-    const childLogDates = new Set(weeklyLogs.filter((l) => l.childId === child.id).map((l) => l.date));
-    return sum + weekDates.filter((d) => d <= today && childLogDates.has(d)).length;
-  }, 0);
+  // 완료 판정: 그날 예정 과제를 모두 done 해야 완료 (학습 홈·부모 대시보드와 동일 기준).
+  // 자동인증 로그 유무가 아니라 과제 체크 기준이라 "안 했는데 완료" 오표시가 없다.
+  const dowOf = (date: string) => (new Date(date + "T00:00:00").getDay() + 6) % 7; // 0=월
+  const dayTasksOf = (childId: string, date: string) =>
+    tasks.filter((t) => t.childId === childId && t.scheduleDays.includes(dowOf(date)));
+  const isCompleteOn = (childId: string, date: string) => {
+    const dayTasks = dayTasksOf(childId, date);
+    if (dayTasks.length === 0) return false;
+    const doneIds = new Set(
+      checks.filter((c) => c.childId === childId && c.date === date && c.status === "done").map((c) => c.taskId)
+    );
+    return dayTasks.every((t) => doneIds.has(t.id));
+  };
+
+  // 이번 주 완료율 — 예정 과제가 있는 지난 날만 분모에 포함 (과제 없는 날은 해당 없음)
+  const pastDates = weekDates.filter((d) => d <= today);
+  let totalPastDays = 0;
+  let totalDoneDays = 0;
+  children.forEach((child) => {
+    pastDates.forEach((d) => {
+      if (dayTasksOf(child.id, d).length === 0) return;
+      totalPastDays++;
+      if (isCompleteOn(child.id, d)) totalDoneDays++;
+    });
+  });
   const weeklyPct = totalPastDays > 0 ? Math.round((totalDoneDays / totalPastDays) * 100) : 0;
-  const todayDoneCount = children.filter((child) => {
-    const childLogDates = new Set(weeklyLogs.filter((l) => l.childId === child.id).map((l) => l.date));
-    return childLogDates.has(today);
-  }).length;
+  const todayDoneCount = children.filter((child) => isCompleteOn(child.id, today)).length;
   const allStudiedToday = children.length > 0 && todayDoneCount === children.length;
 
   return (

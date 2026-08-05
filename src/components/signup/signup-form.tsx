@@ -7,6 +7,7 @@ import { useSignupForm } from "./hooks/useSignupForm";
 import { useServices } from "@/lib/services-context";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { MonthsPicker } from "@/components/ui/months-picker";
+import { isApplicationClosed } from "@/lib/application-window";
 
 export function SignupForm() {
   const { signupServices } = useServices();
@@ -25,6 +26,24 @@ export function SignupForm() {
   const childServices = signupServices.filter(
     (s) => !s.targetGrades?.includes("학부모")
   );
+
+  if (isApplicationClosed()) {
+    return (
+      <div className="bg-white border border-black/10 rounded-[16px] px-8 py-14 text-center" style={{ boxShadow: T.shadow }}>
+        <div className="flex justify-center mb-5">
+          <img src="/favicon.svg" alt="" width={56} height={56} />
+        </div>
+        <h2 className="m-0 text-2xl font-bold tracking-[-0.5px] text-black/95">
+          이번 달 신청이 마감되었어요
+        </h2>
+        <p className="mt-4 text-[15px] leading-[1.7] text-p-secondary">
+          신청은 <strong>매달 25일</strong>까지 받아요.
+          <br />
+          다음 달 1일에 다시 열립니다.
+        </p>
+      </div>
+    );
+  }
 
   if (done) {
     return (

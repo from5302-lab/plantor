@@ -10,6 +10,7 @@ import { useServices } from "@/lib/services-context";
 import { formatWon } from "@/lib/format";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { MonthsPicker } from "@/components/ui/months-picker";
+import { isApplicationClosed } from "@/lib/application-window";
 import type { Subscription, WalletCoupon } from "@/lib/types";
 
 const GRADES = ["미취학","초1","초2","초3","초4","초5","초6","중1","중2","중3"];
@@ -166,7 +167,7 @@ export function RenewalModal({
   })();
 
   async function handleSubmit() {
-    if (!allMonthsSelected || submitting) return;
+    if (closed || !allMonthsSelected || submitting) return;
     for (let i = 0; i < newChildren.length; i++) {
       const nc = newChildren[i];
       const label = `신규 자녀 ${i + 1}`;
@@ -235,7 +236,8 @@ export function RenewalModal({
     }
   }
 
-  const canSubmit = allMonthsSelected && !submitting;
+  const closed = isApplicationClosed();
+  const canSubmit = allMonthsSelected && !submitting && !closed;
 
   return (
     <>
@@ -247,6 +249,13 @@ export function RenewalModal({
               <div className="text-4xl mb-3">✅</div>
               <div className="text-base font-bold text-black/95 mb-2">신청 완료</div>
               <p className="text-[13px] text-p-secondary leading-relaxed">입금 확인 후 1~2영업일 내에 구독이 연장됩니다.</p>
+              <button onClick={onClose} className="mt-5 w-full h-11 rounded-lg bg-p-green text-white text-sm font-semibold border-0 cursor-pointer">확인</button>
+            </div>
+          ) : closed ? (
+            <div className="text-center px-6 py-10">
+              <div className="text-4xl mb-3">🗓️</div>
+              <div className="text-base font-bold text-black/95 mb-2">이번 달 연장신청이 마감되었어요</div>
+              <p className="text-[13px] text-p-secondary leading-relaxed">신청은 매달 25일까지 받으며,<br />다음 달 1일에 다시 열립니다.</p>
               <button onClick={onClose} className="mt-5 w-full h-11 rounded-lg bg-p-green text-white text-sm font-semibold border-0 cursor-pointer">확인</button>
             </div>
           ) : (
