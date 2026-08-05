@@ -435,9 +435,10 @@ const CHILD_SERVICES = SERVICES.filter((s) => (s.category === "subscription" || 
 // 1:1 학습 (과목·금액 어드민 직접 입력) — serviceSlug는 "1on1-<과목>"
 const ONE_ON_ONE_OPTION = "__1on1__";
 
-function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }: {
+function ServiceAddSection({ familyId, childList, allSubs, hasAiPackage, userId }: {
   familyId: string;
-  children: { id: string; name: string }[];
+  /** 자녀 목록. React 자식이 아니라 데이터라 이름을 childList 로 둔다 */
+  childList: { id: string; name: string }[];
   allSubs: MemberSub[];
   hasAiPackage: boolean;
   userId: string | null;
@@ -555,7 +556,7 @@ function ServiceAddSection({ familyId, children, allSubs, hasAiPackage, userId }
           style={{ appearance: "none", WebkitAppearance: "none", fontSize: 12, padding: "6px 28px 6px 10px", border: "1px solid rgba(0,0,0,0.1)", borderRadius: 8, background: `white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23a39e98'/%3E%3C/svg%3E") no-repeat right 8px center`, cursor: "pointer", outline: "none", minWidth: 100, color: target ? "rgba(0,0,0,0.9)" : "#a39e98" }}>
           <option value="">대상 선택</option>
           <option value="__parent__">학부모</option>
-          {children.map((c) => (
+          {childList.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
@@ -1525,15 +1526,16 @@ function EditableText({
 
 // ── 플랜토 가족 수정 모달 ──────────────────────────────────────────────────────
 
-function FamilyEditModal({ family, children, allSubs, onClose }: {
+function FamilyEditModal({ family, childList, allSubs, onClose }: {
   family: MemberFamily;
-  children: MemberChild[];
+  /** 자녀 목록. React 자식이 아니라 데이터라 이름을 childList 로 둔다 */
+  childList: MemberChild[];
   allSubs: MemberSub[];
   onClose: () => void;
 }) {
   const [parentForm, setParentForm] = useState({ name: family.parentName, phone: family.phone });
   const [childForms, setChildForms] = useState<{ id: string; name: string; grade: string; loginId: string; classcardLoginId: string; autovocaLoginId: string }[]>(
-    children.map((c) => ({ id: c.id, name: c.name, grade: c.grade, loginId: c.loginId, classcardLoginId: c.classcardLoginId ?? "", autovocaLoginId: c.autovocaLoginId ?? "" }))
+    childList.map((c) => ({ id: c.id, name: c.name, grade: c.grade, loginId: c.loginId, classcardLoginId: c.classcardLoginId ?? "", autovocaLoginId: c.autovocaLoginId ?? "" }))
   );
   const [schedules, setSchedules] = useState<Record<string, DaySchedule[]>>({});
   const [loading, setLoading] = useState(true);
@@ -1544,7 +1546,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
   useEffect(() => {
     async function load() {
       const init: Record<string, DaySchedule[]> = {};
-      await Promise.all(children.map(async (child) => {
+      await Promise.all(childList.map(async (child) => {
         try {
           const { getDoc } = await import("firebase/firestore");
           const snap = await getDoc(doc(db, "studentProfiles", child.id));
@@ -1555,7 +1557,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
       setLoading(false);
     }
     load();
-  }, [children]);
+  }, [childList]);
 
   async function handleSave() {
     setSaving(true); setError("");
@@ -1573,7 +1575,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
       //   loginId : children.loginId만 바꾸면 Auth 이메일({id}@plantor.app)·users.plantor_id와
       //             어긋나 학생이 옛 아이디로도 새 아이디로도 로그인할 수 없게 된다
       // 둘 다 관련 항목을 함께 전환하는 콜러블로만 바꾼다.
-      const prevOf = (id: string) => children.find((c) => c.id === id);
+      const prevOf = (id: string) => childList.find((c) => c.id === id);
       const nameChanges = childForms
         .map((cf) => ({ cf, prev: prevOf(cf.id)?.name ?? "", next: cf.name.trim() }))
         .filter((x) => x.next !== x.prev);
@@ -1780,7 +1782,7 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
             })}
 
             {/* 서비스 추가 */}
-            <ServiceAddSection familyId={family.id} children={childForms} allSubs={allSubs} hasAiPackage={!!family.aiPackageEndDate} userId={family.userId} />
+            <ServiceAddSection familyId={family.id} childList={childForms} allSubs={allSubs} hasAiPackage={!!family.aiPackageEndDate} userId={family.userId} />
 
             {error && <p style={{ margin: 0, color: "#c0392b", fontSize: 13 }}>{error}</p>}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -2162,7 +2164,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
         return (
           <div key={family.id} className="relative bg-white border border-black/10 rounded-xl p-5" style={{ boxShadow: T.shadow }}>
             {editingFamilyId === family.id && (
-              <FamilyEditModal family={family} children={children} allSubs={familySubs} onClose={() => setEditingFamilyId(null)} />
+              <FamilyEditModal family={family} childList={children} allSubs={familySubs} onClose={() => setEditingFamilyId(null)} />
             )}
             {/* 가족/자녀 삭제는 수정 모달에서 처리 */}
             {/* 학부모 헤더 */}

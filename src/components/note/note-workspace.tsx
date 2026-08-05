@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   createNote,
   softDeleteNote,
@@ -17,27 +17,9 @@ import { Sidebar } from "./sidebar";
 import { Editor } from "./editor";
 import { MetaDialog } from "./meta-dialog";
 import { NoteHome } from "./note-home";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 
 type View = "home" | "editor";
-
-const NARROW_QUERY = "(max-width: 720px)";
-
-/**
- * 화면이 좁은지 구독한다.
- * 정적 export 라 프리렌더 시점엔 window 가 없으므로 서버 스냅샷은 데스크톱(false)으로 둔다
- * — 하이드레이션 불일치를 피하려면 서버가 낸 값과 첫 클라이언트 값이 같아야 한다.
- */
-function useIsNarrow(): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      const mq = window.matchMedia(NARROW_QUERY);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(NARROW_QUERY).matches,
-    () => false,
-  );
-}
 
 export function NoteWorkspace({ userId }: { userId: string }) {
   const [notes, setNotes] = useState<NoteDoc[]>([]);
@@ -47,7 +29,7 @@ export function NoteWorkspace({ userId }: { userId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // 사이드바는 기본으로 화면 너비를 따르고(좁으면 닫힘), 사용자가 직접 여닫으면 그 선택을 지킨다.
   // 예전엔 마운트 이펙트에서 setState 로 닫았는데, 열린 상태로 한 번 그려진 뒤 다시 그려졌다.
-  const isNarrow = useIsNarrow();
+  const isNarrow = useMediaQuery("(max-width: 720px)");
   const [sidebarPref, setSidebarPref] = useState<boolean | null>(null);
   const sidebarOpen = sidebarPref ?? !isNarrow;
 

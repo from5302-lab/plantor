@@ -6,6 +6,7 @@ import {
   serverTimestamp, setDoc, where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { T } from "@/lib/design-tokens";
 import { useSendToast } from "@/lib/send-toast";
 import type { DirectClass } from "@/lib/types";
@@ -355,15 +356,7 @@ export function LessonJournalTab() {
   const [editingTime, setEditingTime] = useState<Record<string, string>>({});
   const [smsModal, setSmsModal] = useState<{ phone: string; text: string; label: string } | null>(null);
   const [historyStudent, setHistoryStudent] = useState<{ classId: string; studentName: string; parentPhone: string } | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   // Load active direct classes
   useEffect(() => {

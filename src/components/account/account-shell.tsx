@@ -228,7 +228,7 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
         })()}
 
         <ChildrenSection
-          children={children}
+          childList={children}
           subscriptions={subscriptions}
           now={now}
           setRenewalTarget={setRenewalTarget}

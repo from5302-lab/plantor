@@ -65,7 +65,8 @@ function EditableChildPhone({ childId, phone }: { childId: string; phone: string
 // ── 자녀 카드 목록 ─────────────────────────────────────────────────────────────
 
 interface ChildrenSectionProps {
-  children: Child[];
+  /** 자녀 목록. React 자식이 아니라 데이터라 이름을 childList 로 둔다 */
+  childList: Child[];
   subscriptions: Subscription[];
   now: Date;
   setRenewalTarget: (target: RenewalTarget | null) => void;
@@ -77,7 +78,7 @@ interface ChildrenSectionProps {
 }
 
 export function ChildrenSection({
-  children,
+  childList,
   subscriptions,
   now,
   setRenewalTarget,
@@ -91,8 +92,8 @@ export function ChildrenSection({
   const [taskChecks, setTaskChecks] = useState<TaskCheck[]>([]);
 
   useEffect(() => {
-    if (children.length === 0) return;
-    const ids = children.map(c => c.id);
+    if (childList.length === 0) return;
+    const ids = childList.map(c => c.id);
     // 복합 인덱스(childId in + date범위) 회피: childId in 만으로 구독하고 주간은 렌더에서 필터.
     // (범위 쿼리는 인덱스 미존재 시 조용히 실패해 과거 완료가 안 뜨는 버그)
     const unsub = onSnapshot(
@@ -111,17 +112,17 @@ export function ChildrenSection({
       })))
     );
     return unsub;
-  }, [children]);
+  }, [childList]);
 
   return (
     <>
-      {children.some((c) => !c.studentPhone) && (
+      {childList.some((c) => !c.studentPhone) && (
         <div className="mb-3 rounded-xl px-4 py-3 text-[13px] leading-relaxed" style={{ backgroundColor: "#fff6e5", color: "#92660a", border: "1px solid #f2d59a" }}>
           📱 <b>자녀 연락처를 입력해 주세요.</b> 과제를 다 못 끝낸 날 저녁, 자녀에게 안내 문자를 보내드려요. 각 자녀 카드의 <b>“학생 연락처 입력”</b>을 눌러 번호를 넣어주세요.
         </div>
       )}
       <div className="flex flex-col gap-3">
-        {children.map((child) => {
+        {childList.map((child) => {
           const childSubs = subscriptions.filter((s) => s.childId === child.id);
           const childJournal = journalStudents.find((s) => s.studentName === child.name);
           const childChecks = taskChecks.filter(c => c.childId === child.id);
