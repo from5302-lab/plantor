@@ -6,10 +6,22 @@ import { functions } from "@/lib/firebase";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { T } from "@/lib/design-tokens";
 import { AvatarView } from "./avatar-view";
-import { BADGES, RARITY, TOTAL_BADGES } from "@/lib/rewards/catalog";
+import {
+  BADGES, RARITY, SHOP_BY_ID, SHOP_ITEMS, SLOT_LABEL, TOTAL_BADGES,
+  type ShopItem, type ShopSlot,
+} from "@/lib/rewards/catalog";
 import type { RewardState } from "@/lib/hooks/useRewards";
 
 // 뱃지함 · 상점을 한 모달에서 탭으로 오간다 (정적 export라 별도 라우트를 만들지 않는다).
+
+// 꾸미기 슬롯 노출 순서 — 티가 많이 나는 것부터
+const SLOTS: ShopSlot[] = ["base", "frame", "nameStyle", "background", "effect"];
+
+/** 뱃지로만 열리는 아이템은 값이 0이라 "0P"로 보이면 고장 난 것처럼 읽힌다. */
+function priceLabel(it: ShopItem) {
+  if (it.cost > 0) return `${it.cost.toLocaleString("ko-KR")}P`;
+  return it.badgeCode ? "뱃지 보상 · 무료" : "무료";
+}
 
 function BadgeVault({ state }: { state: RewardState }) {
   const owned = new Set(state.badges.map((b) => b.code));
@@ -68,31 +80,170 @@ function BadgeVault({ state }: { state: RewardState }) {
 }
 
 /**
- * 상점 — 준비중.
- * 포인트는 계속 쌓이고(현재 22명 12,308P), 열리는 즉시 쓸 수 있다.
- * 아이템 목록·구매는 서버(purchaseShopItem)에서도 함께 막아두었다.
+ * 꾸미기 상점.
+ *
+ * 파는 게 CSS 효과라 **크게 보여줘야 팔린다** — 30px 원으로는 회전 링이 안 보인다.
+ * 그래서 (1) 큰 무대 미리보기 (2) 눌러서 내 아바타에 바로 입혀보기(구매 전) 를 둔다.
+ * 못 사는 아이템도 계속 움직이게 둔다. 갖고 싶어야 모은다.
  */
 function Shop({ state }: { state: RewardState }) {
+  const [slot, setSlot] = useState<ShopSlot>("frame");
+  const [tryOn, setTryOn] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState("");
+
+  // 입어본 상태 = 실제 착용 위에 덧씌운 미리보기
+  const preview = { ...state.equipped, ...tryOn };
+  const previewName = SHOP_BY_ID.get(String(preview.nameStyle ?? ""))?.cssClass ?? "";
+
+  // 지금 무대에 올라와 있지만 아직 안 산 것
+  const trying = Object.entries(tryOn)
+    .map(([sl, id]) => ({ sl, item: SHOP_BY_ID.get(id) }))
+    .find(({ item }) => item && !state.owned.has(item.id));
+
+  const lockOf = (it: ShopItem) => {
+    if (it.badgeCode && !state.badges.some((b) => b.code === it.badgeCode)) return "뱃지 필요";
+    if (it.minLevel && state.level < it.minLevel) return `Lv.${it.minLevel}`;
+    return null;
+  };
+
+  async function buyAndWear(it: ShopItem) {
+    setBusy(it.id); setMsg("");
+    try {
+      if (!state.owned.has(it.id)) await httpsCallable(functions, "purchaseShopItem")({ itemId: it.id });
+      await httpsCallable(functions, "equipAvatarItem")({ slot: it.slot, itemId: it.id });
+      setTryOn((prev) => { const n = { ...prev }; delete n[it.slot]; return n; });
+    } catch (e) {
+      setMsg((e as { message?: string })?.message ?? "처리에 실패했어요.");
+    } finally { setBusy(null); }
+  }
+
+  const items = SHOP_ITEMS.filter((i) => i.slot === slot);
+  // 효과가 큰 슬롯은 2열로 크게 — 작으면 회전·그라데가 안 읽힌다
+  const wide = slot === "frame" || slot === "nameStyle" || slot === "effect";
+
   return (
-    <div className="py-8 text-center">
-      <div className="flex justify-center mb-4">
-        <AvatarView equipped={state.equipped} size={64} />
-      </div>
-      <div className="text-[15px] font-bold text-black/85">상점 준비 중</div>
-      <p className="mt-1.5 text-[12.5px] text-p-secondary" style={{ lineHeight: 1.7, wordBreak: "keep-all" }}>
-        캐릭터를 꾸밀 수 있는 아이템을 만들고 있어요.<br />
-        그때까지 모은 포인트는 그대로 남아 있으니 걱정 마세요.
-      </p>
+    <div className="flex flex-col h-full min-h-0">
+      {/* ── 무대 ── 스크롤해도 늘 보여야 한다. 입어보는 결과가 여기 뜨기 때문 */}
       <div
-        className="inline-flex items-baseline gap-1 mt-4 rounded-lg px-3 py-2"
-        style={{ background: "#f0faf1" }}
+        className="rounded-2xl px-3 sm:px-4 py-3 sm:py-4 mb-3 flex items-center gap-3 sm:gap-4 shrink-0"
+        style={{ background: "linear-gradient(160deg,#fbfbfa,#f2f1ef)", border: "1px solid rgba(0,0,0,0.06)" }}
       >
-        <span className="text-[12px] text-p-secondary">지금까지 모은 포인트</span>
-        <b className="text-[16px] font-bold tabular-nums" style={{ color: "#2a8438" }}>
-          {state.points.toLocaleString("ko-KR")}
-        </b>
-        <span className="text-[12px] font-bold" style={{ color: "#2a8438" }}>P</span>
+        <AvatarView equipped={preview} size={72} />
+        <div className="min-w-0 flex-1">
+          <div className={`text-[19px] font-bold text-black/90 truncate ${previewName}`}>
+            {state.name || "내 이름"}
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: state.title.color }}>
+            {state.title.name} Lv.{state.level}
+          </div>
+          <div className="text-[13px] font-bold mt-1" style={{ color: T.teal }}>
+            ⭐ {state.points.toLocaleString("ko-KR")}P
+          </div>
+        </div>
       </div>
+
+      {/* ── 입어본 것 구매 바 ── */}
+      {trying?.item && (
+        <div
+          className="rounded-xl px-3 py-2.5 mb-3 flex items-center gap-2 shrink-0"
+          style={{ background: RARITY[trying.item.rarity].bg, border: `1.5px solid ${RARITY[trying.item.rarity].ring}` }}
+        >
+          <span className="text-[12px] font-bold" style={{ color: RARITY[trying.item.rarity].fg }}>
+            {trying.item.name}
+          </span>
+          <span className="text-[11px] text-p-secondary">입어보는 중</span>
+          <button
+            onClick={() => buyAndWear(trying.item!)}
+            disabled={!!lockOf(trying.item) || trying.item.cost > state.points || busy === trying.item.id}
+            className="ml-auto rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
+            style={{ background: T.teal }}
+          >
+            {lockOf(trying.item) ?? (trying.item.cost > state.points
+              ? "포인트 부족"
+              : trying.item.cost === 0
+                ? "무료로 받기"
+                : `${trying.item.cost.toLocaleString("ko-KR")}P 구매`)}
+          </button>
+        </div>
+      )}
+
+      {/* ── 슬롯 탭 ── */}
+      <div className="flex gap-1 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1 shrink-0">
+        {SLOTS.map((sl) => (
+          <button
+            key={sl}
+            onClick={() => setSlot(sl)}
+            className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer"
+            style={{ background: sl === slot ? T.teal : "rgba(0,0,0,0.04)", color: sl === slot ? "#fff" : "#615d59" }}
+          >
+            {SLOT_LABEL[sl]}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 아이템 ── 여기만 스크롤한다 (패널 높이는 탭이 바뀌어도 그대로) */}
+      <div className={`flex-1 min-h-0 overflow-y-auto grid content-start gap-2 mt-2 -mx-0.5 px-0.5 pb-1 ${wide ? "grid-cols-2" : "grid-cols-3"}`}>
+        {items.map((it) => {
+          const owned = state.owned.has(it.id);
+          const wearing = preview[it.slot] === it.id;
+          const lock = lockOf(it);
+          const r = RARITY[it.rarity];
+
+          return (
+            <button
+              key={it.id}
+              onClick={() => setTryOn((prev) => ({ ...prev, [it.slot]: it.id }))}
+              className="rounded-xl p-2.5 text-center cursor-pointer"
+              style={{
+                background: wearing ? r.bg : "#fff",
+                border: `1.5px solid ${wearing ? r.ring : "rgba(0,0,0,0.08)"}`,
+                // 잠긴 것도 흐리게만 — 안 보이면 갖고 싶지도 않다
+                opacity: lock ? 0.72 : 1,
+              }}
+            >
+              <ItemPreview item={it} big={wide} base={preview} name={state.name || "내 이름"} />
+              <div className="mt-1.5 text-[11px] font-bold truncate" style={{ color: r.fg }}>{it.name}</div>
+              <div className="text-[10px] text-p-muted">
+                {owned ? (wearing ? "착용 중" : "보유") : lock ?? priceLabel(it)}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {msg && <p className="mt-2 text-[12px] text-[#c00000] shrink-0">{msg}</p>}
+      <p className="mt-2 text-[11px] text-p-muted text-center shrink-0">눌러서 입어보고, 마음에 들면 구매하세요.</p>
+    </div>
+  );
+}
+
+/**
+ * 아이템 미리보기.
+ *
+ * 빈 원에 링만 그리면 "이게 뭐지"로 끝난다 — 꾸미기 상품은 **꾸밀 대상**이 있어야 팔린다.
+ * 그래서 지금 내 아바타를 그대로 그리고 해당 슬롯만 이 아이템으로 갈아끼운다.
+ */
+function ItemPreview({ item, big, base, name }: {
+  item: ShopItem;
+  big?: boolean;
+  base: Record<string, string | null | undefined>;
+  name: string;
+}) {
+  // 이름 스타일은 아바타가 아니라 실제 내 이름으로 보여줘야 "내 이름이 저렇게 된다"가 온다
+  if (item.slot === "nameStyle") {
+    return (
+      <div
+        className={`font-bold text-black/85 truncate ${item.cssClass ?? ""}`}
+        style={{ fontSize: big ? 22 : 16, lineHeight: 1.4 }}
+      >
+        {name}
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-center py-0.5">
+      <AvatarView equipped={{ ...base, [item.slot]: item.id }} size={big ? 52 : 34} />
     </div>
   );
 }
@@ -149,11 +300,17 @@ export function RewardPanels({ state, tab, onTab, onClose }: {
   onClose: () => void;
 }) {
   return (
-    <ModalOverlay onClose={onClose} align="top" padding="16px" zIndex={1100}>
+    <ModalOverlay onClose={onClose} align="top" padding="12px" zIndex={1100}>
+      {/*
+        높이를 고정한다 — 탭마다 아이템 수가 달라 패널이 늘었다 줄었다 하면
+        탭을 옮길 때마다 화면이 튄다. 안은 그리드만 스크롤한다.
+        dvh 를 쓰는 이유: 모바일에서 주소창이 접히고 펼쳐질 때 vh 가 흔들린다.
+      */}
       <div
-        style={{ width: "100%", maxWidth: 440, background: T.white, borderRadius: 18, padding: 16, marginTop: 40, boxShadow: T.shadowFloat }}
+        className="w-full max-w-[440px] rounded-[18px] p-3 sm:p-4 mt-2 sm:mt-10 flex flex-col"
+        style={{ background: T.white, boxShadow: T.shadowFloat, height: "min(82dvh, 640px)" }}
       >
-        <div className="flex items-center gap-1.5 mb-3">
+        <div className="flex items-center gap-1.5 mb-3 shrink-0">
           {(["badges", "shop"] as const).map((t) => (
             <button
               key={t}
@@ -167,8 +324,14 @@ export function RewardPanels({ state, tab, onTab, onClose }: {
           <button onClick={onClose} className="ml-auto text-[13px] font-bold text-p-muted px-2">닫기</button>
         </div>
 
-        {tab === "badges" ? <BadgeVault state={state} /> : <Shop state={state} />}
-        {tab === "badges" && <FeedPrivacy state={state} />}
+        <div className="flex-1 min-h-0 flex flex-col">
+          {tab === "badges" ? (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <BadgeVault state={state} />
+              <FeedPrivacy state={state} />
+            </div>
+          ) : <Shop state={state} />}
+        </div>
       </div>
     </ModalOverlay>
   );

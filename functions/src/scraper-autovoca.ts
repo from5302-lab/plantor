@@ -146,6 +146,39 @@ class AutovocaClient {
   }
 }
 
+/** KST 기준 날짜와 시:분으로 쪼갠다. */
+function kstParts(v: unknown): { date: string; hhmm: string } | null {
+  if (!v) return null;
+  const d = new Date(new Date(String(v)).getTime() + 9 * 3600 * 1000);
+  if (Number.isNaN(d.getTime())) return null;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`,
+    hhmm: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
+  };
+}
+
+/**
+ * 유닛의 학습 시작·종료 시각(KST "HH:MM") — **그 날짜의 것만** 인정한다.
+ *
+ * unit_start/unit_end 는 서로 다른 날짜일 수 있다. 유닛이 배정일 기준으로 묶여 오기 때문에,
+ * 어제 밤에 열어 오늘 끝낸 유닛이 흔하다. 예전엔 날짜를 버리고 시:분만 뽑아서
+ * "23:47 ~ 20:12" 같은 뒤집힌 시각이 만들어졌다.
+ *
+ * 종료가 그날 것이 아니고 시작이 그날이면, 학습시간(unit_duration)만큼 뒤로 잡아 추정한다.
+ */
+export function unitTimes(
+  unitStart: unknown, unitEnd: unknown, durationSec: number, dateKst: string,
+): { startAt?: string; endAt?: string } {
+  const ks = kstParts(unitStart); const ke = kstParts(unitEnd);
+  const startAt = ks?.date === dateKst ? ks.hhmm : undefined;
+  if (ke?.date === dateKst) return { startAt, endAt: ke.hhmm };
+  if (!startAt || durationSec <= 0) return { startAt };
+  // 추정 종료도 그날을 넘어가면 버린다 — 자정을 넘기면 "23:50 ~ 00:00"이 되어 표시가 뒤집힌다
+  const est = kstParts(new Date(new Date(String(unitStart)).getTime() + durationSec * 1000).toISOString());
+  return { startAt, endAt: est?.date === dateKst ? est.hhmm : undefined };
+}
+
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -159,7 +192,8 @@ function num(v: unknown): number | null {
  * 확인해 정확한 키로 교체해야 한다(사용자 캡쳐: "4권 유닛 9" · 오답복습 3개 · +35P).
  * 현재는 추정 키 + 원본 passthrough(rawToday) 로 안전하게 수집한다.
  */
-function extractToday(weekly: any, todayDom: number): AutovocaResult {
+function extractToday(weekly: any, dateKst: string): AutovocaResult {
+  const todayDom = parseInt(dateKst.split("-")[2], 10);
   let status = "시작전";
   let totalMinutes = 0;
   const units: AutovocaUnit[] = [];
@@ -225,24 +259,17 @@ function extractToday(weekly: any, todayDom: number): AutovocaResult {
           check: firstTryRate(jd.check_list),
         };
         const startHour = unitStart ? new Date(new Date(unitStart).getTime() + 9 * 3600 * 1000).getUTCHours() : undefined;
-        // 시(hour)만 남기면 "몇 시에 시작해 몇 시에 끝났나"를 보여줄 수 없다 → 분까지 보존
-        const hhmm = (v: unknown) => {
-          if (!v) return undefined;
-          const d = new Date(new Date(String(v)).getTime() + 9 * 3600 * 1000);
-          return Number.isNaN(d.getTime()) ? undefined
-            : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-        };
-        const startAt = hhmm(unitStart);
-        const endAt = hhmm(unitEnd) ?? (startAt && duration > 0
-          ? hhmm(new Date(new Date(String(unitStart)).getTime() + duration * 1000).toISOString())
-          : undefined);
+        const { startAt, endAt } = unitTimes(unitStart, unitEnd, duration, dateKst);
 
         units.push({
           unitLabel, studyMinutes: minutes, testScore, wrongReviewCount, points, completed,
           testScores: tsl.length ? tsl : undefined,
           accuracy,
           pointsByActivity: Object.keys(pointsByActivity).length ? pointsByActivity : undefined,
-          startHour, startAt, endAt,
+          startHour,
+          // Firestore 는 undefined 를 거부한다 — 그날 시각이 아니면 키 자체를 넣지 않는다
+          ...(startAt ? { startAt } : {}),
+          ...(endAt ? { endAt } : {}),
           bookLabel: unit?.book_short_name ? String(unit.book_short_name) : undefined,
           isReview: /리뷰/.test(String(unit?.report_name ?? "")),
           hardWordCleared: hasHardWin([jd.mem_list, jd.write_list, jd.speak_list, jd.check_list]),
@@ -306,9 +333,9 @@ export async function scrapeAutovocaForStudent(
   }
   const matchedLoginId = String(stu.login_id ?? "");
 
-  const [y, m, d] = dateKst.split("-").map((x) => parseInt(x, 10));
+  const [y, m] = dateKst.split("-").map((x) => parseInt(x, 10));
   const weekly = await client.getWeeklyReport(stu.user_idx, y, m);
-  const result = extractToday(weekly, d);
+  const result = extractToday(weekly, dateKst);
   return { ...result, matchedLoginId };
 }
 
@@ -320,13 +347,13 @@ export async function scrapeAutovocaAll(
   const client = new AutovocaClient(creds);
   await client.login();
   const students = await client.getStudentList();
-  const [y, m, d] = dateKst.split("-").map((x) => parseInt(x, 10));
+  const [y, m] = dateKst.split("-").map((x) => parseInt(x, 10));
   const out: Array<{ loginId: string; name: string; autoStatus: AutovocaResult["autoStatus"]; units: AutovocaUnit[]; totalStudyMinutes: number; wrongReview?: AutovocaResult["wrongReview"] }> = [];
   for (const stu of students) {
     if (stu?.is_sample) continue;
     try {
       const weekly = await client.getWeeklyReport(stu.user_idx, y, m);
-      const res = extractToday(weekly, d);
+      const res = extractToday(weekly, dateKst);
       if (res.units.length) {
         out.push({ loginId: String(stu.login_id ?? ""), name: String(stu.name ?? ""), autoStatus: res.autoStatus, units: res.units, totalStudyMinutes: res.totalStudyMinutes, wrongReview: res.wrongReview });
       }

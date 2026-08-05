@@ -247,3 +247,109 @@ h1, h2, h3, h4, h5, h6 {
 @media (prefers-reduced-motion: reduce) {
   .thumbs-btn { transition: none !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   꾸미기 아이템 — 전부 CSS. 이미지 0장.
+   frame(테두리) · name(이름) · bg(아바타 배경) · fx(이펙트) 4계열.
+   가장 화려한 holo 계열은 뱃지로만 열린다(돈으로 못 산다).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* 각도를 애니메이션 가능한 변수로 등록 — 회전 테두리의 핵심 */
+@property --ring-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ring-spin { to { --ring-a: 360deg; } }
+/* 맥동은 최소 링을 항상 남긴다 — 0으로 떨어지면 정지 화면에서 아이템이 안 보인다 */
+@keyframes fx-pulse  { 0%,100% { box-shadow: 0 0 0 1px rgba(56,168,72,.55), 0 0 6px 1px rgba(56,168,72,.35); }
+                       50%     { box-shadow: 0 0 0 9px rgba(56,168,72,0),   0 0 6px 1px rgba(56,168,72,.55); } }
+@keyframes fx-twinkle{ 0%,100% { opacity: 0; transform: scale(.5); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes fx-fall   { from { transform: translateY(-8px) rotate(0deg); opacity: 0; }
+                       20% { opacity: 1; }
+                       to { transform: translateY(22px) rotate(180deg); opacity: 0; } }
+@keyframes name-flow { to { background-position: 200% center; } }
+@keyframes holo-shift{ to { --ring-a: 360deg; } }
+
+/* ── 테두리 (아바타 링) ─────────────────────────────────────────────────── */
+.frm { position: relative; }
+.frm-dash   { border: 2.5px dashed #b45309 !important; }
+.frm-gold   { border-color: transparent !important;
+              box-shadow: 0 0 0 2px #fff, 0 0 0 5px #d4a017; }
+.frm-glow   { border-color: #38a848 !important;
+              animation: fx-pulse 2.2s cubic-bezier(.4,0,.2,1) infinite; }
+/* 회전 무지개 — padding-box/border-box 두 겹으로 그라데이션 테두리를 만든다 */
+.frm-rainbow {
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--ring-a), #38a848, #7ce38f, #ffd166, #7ce38f, #38a848) border-box !important;
+  animation: ring-spin 3.2s linear infinite;
+}
+/* 홀로그램 — 각도에 따라 색이 흐르는 포일. 뱃지 전용 */
+.frm-holo {
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--ring-a),
+      #ff9ad5, #9ad5ff, #9affc4, #fff09a, #ff9ad5) border-box !important;
+  animation: holo-shift 2.4s linear infinite;
+  filter: saturate(1.25);
+}
+
+/* ── 이펙트 (아바타 위 레이어) ──────────────────────────────────────────── */
+/* 반짝임·잎은 ::before/::after 두 겹을 엇갈리게 돌린다.
+   한 겹이면 키프레임의 opacity:0 구간에서 아이템이 통째로 사라져 상점에서 "없음"과 구분되지 않는다. */
+.fx-sparkle::before, .fx-sparkle::after,
+.fx-leaf::before, .fx-leaf::after {
+  content: ""; position: absolute; inset: -3px; pointer-events: none;
+  background-repeat: no-repeat;
+}
+.fx-sparkle::before, .fx-sparkle::after {
+  background-image:
+    radial-gradient(circle, #fff 42%, transparent 43%),
+    radial-gradient(circle, #ffd166 42%, transparent 43%);
+  filter: drop-shadow(0 0 2px rgba(255, 209, 102, .9));
+  animation: fx-twinkle 1.5s ease-in-out infinite;
+}
+.fx-sparkle::before { background-size: 9px 9px, 6px 6px; background-position: 16% 18%, 80% 70%; }
+.fx-sparkle::after  { background-size: 6px 6px, 8px 8px; background-position: 84% 20%, 22% 78%;
+                      animation-delay: .75s; }
+.fx-leaf::before, .fx-leaf::after {
+  background-image: radial-gradient(ellipse 4px 6px at center, #4fc46a 62%, transparent 63%);
+  background-size: 10px 12px;
+  animation: fx-fall 2.6s linear infinite;
+}
+.fx-leaf::before { background-position: 32% 0%; }
+.fx-leaf::after  { background-position: 70% 0%; animation-delay: 1.3s; }
+.fx-aura { animation: fx-pulse 1.8s cubic-bezier(.4,0,.2,1) infinite; }
+
+/* ── 이름 스타일 ────────────────────────────────────────────────────────── */
+/* 단색은 대비 4.5:1 이상만 카탈로그에 넣는다 */
+.nm-teal   { color: #1f7a33 !important; }
+.nm-amber  { color: #9a6400 !important; }
+.nm-violet { color: #6d28d9 !important; }
+.nm-rose   { color: #be185d !important; }
+.nm-grad-mint, .nm-grad-sunset, .nm-flow, .nm-holo {
+  background-clip: text; -webkit-background-clip: text;
+  color: transparent !important; -webkit-text-fill-color: transparent;
+}
+.nm-grad-mint   { background-image: linear-gradient(92deg, #0f7a4e, #2fbf71); }
+.nm-grad-sunset { background-image: linear-gradient(92deg, #c2410c, #db2777); }
+.nm-flow {
+  background-image: linear-gradient(92deg, #0f7a4e, #2fbf71, #ffd166, #2fbf71, #0f7a4e);
+  background-size: 200% auto;
+  animation: name-flow 3.5s linear infinite;
+}
+.nm-holo {
+  background-image: linear-gradient(92deg, #ff6ec7, #6ec9ff, #6effa8, #ffe86e, #ff6ec7);
+  background-size: 200% auto;
+  animation: name-flow 2.6s linear infinite;
+}
+
+/* 움직임에 민감한 사용자는 정적으로 — 색은 유지하고 애니메이션만 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  .frm-rainbow, .frm-holo, .frm-glow, .fx-aura, .nm-flow, .nm-holo,
+  .fx-sparkle::before, .fx-sparkle::after,
+  .fx-leaf::before, .fx-leaf::after { animation: none !important; opacity: 1; }
+}

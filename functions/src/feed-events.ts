@@ -98,6 +98,8 @@ function authorFields(a: Author) {
     name: maskName(a.name),
     grade: a.grade,
     equipped: a.equipped,
+    // 이름 스타일은 피드에서 바로 쓰도록 따로 꺼내 둔다(카탈로그 조회 없이 렌더)
+    nameStyle: a.equipped?.nameStyle ?? null,
     level: a.level,
     title: a.title,
   };

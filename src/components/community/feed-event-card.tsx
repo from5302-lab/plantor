@@ -39,6 +39,8 @@ export type FeedEvent = {
   childId?: string;
   grade: string;
   equipped: Record<string, string | null>;
+  /** 착용 중인 이름 스타일 아이템 id */
+  nameStyle?: string | null;
   level: number;
   title: string;
   likeCount: number;
@@ -85,10 +87,9 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
     ? entry.items
     : (entry.labels ?? []).map((label) => ({ label }));
 
-  // 학습 시각은 과목 헤더로 끌어올린다 — "언제 공부했나"는 학부모가 가장 먼저 보는 정보다.
-  // (칩 무더기에 섞여 있으면 눈에 안 들어온다)
-  const timeChip = items.flatMap((it) => it.stats ?? []).find((st) => !st.name && /~/.test(st.value));
-  const span = timeChip?.value ?? null;
+  // 시각은 유닛마다 다르므로 유닛 줄에 그대로 둔다.
+  // 예전엔 첫 유닛의 시각을 과목 헤더로 끌어올렸는데, 유닛이 둘 이상이면
+  // 한 유닛의 시각이 과목 전체 시각처럼 읽혀 학부모가 잘못 이해한다.
 
   return (
     <div className="rounded-lg bg-black/[0.025] px-2 sm:px-2.5 py-2">
@@ -99,7 +100,6 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
         <span className="text-[12px] font-bold text-black/80">{svc?.name ?? entry.slug}</span>
         {entry.note && <span className="text-[11px] font-semibold text-p-teal">{entry.note}</span>}
         <span className="ml-auto flex items-center gap-2 shrink-0">
-          {span && <span className="text-[11px] text-p-muted tabular-nums">{span}</span>}
           {showXp && <span className="text-[11px] font-semibold text-p-secondary tabular-nums">{entry.xp} XP</span>}
         </span>
       </div>
@@ -107,18 +107,24 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
       {items.length > 0 && (
         <div className="flex flex-col gap-1 mt-1.5">
           {items.map((it, i) => {
-            const stats = (it.stats?.length
-              ? it.stats.filter((st) => st !== timeChip)
-              : it.note ? [{ name: "", value: it.note }] : []);
+            const all = (it.stats?.length ? it.stats : it.note ? [{ name: "", value: it.note }] : []);
+            // 학습 시각은 점수 칩 무더기에 섞지 않고 첫 줄에 [ ] 로 붙인다
+            const timeChip = all.find((st) => !st.name && /(오전|오후) \d{1,2}:\d{2}/.test(st.value));
+            const stats = all.filter((st) => st !== timeChip);
             return (
               <div
                 key={`${it.label}-${i}`}
                 className="rounded-md bg-white px-2 sm:px-2.5 py-1.5"
                 style={{ borderLeft: "3px solid rgba(56,168,72,0.28)" }}
               >
-                {it.kind && (
-                  <div className="text-[10.5px] font-bold text-p-muted">{it.kind}</div>
-                )}
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  {it.kind && (
+                    <span className="text-[10.5px] font-bold text-p-muted">{it.kind}</span>
+                  )}
+                  {timeChip && (
+                    <span className="text-[10.5px] text-p-muted whitespace-nowrap">[{timeChip.value}]</span>
+                  )}
+                </div>
                 <div className="text-[11.5px] text-p-secondary" style={{ lineHeight: 1.45 }}>
                   {it.label}
                 </div>
@@ -130,7 +136,8 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
                         className="text-[10.5px] rounded px-1.5 py-0.5 bg-black/[0.04] whitespace-nowrap"
                       >
                         {st.name && <span className="text-p-muted">{st.name} </span>}
-                        <b className="text-black/75">{st.value}</b>
+                        {/* 별점은 개인 학습현황 카드와 같은 노랑으로 — 두 화면이 달라 보이면 안 된다 */}
+                        <b className={/^★+$/.test(st.value) ? "text-[#f0a500]" : "text-black/75"}>{st.value}</b>
                       </span>
                     ))}
                   </div>
@@ -283,6 +290,8 @@ export function FeedEventCard({ event, myUid, familyNames }: {
 }) {
   // 본인·형제·자녀는 실명으로. 나머지는 가린 이름 그대로.
   const displayName = (event.childId && familyNames.get(event.childId)) || event.name;
+  // 꾸미기: 이름 색·그라데이션 (globals.css)
+  const nameCls = (event.nameStyle && SHOP_BY_ID.get(event.nameStyle)?.cssClass) || "";
   return (
     <article className="bg-white border-b border-black/[0.07] px-4 sm:px-5 py-4">
       <div className="flex gap-3">
@@ -299,7 +308,7 @@ export function FeedEventCard({ event, myUid, familyNames }: {
                   {event.grade}
                 </span>
               )}
-              <span className="text-[13px] font-bold text-black/90 truncate">{displayName}</span>
+              <span className={`text-[13px] font-bold text-black/90 truncate ${nameCls}`}>{displayName}</span>
               <span className="text-[12px] text-p-muted shrink-0">Lv.{event.level}</span>
             </div>
             <span className="text-[11px] text-p-muted shrink-0">{timeAgo(event.createdAt)}</span>

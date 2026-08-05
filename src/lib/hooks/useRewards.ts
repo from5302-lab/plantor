@@ -12,7 +12,7 @@ export type RewardState = {
   ready: boolean;
   xpTotal: number;
   level: number;
-  title: { name: string; emoji: string };
+  title: { name: string; color: string };
   /** 현재 레벨 안에서의 진행도 0~1 */
   progress: number;
   xpInLevel: number;
@@ -21,6 +21,8 @@ export type RewardState = {
   streak: number;
   /** 피드·공유 카드에 쓰는 학년 (children.grade) */
   grade: string;
+  /** 상점 미리보기에 쓰는 실명 (children.name) */
+  name: string;
   /** true면 내 리워드가 /community 피드에 올라가지 않는다 */
   feedOptOut: boolean;
   badges: EarnedBadge[];
@@ -31,14 +33,14 @@ export type RewardState = {
 };
 
 const EMPTY: RewardState = {
-  ready: false, xpTotal: 0, level: 1, title: { name: "씨앗", emoji: "🌰" },
-  progress: 0, xpInLevel: 0, xpNeeded: 500, points: 0, streak: 0, grade: "",
+  ready: false, xpTotal: 0, level: 1, title: { name: "씨앗", color: "#78716c" },
+  progress: 0, xpInLevel: 0, xpNeeded: 500, points: 0, streak: 0, grade: "", name: "",
   feedOptOut: false, badges: [], unseen: [], owned: new Set(DEFAULT_ITEMS), equipped: {},
 };
 
 /** 학생 본인의 XP·레벨·포인트·뱃지·인벤토리를 실시간 구독한다. */
 export function useRewards(childId: string | null, enabled = true): RewardState {
-  const [child, setChild] = useState<{ xpTotal: number; points: number; grade: string; feedOptOut: boolean; equipped: Record<string, string | null> } | null>(null);
+  const [child, setChild] = useState<{ xpTotal: number; points: number; grade: string; name: string; feedOptOut: boolean; equipped: Record<string, string | null> } | null>(null);
   const [streak, setStreak] = useState(0);
   const [badges, setBadges] = useState<EarnedBadge[]>([]);
   const [owned, setOwned] = useState<Set<string>>(new Set(DEFAULT_ITEMS));
@@ -52,6 +54,7 @@ export function useRewards(childId: string | null, enabled = true): RewardState 
         xpTotal: Number(d.xpTotal ?? 0),
         points: Number(d.points ?? 0),
         grade: String(d.grade ?? ""),
+        name: String(d.name ?? ""),
         feedOptOut: d.feedOptOut === true,
         equipped: (d.equipped ?? {}) as Record<string, string | null>,
       });
@@ -103,6 +106,7 @@ export function useRewards(childId: string | null, enabled = true): RewardState 
     points: child?.points ?? 0,
     streak,
     grade: child?.grade ?? "",
+    name: child?.name ?? "",
     feedOptOut: child?.feedOptOut ?? false,
     badges,
     unseen: badges.filter((b) => !b.seen),

@@ -99,66 +99,121 @@ export function xpAtLevelStart(level: number): number {
   for (let l = 1; l < level; l++) acc += xpToNext(l);
   return acc;
 }
-const TITLES: Array<{ min: number; name: string; emoji: string }> = [
-  { min: 80, name: "큰나무", emoji: "🌳" }, { min: 60, name: "열매", emoji: "🍎" },
-  { min: 50, name: "개화", emoji: "🌸" }, { min: 40, name: "꽃봉오리", emoji: "🌷" },
-  { min: 30, name: "잎새", emoji: "🍃" }, { min: 20, name: "줄기", emoji: "🌿" },
-  { min: 10, name: "떡잎", emoji: "☘️" }, { min: 5, name: "새싹", emoji: "🌱" },
-  { min: 1, name: "씨앗", emoji: "🌰" },
+// 칭호는 이름만 쓴다.
+// 식물 이모지는 전부 캐릭터(base 슬롯) 몫 — 칭호에도 🌱을 달면 "산 캐릭터"와 "레벨"이 뒤섞여
+// 피드에서 같은 그림이 두 가지 뜻으로 읽힌다. 단계 색으로 위계를 준다.
+const TITLES: Array<{ min: number; name: string; color: string }> = [
+  { min: 80, name: "큰나무", color: "#166534" }, { min: 60, name: "열매", color: "#b45309" },
+  { min: 50, name: "개화", color: "#be185d" }, { min: 40, name: "꽃봉오리", color: "#c2410c" },
+  { min: 30, name: "잎새", color: "#15803d" }, { min: 20, name: "줄기", color: "#2f7a4e" },
+  { min: 10, name: "떡잎", color: "#4d7c0f" }, { min: 5, name: "새싹", color: "#65a30d" },
+  { min: 1, name: "씨앗", color: "#78716c" },
 ];
 export function titleOf(level: number) {
   return TITLES.find((t) => level >= t.min) ?? TITLES[TITLES.length - 1];
 }
 
 // ── 상점 ──────────────────────────────────────────────────────────────────────
-export type ShopSlot = "base" | "hair" | "outfit" | "hat" | "prop" | "background" | "frame" | "effect";
+/**
+ * 꾸미기 슬롯.
+ *
+ * 헤어·의상·모자·소품은 폐기했다 — 캐릭터가 식물이라 입힐 머리도 몸도 없고,
+ * 무관한 이모지를 원 귀퉁이에 붙여봐야 "꾸몄다"가 성립하지 않는다.
+ * 남는 건 정체성(식물 캐릭터)과 CSS 치장(테두리·이름·배경·이펙트)뿐이고, 그걸로 충분하다.
+ */
+export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle";
 
 export const SLOT_LABEL: Record<ShopSlot, string> = {
-  base: "캐릭터", hair: "헤어", outfit: "의상", hat: "모자",
-  prop: "소품", background: "배경", frame: "테두리", effect: "이펙트",
+  base: "캐릭터", background: "배경",
+  frame: "테두리", effect: "이펙트", nameStyle: "이름",
 };
 
 export type ShopItem = {
   id: string; slot: ShopSlot; name: string; cost: number; rarity: Rarity;
   minLevel?: number; badgeCode?: string; emoji: string;
+  /** globals.css 의 꾸미기 클래스 (frame/effect/nameStyle). 없으면 기본. */
+  cssClass?: string;
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
-  { id: "base-sprout", slot: "base", name: "새싹이", cost: 0, rarity: "common", emoji: "🌱" },
-  { id: "base-cactus", slot: "base", name: "선인장이", cost: 400, rarity: "rare", emoji: "🌵" },
-  { id: "base-mushroom", slot: "base", name: "버섯이", cost: 600, rarity: "rare", emoji: "🍄" },
-  { id: "hair-short", slot: "hair", name: "단발", cost: 0, rarity: "common", emoji: "💇" },
-  { id: "hair-curly", slot: "hair", name: "곱슬", cost: 250, rarity: "common", emoji: "🦱" },
-  { id: "hair-long", slot: "hair", name: "장발", cost: 250, rarity: "common", emoji: "🦰" },
-  { id: "outfit-tee", slot: "outfit", name: "기본 티셔츠", cost: 0, rarity: "common", emoji: "👕" },
-  { id: "outfit-hoodie", slot: "outfit", name: "후드티", cost: 350, rarity: "common", emoji: "🧥" },
-  { id: "outfit-uniform", slot: "outfit", name: "교복", cost: 500, rarity: "rare", emoji: "🎽" },
-  { id: "outfit-astronaut", slot: "outfit", name: "우주복", cost: 1200, rarity: "epic", emoji: "👨‍🚀" },
-  { id: "hat-cap", slot: "hat", name: "야구모자", cost: 200, rarity: "common", emoji: "🧢" },
-  { id: "hat-beanie", slot: "hat", name: "비니", cost: 250, rarity: "common", emoji: "🎩" },
-  { id: "hat-crown", slot: "hat", name: "왕관", cost: 600, rarity: "rare", emoji: "👑" },
-  { id: "prop-book", slot: "prop", name: "책", cost: 150, rarity: "common", emoji: "📕" },
-  { id: "prop-pencil", slot: "prop", name: "연필", cost: 150, rarity: "common", emoji: "✏️" },
-  { id: "prop-cat", slot: "prop", name: "고양이", cost: 500, rarity: "rare", emoji: "🐱" },
-  { id: "prop-trophy", slot: "prop", name: "게임 트로피", cost: 0, rarity: "rare", badgeCode: "c5-30k", emoji: "🏆" },
-  { id: "bg-plain", slot: "background", name: "기본", cost: 0, rarity: "common", emoji: "⬜" },
-  { id: "bg-forest", slot: "background", name: "숲속", cost: 300, rarity: "common", emoji: "🌲" },
-  { id: "bg-space", slot: "background", name: "우주", cost: 700, rarity: "rare", emoji: "🌌" },
-  { id: "bg-sprout", slot: "background", name: "떡잎의 방", cost: 0, rarity: "rare", minLevel: 10, emoji: "☘️" },
-  { id: "bg-bloom", slot: "background", name: "개화의 방", cost: 0, rarity: "epic", minLevel: 40, emoji: "🌸" },
-  { id: "bg-tree", slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", minLevel: 80, emoji: "🌳" },
-  { id: "frame-basic", slot: "frame", name: "기본 테두리", cost: 0, rarity: "common", emoji: "⭕" },
-  { id: "frame-gold", slot: "frame", name: "황금 테두리", cost: 400, rarity: "rare", emoji: "🟡" },
-  { id: "frame-reader", slot: "frame", name: "독서가의 테두리", cost: 0, rarity: "legend", badgeCode: "dk-true-reader", emoji: "🦉" },
-  { id: "effect-sparkle", slot: "effect", name: "반짝임", cost: 700, rarity: "rare", emoji: "✨" },
-  { id: "effect-aurora", slot: "effect", name: "오로라", cost: 1400, rarity: "epic", emoji: "🌈" },
+  // 캐릭터 — 플랜토의 정체성. 유니코드 식물 이모지를 통째로 끌어왔다.
+  // 여기가 최우선 사용처라, 레벨 칭호는 식물 이모지를 양보하고 이름만 쓴다(TITLES 주석 참고).
+  { id: "base-sprout",   slot: "base", name: "새싹이",   cost: 0,    rarity: "common", emoji: "🌱" },
+  { id: "base-herb",     slot: "base", name: "풀잎이",   cost: 200,  rarity: "common", emoji: "🌿" },
+  { id: "base-shamrock", slot: "base", name: "세잎이",   cost: 200,  rarity: "common", emoji: "☘️" },
+  { id: "base-clover",   slot: "base", name: "네잎이",   cost: 250,  rarity: "common", emoji: "🍀" },
+  { id: "base-leaf",     slot: "base", name: "바람잎",   cost: 250,  rarity: "common", emoji: "🍃" },
+  { id: "base-rice",     slot: "base", name: "벼이삭",   cost: 300,  rarity: "common", emoji: "🌾" },
+  { id: "base-acorn",    slot: "base", name: "도토리",   cost: 350,  rarity: "rare",   emoji: "🌰" },
+  { id: "base-fallen",   slot: "base", name: "낙엽이",   cost: 400,  rarity: "rare",   emoji: "🍂" },
+  { id: "base-cactus",   slot: "base", name: "선인장이", cost: 450,  rarity: "rare",   emoji: "🌵" },
+  { id: "base-mushroom", slot: "base", name: "버섯이",   cost: 500,  rarity: "rare",   emoji: "🍄" },
+  { id: "base-tulip",    slot: "base", name: "튤립이",   cost: 550,  rarity: "rare",   emoji: "🌷" },
+  { id: "base-daisy",    slot: "base", name: "데이지",   cost: 600,  rarity: "rare",   emoji: "🌼" },
+  { id: "base-rose",     slot: "base", name: "장미",     cost: 700,  rarity: "rare",   emoji: "🌹" },
+  { id: "base-pot",      slot: "base", name: "화분이",   cost: 800,  rarity: "rare",   emoji: "🪴" },
+  { id: "base-sunflower",slot: "base", name: "해바라기", cost: 900,  rarity: "epic",   emoji: "🌻" },
+  { id: "base-maple",    slot: "base", name: "단풍이",   cost: 950,  rarity: "epic",   emoji: "🍁" },
+  { id: "base-bamboo",   slot: "base", name: "대나무",   cost: 1000, rarity: "epic",   emoji: "🎋" },
+  { id: "base-pine",     slot: "base", name: "소나무",   cost: 1050, rarity: "epic",   emoji: "🎍" },
+  { id: "base-evergreen",slot: "base", name: "침엽수",   cost: 1100, rarity: "epic",   emoji: "🌲" },
+  { id: "base-hibiscus", slot: "base", name: "히비스커스", cost: 1200, rarity: "epic", emoji: "🌺" },
+  { id: "base-palm",     slot: "base", name: "야자수",   cost: 1300, rarity: "epic",   emoji: "🌴" },
+  { id: "base-lotus",    slot: "base", name: "연꽃",     cost: 1400, rarity: "epic",   emoji: "🪷" },
+  { id: "base-hyacinth", slot: "base", name: "히아신스", cost: 1450, rarity: "epic",   emoji: "🪻" },
+  { id: "base-blossom",  slot: "base", name: "벚꽃이",   cost: 1500, rarity: "epic",   emoji: "🌸" },
+  { id: "base-bouquet",  slot: "base", name: "꽃다발",   cost: 1600, rarity: "epic",   emoji: "💐" },
+  // 큰나무는 사는 게 아니라 자라서 되는 것 — 레벨로만 열린다
+  { id: "base-tree",     slot: "base", name: "큰나무",   cost: 0,    rarity: "legend", minLevel: 30, emoji: "🌳" },
+  // ── 꾸미기 아이템 (전부 CSS · 이미지 0장) ──────────────────────────────────
+  // cssClass 가 globals.css 의 클래스와 1:1로 대응한다.
+  // holo 계열은 badgeCode 로만 열린다 — 돈으로 살 수 있으면 하루 만에 흔해진다.
+  { id: "frame-basic",   slot: "frame", name: "기본 테두리",   cost: 0,    rarity: "common", emoji: "⭕", cssClass: "" },
+  { id: "frame-dash",    slot: "frame", name: "점선 테두리",   cost: 250,  rarity: "common", emoji: "⭕", cssClass: "frm-dash" },
+  { id: "frame-gold",    slot: "frame", name: "황금 테두리",   cost: 400,  rarity: "rare",   emoji: "🟡", cssClass: "frm-gold" },
+  { id: "frame-glow",    slot: "frame", name: "발광 테두리",   cost: 700,  rarity: "rare",   emoji: "💡", cssClass: "frm-glow" },
+  { id: "frame-rainbow", slot: "frame", name: "회전 무지개",   cost: 1200, rarity: "epic",   emoji: "🌈", cssClass: "frm-rainbow" },
+  { id: "frame-holo",    slot: "frame", name: "홀로그램",      cost: 0,    rarity: "legend", emoji: "✨", cssClass: "frm-holo", badgeCode: "dk-true-reader" },
+  
+  { id: "name-default",      slot: "nameStyle", name: "기본",        cost: 0,    rarity: "common", emoji: "🅰️", cssClass: "" },
+  { id: "name-teal",         slot: "nameStyle", name: "초록 이름",   cost: 300,  rarity: "common", emoji: "🟢", cssClass: "nm-teal" },
+  { id: "name-amber",        slot: "nameStyle", name: "호박 이름",   cost: 300,  rarity: "common", emoji: "🟠", cssClass: "nm-amber" },
+  { id: "name-violet",       slot: "nameStyle", name: "보라 이름",   cost: 400,  rarity: "common", emoji: "🟣", cssClass: "nm-violet" },
+  { id: "name-rose",         slot: "nameStyle", name: "장미 이름",   cost: 400,  rarity: "common", emoji: "🌹", cssClass: "nm-rose" },
+  { id: "name-grad-mint",    slot: "nameStyle", name: "민트 그라데", cost: 700,  rarity: "rare",   emoji: "🌿", cssClass: "nm-grad-mint" },
+  { id: "name-grad-sunset",  slot: "nameStyle", name: "노을 그라데", cost: 700,  rarity: "rare",   emoji: "🌅", cssClass: "nm-grad-sunset" },
+  { id: "name-flow",         slot: "nameStyle", name: "흐르는 무지개", cost: 1000, rarity: "epic", emoji: "🌊", cssClass: "nm-flow" },
+  { id: "name-holo",         slot: "nameStyle", name: "홀로그램 이름", cost: 0,  rarity: "legend", emoji: "💎", cssClass: "nm-holo", badgeCode: "st-100" },
+  
+  { id: "effect-none",    slot: "effect", name: "없음",     cost: 0,    rarity: "common", emoji: "🚫", cssClass: "" },
+  { id: "effect-sparkle", slot: "effect", name: "반짝임",   cost: 700,  rarity: "rare",   emoji: "✨", cssClass: "fx-sparkle" },
+  { id: "effect-aura",    slot: "effect", name: "맥동 오라", cost: 900,  rarity: "rare",   emoji: "🫧", cssClass: "fx-aura" },
+  { id: "effect-leaf",    slot: "effect", name: "떨어지는 잎", cost: 1100, rarity: "epic", emoji: "🍃", cssClass: "fx-leaf" },
+  { id: "bg-plain",   slot: "background", name: "기본",      cost: 0,   rarity: "common", emoji: "⬜" },
+  { id: "bg-forest",  slot: "background", name: "숲속",      cost: 300, rarity: "common", emoji: "🌲" },
+  { id: "bg-stripe",  slot: "background", name: "스트라이프", cost: 300, rarity: "common", emoji: "📐" },
+  { id: "bg-dots",    slot: "background", name: "물방울",    cost: 300, rarity: "common", emoji: "🔵" },
+  { id: "bg-sakura",  slot: "background", name: "벚꽃",      cost: 500, rarity: "rare",   emoji: "🌸" },
+  { id: "bg-space",   slot: "background", name: "우주",      cost: 700, rarity: "rare",   emoji: "🌌" },
+  { id: "bg-aurora",  slot: "background", name: "오로라",    cost: 900, rarity: "epic",   emoji: "🌠" },
+  { id: "bg-sprout",  slot: "background", name: "떡잎의 방", cost: 0,   rarity: "rare",   emoji: "☘️", minLevel: 10 },
+  { id: "bg-bloom",   slot: "background", name: "개화의 방", cost: 0,   rarity: "epic",   emoji: "🌸", minLevel: 40 },
+  { id: "bg-tree",    slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", emoji: "🌳", minLevel: 80 },
 ];
 
 export const SHOP_BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));
 export const DEFAULT_ITEMS = SHOP_ITEMS.filter((i) => i.cost === 0 && !i.minLevel && !i.badgeCode).map((i) => i.id);
 
-/** 배경색 — 아바타 아트가 붙기 전까지 배경 슬롯을 색으로 표현한다. */
-export const BG_COLORS: Record<string, string> = {
-  "bg-plain": "#f3f4f6", "bg-forest": "#dcfce7", "bg-space": "#1e1b4b",
-  "bg-sprout": "#e6f7e9", "bg-bloom": "#fde8f3", "bg-tree": "#e7f0e2",
+/** 아바타 배경 — 색 하나가 아니라 CSS 배경 전체(그라데이션·패턴)를 담는다. */
+export const BG_STYLE: Record<string, string> = {
+  "bg-plain":  "#f3f4f6",
+  "bg-forest": "linear-gradient(135deg,#dcfce7,#a7e8bd)",
+  "bg-stripe": "repeating-linear-gradient(45deg,#f6f5f4 0 6px,#e6e3df 6px 12px)",
+  "bg-dots":   "radial-gradient(#cfe9d5 1.5px, #f6f5f4 1.6px) 0 0/10px 10px",
+  "bg-sakura": "linear-gradient(135deg,#ffe3ef,#ffc2dc)",
+  "bg-space":  "linear-gradient(150deg,#1e1b4b,#3b357e)",
+  "bg-aurora": "conic-gradient(from 180deg,#ffd6e7,#c1f0ff,#d9ffe1,#ffe9c1,#ffd6e7)",
+  "bg-sprout": "linear-gradient(135deg,#e6f7e9,#c6ecd0)",
+  "bg-bloom":  "linear-gradient(135deg,#fde8f3,#f9c9e4)",
+  "bg-tree":   "linear-gradient(135deg,#e7f0e2,#bcd9b6)",
 };

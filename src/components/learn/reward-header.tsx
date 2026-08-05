@@ -44,8 +44,8 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
 
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[14px] font-bold text-black/90 truncate">
-                {state.title.emoji} {state.title.name}
+              <span className="text-[14px] font-bold truncate" style={{ color: state.title.color }}>
+                {state.title.name}
               </span>
               <span className="text-[13px] font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
               {state.streak >= 3 && (

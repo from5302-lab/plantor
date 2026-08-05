@@ -89,6 +89,7 @@ export function FeedList({ myUid, familyNames }: { myUid: string | null; familyN
           name: String(data.name ?? ""),
           grade: String(data.grade ?? ""),
           equipped: (data.equipped ?? {}) as Record<string, string | null>,
+          nameStyle: data.nameStyle ?? null,
           level: Number(data.level ?? 1),
           title: String(data.title ?? "씨앗"),
           likeCount: Number(data.likeCount ?? 0),

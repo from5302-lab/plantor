@@ -162,8 +162,9 @@ export const BADGES: BadgeDef[] = [
 export const BADGE_BY_CODE = new Map(BADGES.map((b) => [b.code, b]));
 
 // ── 상점 (아바타 꾸미기) ──────────────────────────────────────────────────────
-// 실물 보상 없음 · 전액 자동 지급. 아트는 /public/avatar/{slot}/{id}.png 레이어로 합성한다.
-export type ShopSlot = "base" | "hair" | "outfit" | "hat" | "prop" | "background" | "frame" | "effect";
+// 실물 보상 없음 · 전액 자동 지급. 아트는 전부 이모지 + CSS라 이미지 파일이 없다.
+// 헤어·의상·모자·소품 슬롯은 폐기 — 캐릭터가 식물이라 입힐 몸이 없다 (catalog.ts 주석 참고).
+export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle";
 
 export type ShopItem = {
   id: string;
@@ -179,42 +180,66 @@ export type ShopItem = {
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
-  // 베이스
-  { id: "base-sprout", slot: "base", name: "새싹이", cost: 0, rarity: "common" },
-  { id: "base-cactus", slot: "base", name: "선인장이", cost: 400, rarity: "rare" },
-  { id: "base-mushroom", slot: "base", name: "버섯이", cost: 600, rarity: "rare" },
-  // 헤어
-  { id: "hair-short", slot: "hair", name: "단발", cost: 0, rarity: "common" },
-  { id: "hair-curly", slot: "hair", name: "곱슬", cost: 250, rarity: "common" },
-  { id: "hair-long", slot: "hair", name: "장발", cost: 250, rarity: "common" },
-  // 의상
-  { id: "outfit-tee", slot: "outfit", name: "기본 티셔츠", cost: 0, rarity: "common" },
-  { id: "outfit-hoodie", slot: "outfit", name: "후드티", cost: 350, rarity: "common" },
-  { id: "outfit-uniform", slot: "outfit", name: "교복", cost: 500, rarity: "rare" },
-  { id: "outfit-astronaut", slot: "outfit", name: "우주복", cost: 1200, rarity: "epic" },
-  // 모자
-  { id: "hat-cap", slot: "hat", name: "야구모자", cost: 200, rarity: "common" },
-  { id: "hat-beanie", slot: "hat", name: "비니", cost: 250, rarity: "common" },
-  { id: "hat-crown", slot: "hat", name: "왕관", cost: 600, rarity: "rare" },
-  // 소품
-  { id: "prop-book", slot: "prop", name: "책", cost: 150, rarity: "common" },
-  { id: "prop-pencil", slot: "prop", name: "연필", cost: 150, rarity: "common" },
-  { id: "prop-cat", slot: "prop", name: "고양이", cost: 500, rarity: "rare" },
-  { id: "prop-trophy", slot: "prop", name: "게임 트로피", cost: 0, rarity: "rare", badgeCode: "c5-30k" },
-  // 배경
-  { id: "bg-plain", slot: "background", name: "기본", cost: 0, rarity: "common" },
-  { id: "bg-forest", slot: "background", name: "숲속", cost: 300, rarity: "common" },
-  { id: "bg-space", slot: "background", name: "우주", cost: 700, rarity: "rare" },
-  { id: "bg-sprout", slot: "background", name: "떡잎의 방", cost: 0, rarity: "rare", minLevel: 10 },
-  { id: "bg-bloom", slot: "background", name: "개화의 방", cost: 0, rarity: "epic", minLevel: 40 },
-  { id: "bg-tree", slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", minLevel: 80 },
-  // 프레임
-  { id: "frame-basic", slot: "frame", name: "기본 테두리", cost: 0, rarity: "common" },
-  { id: "frame-gold", slot: "frame", name: "황금 테두리", cost: 400, rarity: "rare" },
-  { id: "frame-reader", slot: "frame", name: "독서가의 테두리", cost: 0, rarity: "legend", badgeCode: "dk-true-reader" },
-  // 이펙트
-  { id: "effect-sparkle", slot: "effect", name: "반짝임", cost: 700, rarity: "rare" },
-  { id: "effect-aurora", slot: "effect", name: "오로라", cost: 1400, rarity: "epic" },
+  { id: "base-sprout",   slot: "base", name: "새싹이",   cost: 0,    rarity: "common" },
+  { id: "base-herb",     slot: "base", name: "풀잎이",   cost: 200,  rarity: "common" },
+  { id: "base-shamrock", slot: "base", name: "세잎이",   cost: 200,  rarity: "common" },
+  { id: "base-clover",   slot: "base", name: "네잎이",   cost: 250,  rarity: "common" },
+  { id: "base-leaf",     slot: "base", name: "바람잎",   cost: 250,  rarity: "common" },
+  { id: "base-rice",     slot: "base", name: "벼이삭",   cost: 300,  rarity: "common" },
+  { id: "base-acorn",    slot: "base", name: "도토리",   cost: 350,  rarity: "rare" },
+  { id: "base-fallen",   slot: "base", name: "낙엽이",   cost: 400,  rarity: "rare" },
+  { id: "base-cactus",   slot: "base", name: "선인장이", cost: 450,  rarity: "rare" },
+  { id: "base-mushroom", slot: "base", name: "버섯이",   cost: 500,  rarity: "rare" },
+  { id: "base-tulip",    slot: "base", name: "튤립이",   cost: 550,  rarity: "rare" },
+  { id: "base-daisy",    slot: "base", name: "데이지",   cost: 600,  rarity: "rare" },
+  { id: "base-rose",     slot: "base", name: "장미",     cost: 700,  rarity: "rare" },
+  { id: "base-pot",      slot: "base", name: "화분이",   cost: 800,  rarity: "rare" },
+  { id: "base-sunflower",slot: "base", name: "해바라기", cost: 900,  rarity: "epic" },
+  { id: "base-maple",    slot: "base", name: "단풍이",   cost: 950,  rarity: "epic" },
+  { id: "base-bamboo",   slot: "base", name: "대나무",   cost: 1000, rarity: "epic" },
+  { id: "base-pine",     slot: "base", name: "소나무",   cost: 1050, rarity: "epic" },
+  { id: "base-evergreen",slot: "base", name: "침엽수",   cost: 1100, rarity: "epic" },
+  { id: "base-hibiscus", slot: "base", name: "히비스커스", cost: 1200, rarity: "epic" },
+  { id: "base-palm",     slot: "base", name: "야자수",   cost: 1300, rarity: "epic" },
+  { id: "base-lotus",    slot: "base", name: "연꽃",     cost: 1400, rarity: "epic" },
+  { id: "base-hyacinth", slot: "base", name: "히아신스", cost: 1450, rarity: "epic" },
+  { id: "base-blossom",  slot: "base", name: "벚꽃이",   cost: 1500, rarity: "epic" },
+  { id: "base-bouquet",  slot: "base", name: "꽃다발",   cost: 1600, rarity: "epic" },
+  { id: "base-tree",     slot: "base", name: "큰나무",   cost: 0,    rarity: "legend", minLevel: 30 },
+  // ── 꾸미기 아이템 (전부 CSS · 이미지 0장) ──────────────────────────────────
+  // cssClass 가 globals.css 의 클래스와 1:1로 대응한다.
+  // holo 계열은 badgeCode 로만 열린다 — 돈으로 살 수 있으면 하루 만에 흔해진다.
+  { id: "frame-basic",   slot: "frame", name: "기본 테두리",   cost: 0,    rarity: "common" },
+  { id: "frame-dash",    slot: "frame", name: "점선 테두리",   cost: 250,  rarity: "common" },
+  { id: "frame-gold",    slot: "frame", name: "황금 테두리",   cost: 400,  rarity: "rare" },
+  { id: "frame-glow",    slot: "frame", name: "발광 테두리",   cost: 700,  rarity: "rare" },
+  { id: "frame-rainbow", slot: "frame", name: "회전 무지개",   cost: 1200, rarity: "epic" },
+  { id: "frame-holo",    slot: "frame", name: "홀로그램",      cost: 0,    rarity: "legend", badgeCode: "dk-true-reader" },
+  
+  { id: "name-default",      slot: "nameStyle", name: "기본",        cost: 0,    rarity: "common" },
+  { id: "name-teal",         slot: "nameStyle", name: "초록 이름",   cost: 300,  rarity: "common" },
+  { id: "name-amber",        slot: "nameStyle", name: "호박 이름",   cost: 300,  rarity: "common" },
+  { id: "name-violet",       slot: "nameStyle", name: "보라 이름",   cost: 400,  rarity: "common" },
+  { id: "name-rose",         slot: "nameStyle", name: "장미 이름",   cost: 400,  rarity: "common" },
+  { id: "name-grad-mint",    slot: "nameStyle", name: "민트 그라데", cost: 700,  rarity: "rare" },
+  { id: "name-grad-sunset",  slot: "nameStyle", name: "노을 그라데", cost: 700,  rarity: "rare" },
+  { id: "name-flow",         slot: "nameStyle", name: "흐르는 무지개", cost: 1000, rarity: "epic" },
+  { id: "name-holo",         slot: "nameStyle", name: "홀로그램 이름", cost: 0,  rarity: "legend", badgeCode: "st-100" },
+  
+  { id: "effect-none",    slot: "effect", name: "없음",     cost: 0,    rarity: "common" },
+  { id: "effect-sparkle", slot: "effect", name: "반짝임",   cost: 700,  rarity: "rare" },
+  { id: "effect-aura",    slot: "effect", name: "맥동 오라", cost: 900,  rarity: "rare" },
+  { id: "effect-leaf",    slot: "effect", name: "떨어지는 잎", cost: 1100, rarity: "epic" },
+  { id: "bg-plain",   slot: "background", name: "기본",      cost: 0,   rarity: "common" },
+  { id: "bg-forest",  slot: "background", name: "숲속",      cost: 300, rarity: "common" },
+  { id: "bg-stripe",  slot: "background", name: "스트라이프", cost: 300, rarity: "common" },
+  { id: "bg-dots",    slot: "background", name: "물방울",    cost: 300, rarity: "common" },
+  { id: "bg-sakura",  slot: "background", name: "벚꽃",      cost: 500, rarity: "rare" },
+  { id: "bg-space",   slot: "background", name: "우주",      cost: 700, rarity: "rare" },
+  { id: "bg-aurora",  slot: "background", name: "오로라",    cost: 900, rarity: "epic" },
+  { id: "bg-sprout",  slot: "background", name: "떡잎의 방", cost: 0,   rarity: "rare", minLevel: 10 },
+  { id: "bg-bloom",   slot: "background", name: "개화의 방", cost: 0,   rarity: "epic", minLevel: 40 },
+  { id: "bg-tree",    slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", minLevel: 80 },
 ];
 
 export const SHOP_BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));

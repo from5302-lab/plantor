@@ -174,14 +174,47 @@ function formatStage(label: string, v: unknown): string | null {
 }
 
 /** 시작~종료 · 소요시간 칩. 세트마다 "언제 얼마나 했는지"를 붙인다. */
+/** "HH:MM" → 분. 형식이 아니면 null. */
+function hhmmToMin(v: string | null): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v ?? "");
+  if (!m) return null;
+  const h = Number(m[1]); const mi = Number(m[2]);
+  return h < 24 && mi < 60 ? h * 60 + mi : null;
+}
+
+/** 24시간제 "21:40" → "오후 9:40". 학생·학부모가 읽는 화면이라 12시간제로 통일한다. */
+function ampm(v: string | null): string | null {
+  const t = hhmmToMin(v);
+  if (t == null) return null;
+  const h = Math.floor(t / 60);
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h < 12 ? "오전" : "오후"} ${h12}:${String(t % 60).padStart(2, "0")}`;
+}
+
+/**
+ * 학습 시각을 칩 하나로 만든다 — 피드와 개인 학습현황이 같은 문장을 쓰도록 여기 한 곳만 둔다.
+ * (클라이언트 쪽 동일 규칙: src/components/learn/auto-result-card.tsx 의 TimeRange)
+ *
+ * 시작·종료가 뒤집혀 오는 리포트가 있어(끝이 시작보다 빠름) 이른 쪽을 시작으로 세운다.
+ * 종료시각이 리포트의 실제 학습시간과 크게 어긋나면(오토보카는 그날 세션이 아닌 값이 섞여 온다)
+ * 틀린 값을 보여주느니 시작시각만 남긴다.
+ */
 function timeStats(u: Json | undefined, minutes?: number | null): StudyStat[] {
-  const out: StudyStat[] = [];
-  const start = u?.startAt ? String(u.startAt) : null;
-  const end = u?.endAt ? String(u.endAt) : null;
-  if (start || end) out.push({ name: "", value: `${start ?? ""}${start && end ? " ~ " : ""}${end ?? ""}` });
+  const a = hhmmToMin(u?.startAt ? String(u.startAt) : null);
+  const b = hhmmToMin(u?.endAt ? String(u.endAt) : null);
+  const [s, e] = a != null && b != null && b < a ? [b, a] : [a, b];
+  const fmt = (t: number) => ampm(`${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`);
+
+  // 시작~종료는 "학습 창을 연 시각 ~ 닫은 시각"이라 중간에 쉰 시간이 들어간다.
+  // 활동 시간보다 긴 건 정상이므로 막지 않되, 3시간 넘게 벌어지면 값이 깨진 것으로 보고 버린다.
   const mins = minutes ?? (u?.durationSec ? Math.round(Number(u.durationSec) / 60) : null);
-  if (mins != null && mins > 0) out.push({ name: "", value: `${mins}분` });
-  return out;
+  const trustEnd = s != null && e != null && (mins == null || mins <= 0 || e - s <= mins + 180);
+
+  // 어제 열어 오늘 끝낸 유닛은 시작이 오늘 것이 아니라 비어 온다 → 종료만 보여준다
+  const span = trustEnd ? `${fmt(s!)} ~ ${fmt(e!)}`
+    : s != null ? `${fmt(s)} 시작`
+      : e != null ? `${fmt(e)} 종료` : null;
+  return span ? [{ name: "", value: span }] : [];
 }
 
 /** 단계별 성적을 하나씩 나눠 담는다 — 평균 하나로 뭉치지 않는다. */
@@ -277,6 +310,8 @@ function studySummary(
       if (e.firstPoint != null) stats.push({ name: "최초", value: `${Number(e.firstPoint)}점` });
       if (e.reviewPoint != null) stats.push({ name: "복습", value: `${Number(e.reviewPoint)}점` });
       stats.push(...timeStats(e));
+      // 진행 중인 회차(date="학습중")는 점수가 하나도 없다 — 피드에 과목명만 뜨는 빈 칸이 된다
+      if (!stats.some((s) => s.name)) continue;
       items.push({
         kind: e.round != null ? `${e.round}회차` : null,
         label: String(e.subject),
@@ -641,7 +676,13 @@ export async function awardRewards(params: {
       // ── 쓰기 ──
       // 피드 카드에 쓸 학습 요약도 원장에 함께 남긴다 — 하루 요약은 이 원장을 모아 만든다.
       const study = studySummary(serviceSlug, units, (scrapedData?.detail as Json) ?? null, scrapedData);
-      if (deltaXp !== 0 || newBadges.length || !ledgerSnap.exists) {
+      // 표시용 요약이 달라졌으면 XP가 그대로여도 다시 쓴다.
+      // 안 그러면 표기 규칙을 고쳐 배포해도 이미 적립된 날의 카드는 옛 문구로 남는다.
+      const summaryStale =
+        JSON.stringify(ledgerSnap.data()?.studyItems ?? null) !== JSON.stringify(study.items) ||
+        (ledgerSnap.data()?.studyNote ?? null) !== study.note ||
+        (ledgerSnap.data()?.studyEndAt ?? null) !== study.lastEnd;
+      if (deltaXp !== 0 || newBadges.length || !ledgerSnap.exists || summaryStale) {
         tx.set(ledgerRef, {
           childId, serviceSlug, date, xp: capped, done: autoStatus === "완료",
           quality: comp.quality, qualityRaw: comp.qualityRaw, note: comp.note ?? null,

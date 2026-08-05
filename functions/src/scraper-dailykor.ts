@@ -358,8 +358,12 @@ function parseDailykorElementary(html: string): DailykorElementaryRound[] {
     if (tds.length < 7) continue;
     const subject = txt(tds[2]);
     if (!subject) continue;
+    // 날짜 칸이 "학습중"인 행 = 아직 끝내지 않은 회차. 점수가 전부 비어 있어
+    // 그대로 담으면 피드에 "10회차 국어"만 덩그러니 올라간다.
+    const date = txt(tds[0]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     out.push({
-      date: txt(tds[0]) || null,
+      date,
       round: num(txt(tds[1])),
       subject,
       wordStars: starsOf(tds[3]),

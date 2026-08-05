@@ -59,18 +59,38 @@ function formatKoTime(sec: number): string {
 
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
 /** 시작~종료 · 소요시간 한 줄. 세 화면이 같은 컴포넌트를 쓰므로 표기가 자동으로 통일된다. */
+/** "HH:MM" → 분. 형식이 아니면 null. */
+function hhmmToMin(v?: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v ?? "");
+  if (!m) return null;
+  const h = Number(m[1]); const mi = Number(m[2]);
+  return h < 24 && mi < 60 ? h * 60 + mi : null;
+}
+/** 분 → "오후 9:40" (12시간제). */
+function ampm(t: number): string {
+  const h = Math.floor(t / 60);
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h < 12 ? "오전" : "오후"} ${h12}:${String(t % 60).padStart(2, "0")}`;
+}
+/**
+ * 학습 시각. 피드(functions/src/rewards.ts 의 timeStats)와 문장을 맞춘다.
+ * 끝이 시작보다 빠르게 오는 리포트가 있어 이른 쪽을 시작으로 세우고,
+ * 종료시각이 리포트의 실제 학습시간과 크게 어긋나면 시작시각만 남긴다.
+ */
 function TimeRange({ startAt, endAt, minutes, durationSec }: {
   startAt?: string; endAt?: string; minutes?: number; durationSec?: number;
 }) {
+  const a = hhmmToMin(startAt); const b = hhmmToMin(endAt);
+  const [s, e] = a != null && b != null && b < a ? [b, a] : [a, b];
+  // 시작~종료는 학습 창을 연/닫은 시각이라 쉰 시간이 포함된다. 3시간 넘게 벌어질 때만 버린다.
   const mins = minutes ?? (durationSec ? Math.round(durationSec / 60) : undefined);
-  const span = startAt && endAt ? `${startAt} ~ ${endAt}` : startAt ? `${startAt} 시작` : null;
-  const dur = mins && mins > 0 ? `${mins}분` : null;
-  if (!span && !dur) return null;
-  return (
-    <span className="text-[11px] text-p-muted whitespace-nowrap">
-      {span}{span && dur ? " · " : ""}{dur}
-    </span>
-  );
+  const trustEnd = s != null && e != null && (mins == null || mins <= 0 || e - s <= mins + 180);
+  // 어제 열어 오늘 끝낸 유닛은 시작이 오늘 것이 아니라 비어 온다 → 종료만 보여준다
+  const span = trustEnd ? `${ampm(s!)} ~ ${ampm(e!)}`
+    : s != null ? `${ampm(s)} 시작`
+      : e != null ? `${ampm(e)} 종료` : null;
+  if (!span) return null;
+  return <span className="text-[11px] text-p-muted whitespace-nowrap">[{span}]</span>;
 }
 
 function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
@@ -392,9 +412,16 @@ function TrainTime({ p }: { p: DailykorPassage }) {
  */
 function DailykorElementary({ rounds }: { rounds: DailykorElementaryRound[] }) {
   const stars = (n: number | null) => (n && n > 0 ? "★".repeat(n) : null);
+  // 아직 진행 중인 회차(date="학습중")는 점수가 전부 비어 있다 — 과목명만 뜨는 빈 줄이 되므로 뺀다.
+  // 수집 단계에서도 거르지만, 이미 저장된 로그를 위해 여기서도 막는다.
+  const done = rounds.filter((r) =>
+    r.firstPoint != null || r.reviewPoint != null ||
+    r.wordStars != null || r.bookStars != null || r.testStars != null ||
+    r.wordScore != null || r.bookScore != null || r.testScore != null);
+  if (!done.length) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      {rounds.map((r, i) => (
+      {done.map((r, i) => (
         <div key={`${r.subject}-${i}`} className="rounded-lg bg-p-bg px-2.5 py-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[12px] font-bold text-black/85">{r.subject}</span>

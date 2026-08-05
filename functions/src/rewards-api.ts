@@ -23,8 +23,8 @@ async function resolveChild(auth: { uid: string; token: Record<string, unknown> 
   return snap.docs[0];
 }
 
-/** 상점 준비 중 — 아이템이 확정될 때까지 구매를 받지 않는다. 열 때 true로 바꾼다. */
-const SHOP_OPEN = false;
+/** 상점 오픈 여부. 아이템을 손볼 때 false 로 내리면 구매가 즉시 막힌다. */
+const SHOP_OPEN = true;
 
 /** 상점 구매 — 포인트 차감과 인벤토리 추가를 한 트랜잭션으로 (이중 차감 방지). */
 export const purchaseShopItem = onCall(async (request) => {
