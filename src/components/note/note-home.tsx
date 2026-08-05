@@ -13,7 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { NoteDoc, NoteMeta } from "@/lib/note/firestore";
-import { TRASH_RETENTION_MS } from "@/lib/note/firestore";
+import { useDaysLeft } from "@/lib/note/use-days-left";
 import { SUBJECTS } from "@/lib/note/textbook-catalog";
 
 type ViewMode = "grid" | "list";
@@ -127,11 +127,7 @@ export function NoteHome({
     ? `휴지통${trash.length > 0 ? ` (${trash.length})` : ""}`
     : { recent: "최신 항목", oldest: "오래된 순", subject: "과목순" }[sort];
 
-  const daysLeft = (deletedAt?: number) => {
-    if (!deletedAt) return 0;
-    const left = TRASH_RETENTION_MS - (Date.now() - deletedAt);
-    return Math.max(0, Math.ceil(left / (24 * 60 * 60 * 1000)));
-  };
+  const daysLeft = useDaysLeft();
 
   return (
     <div className="planote-home">

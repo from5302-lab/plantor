@@ -2,12 +2,6 @@ import { Extension, type Editor, type Range } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import { slashRender } from "@/components/note/slash-menu";
 
-declare module "@tiptap/core" {
-  interface Storage {
-    slashCommand: { subject: string | undefined };
-  }
-}
-
 export type SlashItem = {
   title: string;
   desc?: string;
@@ -43,12 +37,22 @@ const ITEMS: SlashItem[] = [
   { title: "구문분석", desc: "영어 문장 태깅", aliases: ["syntax", "구문", "문장분석", "parse"], special: true, subjects: ["영어"], run: (e, r) => at(e, r).insertContent({ type: "syntax", attrs: { sentence: "", tokens: [] } }).run() },
 ];
 
+/**
+ * 슬래시 메뉴가 과목별로 항목을 정렬할 때 쓰는 '지금 노트의 과목'.
+ *
+ * 예전엔 컴포넌트가 editor.storage.slashCommand.subject 를 직접 고쳐 넣었는데,
+ * 훅이 돌려준 값을 밖에서 수정하는 것이라 React 규칙에 어긋난다.
+ * 대신 값을 React 밖에 두고 컴포넌트가 이펙트로 밀어넣는다
+ * (외부 시스템을 최신 상태로 동기화 — 이펙트가 원래 하라는 일).
+ * 노트 에디터는 한 번에 하나만 열리므로 모듈 하나에 담아도 충돌하지 않는다.
+ */
+let currentSubject: string | undefined;
+export function setSlashSubject(subject: string | undefined): void {
+  currentSubject = subject;
+}
+
 export const SlashCommand = Extension.create({
   name: "slashCommand",
-
-  addStorage() {
-    return { subject: undefined as string | undefined };
-  },
 
   addProseMirrorPlugins() {
     return [
@@ -58,8 +62,8 @@ export const SlashCommand = Extension.create({
         startOfLine: false,
         allowSpaces: false,
         command: ({ editor, range, props }) => props.run(editor, range),
-        items: ({ query, editor }) => {
-          const subject = (editor.storage.slashCommand?.subject ?? "") as string;
+        items: ({ query }) => {
+          const subject = currentSubject ?? "";
           const q = query.trim().toLowerCase();
           const matches = (it: SlashItem) =>
             !q ||

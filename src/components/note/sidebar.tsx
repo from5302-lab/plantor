@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronsLeft, FilePlus, Trash2, ChevronRight, ChevronDown, RotateCcw, X } from "lucide-react";
 import type { NoteDoc, NoteMeta } from "@/lib/note/firestore";
-import { TRASH_RETENTION_MS } from "@/lib/note/firestore";
+import { useDaysLeft } from "@/lib/note/use-days-left";
 
 function noteLabel(n: NoteDoc): string {
   const m: NoteMeta = n.meta ?? {};
@@ -34,10 +34,7 @@ export function Sidebar({
     if (window.matchMedia("(max-width: 720px)").matches) onClose();
   };
 
-  const daysLeft = (deletedAt: number) => {
-    const left = TRASH_RETENTION_MS - (Date.now() - deletedAt);
-    return Math.max(0, Math.ceil(left / (24 * 60 * 60 * 1000)));
-  };
+  const daysLeft = useDaysLeft();
 
   return (
     <>

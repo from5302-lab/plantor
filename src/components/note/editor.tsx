@@ -9,7 +9,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Details, DetailsSummary, DetailsContent } from "@tiptap/extension-details";
 import { Callout } from "@/lib/note/callout";
-import { SlashCommand } from "@/lib/note/slash-command";
+import { SlashCommand, setSlashSubject } from "@/lib/note/slash-command";
 import { Chem } from "@/lib/note/chem-node";
 import { Graph } from "@/lib/note/graph-node";
 import { Syntax } from "@/lib/note/syntax-node";
@@ -24,6 +24,8 @@ type Props = {
 };
 
 export function Editor({ initialContent, meta, onChange, onMetaClick }: Props) {
+  // 슬래시 메뉴의 과목별 정렬용 — 에디터는 한 번만 만들어지므로 값만 따로 밀어넣는다
+  useEffect(() => { setSlashSubject(meta?.subject); }, [meta?.subject]);
 
   const editor = useEditor({
     extensions: [
@@ -57,11 +59,6 @@ export function Editor({ initialContent, meta, onChange, onMetaClick }: Props) {
       onChange({ content: ed.getJSON() });
     },
   });
-
-  // 슬래시 메뉴의 과목별 필터링용 — 현재 노트 과목을 확장 storage에 동기화
-  useEffect(() => {
-    if (editor) editor.storage.slashCommand.subject = meta?.subject;
-  }, [editor, meta?.subject]);
 
   return (
     <div className="note-page">

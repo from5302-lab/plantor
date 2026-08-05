@@ -34,12 +34,20 @@ export function ChemView({ node, updateAttributes }: NodeViewProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [error, setError] = useState(false);
 
+  // 입력이 바뀌면 오류 표시를 먼저 지운다 — 새 식의 판정은 그리기 콜백이 내린다.
+  // 이펙트에서 지우면 이전 오류 문구가 한 번 더 그려진 뒤에야 사라진다
+  // (React 공식 "prop이 바뀔 때 state 조정" 패턴)
+  const [prevSmiles, setPrevSmiles] = useState(smiles);
+  if (smiles !== prevSmiles) {
+    setPrevSmiles(smiles);
+    setError(false);
+  }
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     if (!smiles.trim()) {
       svg.innerHTML = "";
-      setError(false);
       return;
     }
     let cancelled = false;

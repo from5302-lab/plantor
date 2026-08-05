@@ -2,7 +2,6 @@
 
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -26,7 +25,14 @@ const SlashMenu = forwardRef<SlashMenuHandle, MenuProps>(function SlashMenu(
   const [selected, setSelected] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setSelected(0), [items]);
+  // 목록이 바뀌면 선택을 첫 항목으로 되돌린다.
+  // 이펙트로 하면 잘못된 선택 상태로 한 번 그려진 뒤 다시 그려진다 → 렌더 중에 바로 맞춘다
+  // (React 공식 "prop이 바뀔 때 state 조정" 패턴)
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setSelected(0);
+  }
 
   // 커서 위치 기준으로 팝업 배치 (아래 공간 부족하면 위로)
   useLayoutEffect(() => {
@@ -62,13 +68,14 @@ const SlashMenu = forwardRef<SlashMenuHandle, MenuProps>(function SlashMenu(
           return true;
         }
         if (e.key === "Enter") {
-          pick(selected);
+          const it = items[selected];
+          if (it) command(it);
           return true;
         }
         return false;
       },
     }),
-    [items, selected],
+    [items, selected, command],
   );
 
   return (
