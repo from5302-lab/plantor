@@ -99,9 +99,20 @@ export function Navbar() {
             )}
           </div>
 
-          {/* 모바일 햄버거 */}
+          {/* 모바일: 로그인 버튼 + 햄버거.
+              로그인은 첫 방문자의 유일한 진입점이라 메뉴 안에 숨기지 않는다. */}
+          <div className="flex min-[601px]:hidden items-center gap-2">
+            {!loading && !user && (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="btn-primary rounded bg-p-green px-3.5 py-1.5 text-[13px] font-semibold text-white border-none"
+              >
+                로그인
+              </button>
+            )}
+            {loading && <div className="h-7 w-14 rounded bg-black/[0.06]" />}
           <button
-            className="flex min-[601px]:hidden items-center justify-center w-10 h-10 rounded-lg bg-transparent border-none cursor-pointer"
+            className="flex items-center justify-center w-10 h-10 rounded-lg bg-transparent border-none cursor-pointer"
             onClick={() => setMenuOpen(true)}
             aria-label="메뉴 열기"
           >
@@ -109,6 +120,7 @@ export function Navbar() {
               <path d="M3 5h14M3 10h14M3 15h14" stroke="rgba(0,0,0,0.75)" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </button>
+          </div>
         </div>
       </nav>
 
@@ -133,7 +145,6 @@ export function Navbar() {
             hasAiPackage={hasAiPackage}
             displayId={displayId}
             signOut={signOut}
-            onLogin={() => { setMenuOpen(false); setShowAuth(true); }}
             onProfile={() => { setMenuOpen(false); setShowProfile(true); }}
             onClose={() => setMenuOpen(false)}
           />
@@ -209,7 +220,7 @@ function DesktopLinks({
 
 /* ── 모바일 메뉴 ──────────────────────────────────────────────────────── */
 function MobileMenu({
-  user, role, loading, hasAiPackage, displayId, signOut, onLogin, onProfile, onClose,
+  user, role, loading, hasAiPackage, displayId, signOut, onProfile, onClose,
 }: {
   user: ReturnType<typeof useAuth>["user"];
   role: string | null;
@@ -217,7 +228,6 @@ function MobileMenu({
   hasAiPackage: boolean;
   displayId: string;
   signOut: () => void;
-  onLogin: () => void;
   onProfile: () => void;
   onClose: () => void;
 }) {
@@ -256,15 +266,7 @@ function MobileMenu({
         {/* 메뉴 항목 */}
         <div className="flex flex-col py-2">
           <MobileLink href="/community" label="피드" onClick={onClose} />
-
-          {!loading && !user && (
-            <button
-              onClick={onLogin}
-              className="mx-4 mt-3 rounded-lg bg-p-green px-4 py-3 text-[14px] font-semibold text-white border-none text-center cursor-pointer"
-            >
-              로그인
-            </button>
-          )}
+          {/* 로그인 버튼은 상단바로 옮겼다 — 메뉴를 열지 않아도 보이게 */}
 
           {!loading && user && role === "admin" && (
             <>
