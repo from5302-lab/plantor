@@ -5,7 +5,7 @@ import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDoc
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
 import { T } from "@/lib/design-tokens";
-import { SITE, SERVICES } from "@/data/site";
+import { SITE, SERVICES, isOneOnOneService } from "@/data/site";
 import type { Service } from "@/data/site";
 import { loadServices, filterSignupServices } from "@/lib/load-services";
 import { ServiceIcon } from "@/components/ui/service-icon";
@@ -846,7 +846,7 @@ export function MembersTab({
   const isPlantor  = svcFilter === "__plantor__";
   const isAll      = !svcFilter;
   const isSvcSlug  = svcFilter && !isDirect && !isPlantor; // 개별 서비스 slug 필터
-  const is1on1Sub = (s: MemberSub) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX);
+  const is1on1Sub = (s: MemberSub) => isOneOnOneService(s.serviceSlug);
   const dashboardSubs  = isDirect ? realActiveSubs.filter(is1on1Sub) : isSvcSlug ? realActiveSubs.filter((s) => s.serviceSlug === svcFilter) : realActiveSubs;
   const dashboardDirect = (isDirect || isAll) ? activeDirectClasses : [];
   const includeDirectRevenue = isDirect || isAll;
@@ -896,6 +896,10 @@ export function MembersTab({
     : activeFamilies;
 
   const q = searchQuery.trim().toLowerCase();
+  // 문자 문의는 이름 없이 번호나 아이디만 오는 경우가 많다 → 둘 다 검색되게 한다.
+  // 전화번호는 저장 형식(하이픈 유무)이 제각각이라 숫자만 남겨 비교한다.
+  const qDigits = q.replace(/[^0-9]/g, "");
+  const phoneHit = (v?: string) => qDigits.length >= 3 && (v ?? "").replace(/[^0-9]/g, "").includes(qDigits);
   const filteredFamilies = basePool.filter((f) => {
     const ch = allChildren.filter((c) => c.familyId === f.id);
     if (!familyHasStatus(f, ch, allSubs, statusFilter)) return false;
@@ -915,7 +919,14 @@ export function MembersTab({
     if (!q) return true;
     if (f.parentName.toLowerCase().includes(q)) return true;
     if ((f.momId ?? "").toLowerCase().includes(q)) return true;
-    return ch.some((c) => c.name.toLowerCase().includes(q) || c.loginId.toLowerCase().includes(q));
+    if ((f.parentPlantorId ?? "").toLowerCase().includes(q)) return true;   // 학부모 플랜토 아이디 (mmh1216 등)
+    if (phoneHit(f.phone)) return true;                                     // 학부모 전화번호
+    return ch.some((c) =>
+      c.name.toLowerCase().includes(q)
+      || c.loginId.toLowerCase().includes(q)
+      || phoneHit(c.studentPhone)                                           // 학생 본인 연락처
+      || (c.classcardLoginId ?? "").toLowerCase().includes(q)               // 외부 플랫폼 아이디
+      || (c.autovocaLoginId ?? "").toLowerCase().includes(q));
   });
 
   // 구독중 필터: 만료일 임박순 정렬
@@ -1558,17 +1569,45 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
   async function handleSave() {
     setSaving(true); setError("");
     try {
-      // 부모 정보 업데이트
+      // ── 검증·확인은 쓰기 전에 전부 끝낸다 (중간에 빠져나가면 반만 저장된다) ──
+      if (childForms.some((cf) => !cf.name.trim())) {
+        setError("학생 이름은 비울 수 없습니다.");
+        setSaving(false);
+        return;
+      }
+
+      // 이름과 로그인 아이디는 여기서 직접 쓰지 않는다.
+      //   name    : children.name만 바꾸면 Auth displayName이 옛 이름으로 남는다
+      //             (로그인·조회에는 영향 없지만 계정 정보가 어긋난다)
+      //   loginId : children.loginId만 바꾸면 Auth 이메일({id}@plantor.app)·users.plantor_id와
+      //             어긋나 학생이 옛 아이디로도 새 아이디로도 로그인할 수 없게 된다
+      // 둘 다 관련 항목을 함께 전환하는 콜러블로만 바꾼다.
+      const prevOf = (id: string) => children.find((c) => c.id === id);
+      const nameChanges = childForms
+        .map((cf) => ({ cf, prev: prevOf(cf.id)?.name ?? "", next: cf.name.trim() }))
+        .filter((x) => x.next !== x.prev);
+      const idChanges = childForms
+        .map((cf) => ({ cf, prev: (prevOf(cf.id)?.loginId ?? "").toLowerCase(), next: cf.loginId.trim().toLowerCase() }))
+        .filter((x) => x.next && x.next !== x.prev);
+
+      if (idChanges.length > 0) {
+        const lines = idChanges.map((x) => `· ${x.cf.name}: ${x.prev || "(없음)"} → ${x.next}`).join("\n");
+        if (!confirm(`로그인 아이디를 바꿉니다.\n\n${lines}\n\n학생은 다음 로그인부터 새 아이디를 써야 합니다. 진행할까요?`)) {
+          setSaving(false);
+          return;
+        }
+      }
+
+      // ── 여기서부터 쓰기 ──
       await updateDoc(doc(db, "families", family.id), {
         parentName: parentForm.name.trim(),
         phone: parentForm.phone.trim(),
       });
+
       // 자녀별 정보 + 스케줄 업데이트
       await Promise.all(childForms.map(async (cf) => {
         await updateDoc(doc(db, "children", cf.id), {
-          name: cf.name.trim(),
           grade: cf.grade,
-          loginId: cf.loginId.trim(),
           classcardLoginId: cf.classcardLoginId.trim() || null,
           autovocaLoginId: cf.autovocaLoginId.trim() || null,
         });
@@ -1578,6 +1617,17 @@ function FamilyEditModal({ family, children, allSubs, onClose }: {
           updatedAt: Timestamp.now(),
         }, { merge: true });
       }));
+
+      const changeName = httpsCallable<{ childId: string; newName: string }, { success: boolean }>(functions, "updateChildName");
+      for (const { cf, next } of nameChanges) {
+        await changeName({ childId: cf.id, newName: next });
+      }
+
+      // 아이디 전환은 마지막에 — 중복 아이디로 실패해도 나머지 항목은 이미 저장돼 있다.
+      const changeLoginId = httpsCallable<{ childId: string; newLoginId: string }, { success: boolean }>(functions, "updateChildLoginId");
+      for (const { cf, next } of idChanges) {
+        await changeLoginId({ childId: cf.id, newLoginId: next });
+      }
       onClose();
     } catch (e) { setError(e instanceof Error ? e.message : "저장 실패"); }
     finally { setSaving(false); }
@@ -2054,6 +2104,9 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
 
 function DirectStudentList({ classes, searchQuery, onReset, serviceSlug }: { classes: DirectClass[]; searchQuery: string; onReset: (classId: string, loginId: string) => void; serviceSlug?: string }) {
   const q = searchQuery.trim().toLowerCase();
+  // 가족 목록과 동일하게 하이픈을 무시하고 번호를 비교한다 ("01085136327"로도 "010-8513-6327"이 잡히게)
+  const qDigits = q.replace(/[^0-9]/g, "");
+  const phoneHit = (v?: string) => qDigits.length >= 3 && (v ?? "").replace(/[^0-9]/g, "").includes(qDigits);
   const filtered = classes.filter((c) => {
     if (serviceSlug) {
       if (c.status !== "active") return false;
@@ -2063,9 +2116,9 @@ function DirectStudentList({ classes, searchQuery, onReset, serviceSlug }: { cla
     if (c.name.toLowerCase().includes(q) || (c.parentName ?? "").toLowerCase().includes(q) || c.notes.toLowerCase().includes(q)) return true;
     return c.students.some((s) =>
       s.name.toLowerCase().includes(q) ||
-      (s.studentPhone ?? "").includes(q) ||
+      phoneHit(s.studentPhone) ||
       (s.studentLoginId ?? "").toLowerCase().includes(q) ||
-      (s.parentPhone ?? "").includes(q) ||
+      phoneHit(s.parentPhone) ||
       (s.parentLoginId ?? "").toLowerCase().includes(q)
     );
   });
@@ -2103,7 +2156,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
         const baseTotals = family.isTest
           ? { revenue: 0, discount: 0, agencyFee: 0, profit: 0, count: 0 }
           : calcTotals(
-              isDirectFilter ? familySubs.filter((s) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX)) : familySubs,
+              isDirectFilter ? familySubs.filter((s) => isOneOnOneService(s.serviceSlug)) : familySubs,
               undefined,
               svcFilter && svcFilter !== "__direct__" ? svcFilter : null
             );
@@ -2205,12 +2258,12 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                   const isSvcSlugFilter = svcFilter && svcFilter !== "__plantor__" && svcFilter !== "__direct__" && svcFilter !== "momsaipack";
                   if (isSvcSlugFilter && !allChildSubs.some((s) => s.serviceSlug === svcFilter)) return null;
                   // 1:1 필터 시 1:1 학습(1on1-*) 구독이 없는 자녀 숨김 + 1:1 구독만 표시
-                  if (isDirectFilter && !allChildSubs.some((s) => s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX) && effectiveStatus(s) === "active")) return null;
+                  if (isDirectFilter && !allChildSubs.some((s) => isOneOnOneService(s.serviceSlug) && effectiveStatus(s) === "active")) return null;
                   const subs = (statusFilter === "all"
                     ? allChildSubs
                     : allChildSubs.filter((s) => effectiveStatus(s) === statusFilter)
                   ).filter((s) => !isSvcSlugFilter || s.serviceSlug === svcFilter)
-                    .filter((s) => !isDirectFilter || s.serviceSlug.startsWith(ONE_ON_ONE_PREFIX));
+                    .filter((s) => !isDirectFilter || isOneOnOneService(s.serviceSlug));
                   // 매칭 구독 없는 자녀 숨김 (statusFilter가 active/stopped일 때)
                   if (statusFilter !== "all" && subs.length === 0) return null;
                   // 자녀 단위 통합 만료 알림 (수강중인 모든 과목을 한 번에)
