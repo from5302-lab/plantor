@@ -142,7 +142,7 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
   useEffect(() => {
     if (isDemo) return;
     const login = childLoginId.toLowerCase();
-    if (!login) { setDirectSlugs([]); return; }
+    if (!login) return;
     let cancelled = false;
     const getSlugs = httpsCallable<{ loginId: string }, { slugs: string[] }>(functions, "getStudentDirectSlugs");
     getSlugs({ loginId: login })
@@ -210,9 +210,12 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
   // 직강 슬러그는 서비스 목록(정적 + serviceOverrides 병합)에 있는 것만 인정
   const knownSlugs = new Set(allServices.map((s) => s.slug));
   const subSlugs = new Set(subscriptions.map((s) => s.serviceSlug));
+  // 로그인 아이디가 아직 없으면 이전 학생의 직강 과목이 남아 보이면 안 된다.
+  // 이펙트에서 비우면 옛 값으로 한 번 그려진 뒤에야 지워지므로 여기서 거른다.
+  const activeDirectSlugs = childLoginId ? directSlugs : [];
   const mergedSubscriptions: Subscription[] = [
     ...subscriptions,
-    ...directSlugs
+    ...activeDirectSlugs
       .filter((slug) => knownSlugs.has(slug) && !subSlugs.has(slug))
       .map((slug) => ({
         id: `direct-${slug}`,

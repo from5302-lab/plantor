@@ -12,6 +12,9 @@ export type DayTask = { id: string; childId: string; scheduleDays: number[] };
 export type DayCheck = { childId: string; taskId: string; date: string; status: string };
 
 /** familyId로 자녀 목록, 구독, 주간 학습 로그, 확정 과제·체크를 실시간으로 가져온다. */
+// 매번 새 배열을 만들면 소비자의 useMemo/의존성이 계속 깨진다 → 고정 참조를 쓴다
+const EMPTY_SUBSCRIPTIONS: Subscription[] = [];
+
 export function useFamilyData(familyId: string | null, weekOffset = 0) {
   const [children, setChildren] = useState<Child[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -34,7 +37,7 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
   }, [familyId]);
 
   useEffect(() => {
-    if (!familyId) { setSubscriptions([]); return; }
+    if (!familyId) return;
     // familyId로 조회 → 자녀 sub + 학부모 sub (childId=null) 모두 포함
     return onSnapshot(
       query(collection(db, "subscriptions"), where("familyId", "==", familyId)),
@@ -119,5 +122,14 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
     );
   }, [familyId, children, weekOffset]);
 
-  return { children, subscriptions, weeklyLogs, tasks, checks };
+  // familyId 가 없으면 이전 가족의 구독이 남아 보이면 안 된다.
+  // 이펙트에서 setSubscriptions([]) 로 비우면 옛 값으로 한 번 그려진 뒤에야 지워지므로
+  // 아예 내보낼 때 거른다 (계정 전환 시 남은 값이 스치는 것도 함께 막힌다).
+  return {
+    children,
+    subscriptions: familyId ? subscriptions : EMPTY_SUBSCRIPTIONS,
+    weeklyLogs,
+    tasks,
+    checks,
+  };
 }
