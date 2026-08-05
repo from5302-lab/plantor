@@ -1,0 +1,723 @@
+import { FieldValue } from "firebase-admin/firestore";
+import * as functions from "firebase-functions";
+import { db } from "./config";
+import {
+  BADGE_BY_CODE, QUALITY_ANCHOR, RARITY_BONUS, REWARD_SLUGS,
+  SPEED_PENALTY_FACTOR, SPEED_PENALTY_MULTIPLE, XP,
+  levelFromXp, streakMultiplier,
+} from "./rewards-config";
+import { recordRewardFeed, type FeedInput } from "./feed-events";
+
+// XP · 포인트 · 히든 뱃지 적립 엔진.
+//   writeAutoLog 직후(클릭 인증·스케줄 배치 공통)에 호출된다.
+//   같은 날짜·서비스가 하루에도 여러 번 재계산되므로 **멱등**이 핵심:
+//   원장(xpLedger)에 이전 적립값을 남기고, 재계산 시 '차액'만 합계에 반영한다.
+
+type Json = Record<string, any>;
+
+export type AwardResult = {
+  xp: number;
+  gainedXp: number;      // 이번 호출로 실제 늘어난 XP (멱등 차액)
+  points: number;
+  level: number;
+  newBadges: string[];
+};
+
+type Stats = {
+  streak: number;
+  lastEarnDate: string;
+  allClearStreak: number;
+  lastAllClearDate: string;
+  testHundredStreak: number;
+  conceptPerfectStreak: number;
+  vocaPerfectStreak: number;
+  gameHigh: Record<string, number>;
+  lastBook: string;
+  lastDkGrade: string;
+  makeupCount: number;
+  weekly: Record<string, { week: string; sum: number; n: number; prevAvg: number | null }>;
+  badgeCodes: string[];
+  weekendDates: string[];
+  unitTotal: number;
+};
+
+const EMPTY_STATS: Stats = {
+  streak: 0, lastEarnDate: "", allClearStreak: 0, lastAllClearDate: "",
+  testHundredStreak: 0, conceptPerfectStreak: 0, vocaPerfectStreak: 0,
+  gameHigh: {}, lastBook: "", lastDkGrade: "", makeupCount: 0,
+  weekly: {}, badgeCodes: [], weekendDates: [], unitTotal: 0,
+};
+
+function todayKst(): string {
+  return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+}
+function prevDate(date: string): string {
+  return new Date(new Date(`${date}T00:00:00Z`).getTime() - 86400e3).toISOString().slice(0, 10);
+}
+function weekKey(date: string): string {
+  // ISO 주차 대신 '그 주 월요일 날짜'를 키로 쓴다 (계산이 단순하고 비교만 하면 되므로)
+  const d = new Date(`${date}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // 월=0
+  return new Date(d.getTime() - dow * 86400e3).toISOString().slice(0, 10);
+}
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+function normalize(value: number, zero: number, full: number): number {
+  return clamp01((value - zero) / (full - zero));
+}
+function avg(list: number[]): number | null {
+  const a = list.filter((x) => Number.isFinite(x));
+  return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+}
+/** "96", 96, "96점", "95 → 100" 같은 셀에서 숫자를 뽑는다(마지막 숫자 기준). */
+function toScore(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const nums = v.match(/\d+(?:\.\d+)?/g);
+  if (!nums) return null;
+  const n = Number(nums[nums.length - 1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+// ── 품질 Q (0~1) ──────────────────────────────────────────────────────────────
+
+type QualityOut = { q: number; raw: number | null; note?: string };
+
+function qualityAutovoca(units: Json[]): QualityOut {
+  const spell = avg(units.map((u) => u?.accuracy?.write).filter((x: unknown) => typeof x === "number"));
+  if (spell != null) return { q: normalize(spell, QUALITY_ANCHOR.autovocaSpell.zero, QUALITY_ANCHOR.autovocaSpell.full), raw: Math.round(spell) };
+  // 리뷰 유닛처럼 스펠 학습이 없는 경우 테스트 평균으로 폴백
+  const tests = avg(units.flatMap((u) => (Array.isArray(u?.testScores) ? u.testScores : [])));
+  if (tests != null) return { q: normalize(tests, QUALITY_ANCHOR.autovocaTest.zero, QUALITY_ANCHOR.autovocaTest.full), raw: Math.round(tests) };
+  return { q: 0.5, raw: null, note: "지표 없음 → 기본값" };
+}
+
+/**
+ * 클래스카드 단계 중 **점수로 볼 수 있는 것만** 골라낸다.
+ *   - 암기·리콜·스펠·스피킹: 누적 반복량 %라 200·300·800%까지 나온다 (점수 아님)
+ *   - 딕테이션: "0회"·"1.4회" 횟수다. 점수로 읽으면 0점이 되어 듣기 평균을 끌어내린다
+ *   - 완료여부: "완료" 텍스트
+ * 품질 산정(XP)과 피드 표시가 같은 기준을 쓰도록 여기 한 곳에 모은다.
+ */
+function gradedScores(scores: Json | undefined): number[] {
+  const out: number[] = [];
+  for (const [label, v] of Object.entries(scores ?? {})) {
+    if (label === "완료여부") continue;
+    if (/암기|리콜|스펠|스피킹|반복|딕테이션/.test(label)) continue;
+    const n = toScore(v);
+    if (n != null && n <= 100) out.push(n);
+  }
+  return out;
+}
+
+function qualityClasscard(units: Json[]): QualityOut {
+  const scores: number[] = units.flatMap((u) => gradedScores(u?.scores));
+  const m = avg(scores);
+  if (m == null) return { q: 0.5, raw: null, note: "점수 열 없음 → 기본값" };
+  const anchor = units.some((u) => u?.type === "듣기") ? QUALITY_ANCHOR.classcardListen : QUALITY_ANCHOR.classcard;
+  return { q: normalize(m, anchor.zero, anchor.full), raw: Math.round(m) };
+}
+
+function qualityDailykor(detail: Json | null): QualityOut {
+  const got = Number(detail?.xpGot);
+  const max = Number(detail?.xpMax);
+  if (!Number.isFinite(got) || !Number.isFinite(max) || max <= 0) return { q: 0.5, raw: null, note: "경험치 정보 없음 → 기본값" };
+  const pct = (got / max) * 100;
+  let q = normalize(pct, QUALITY_ANCHOR.dailykor.zero, QUALITY_ANCHOR.dailykor.full);
+  // 속도 페널티: 추천치의 2배를 넘게 '읽으면' 지문을 넘긴 것으로 본다
+  const recommended = Number(detail?.recommendedSpeed) || 600;
+  const speeds = (detail?.passages ?? [])
+    .map((p: Json) => parseInt(String(p?.readingSpeed ?? ""), 10))
+    .filter((n: number) => Number.isFinite(n));
+  const speed = avg(speeds);
+  if (speed != null && speed > recommended * SPEED_PENALTY_MULTIPLE) {
+    q *= SPEED_PENALTY_FACTOR;
+    return { q, raw: Math.round(pct), note: "너무 빠름 — 지문을 읽으면 XP가 2배" };
+  }
+  return { q, raw: Math.round(pct) };
+}
+
+function qualityClass5(units: Json[]): QualityOut {
+  const acc = avg(units.map((u) => u?.cardFirstTry).filter((x: unknown) => typeof x === "number"));
+  if (acc == null) return { q: 0.5, raw: null, note: "정답률 정보 없음 → 기본값" };
+  return { q: normalize(acc, QUALITY_ANCHOR.class5.zero, QUALITY_ANCHOR.class5.full), raw: Math.round(acc) };
+}
+
+/** 표준량을 넘어선 학습량(보너스 대상 건수). */
+function volumeExtra(serviceSlug: string, units: Json[], detail: Json | null): number {
+  if (serviceSlug === "dailykor") return Math.max(0, (detail?.passages?.length ?? 0) - 2);
+  if (serviceSlug === "class5") return 0; // 배정 기반이라 '초과' 개념이 없다
+  return Math.max(0, units.length - 1);
+}
+
+/** 학습 세트 한 개 — 종류(어휘/본문·문법…), 교재·유닛명, 단계별 성적. */
+export type StudyStat = { name: string; value: string };
+export type StudyItem = { kind: string | null; label: string; stats: StudyStat[] };
+
+/**
+ * 단계 값 한 개를 단위까지 붙여 표기한다.
+ *   암기·리콜·스펠·스피킹 → % (반복량), 딕테이션 → 회, 나머지 → 점
+ * 반복량 0%는 안 한 단계라 표시하지 않는다.
+ */
+function formatStage(label: string, v: unknown): string | null {
+  const raw = String(v ?? "").trim();
+  if (!raw || raw === "-") return null;
+  if (/암기|리콜|스펠|스피킹|반복/.test(label)) {
+    const n = toScore(v);
+    if (n == null) return raw;
+    return n > 0 ? `${n}%` : null;
+  }
+  if (/딕테이션/.test(label)) return /회/.test(raw) ? raw : `${raw}회`;
+  const n = toScore(v);
+  return n == null ? raw : `${n}점`;
+}
+
+/** 시작~종료 · 소요시간 칩. 세트마다 "언제 얼마나 했는지"를 붙인다. */
+function timeStats(u: Json | undefined, minutes?: number | null): StudyStat[] {
+  const out: StudyStat[] = [];
+  const start = u?.startAt ? String(u.startAt) : null;
+  const end = u?.endAt ? String(u.endAt) : null;
+  if (start || end) out.push({ name: "", value: `${start ?? ""}${start && end ? " ~ " : ""}${end ?? ""}` });
+  const mins = minutes ?? (u?.durationSec ? Math.round(Number(u.durationSec) / 60) : null);
+  if (mins != null && mins > 0) out.push({ name: "", value: `${mins}분` });
+  return out;
+}
+
+/** 단계별 성적을 하나씩 나눠 담는다 — 평균 하나로 뭉치지 않는다. */
+function stageStats(scores: Json | undefined): StudyStat[] {
+  const out: StudyStat[] = [];
+  for (const [name, v] of Object.entries(scores ?? {})) {
+    if (name === "완료여부") continue;
+    const value = formatStage(name, v);
+    if (value) out.push({ name, value });
+  }
+  return out.slice(0, 8);
+}
+
+/**
+ * 클래스카드 어휘/본문 세트가 단어 세트인지 문장 세트인지 가른다.
+ * 스크래퍼가 둘을 한 시트("어휘/본문")로 받아오기 때문에 세트 이름으로 판별한다.
+ *   본문·대화문·문장 → 문장세트 / 영한단어·단어·어휘 → 단어세트
+ * 어느 쪽 낱말도 없으면 원래 이름을 그대로 둔다(추측하지 않는다).
+ */
+function classcardSetKind(unitLabel: string): string | null {
+  if (/본문|대화문|문장/.test(unitLabel)) return "문장세트";
+  if (/영한단어|단어|어휘|voca/i.test(unitLabel)) return "단어세트";
+  return null;
+}
+
+/** 매일국어 획득/최대 경험치 — 신형은 xpGot·xpMax, 구형 로그는 "19xp / 30xp" 문자열. */
+function dailykorXp(detail: Json | null): { got: number; max: number } | null {
+  const got = Number(detail?.xpGot);
+  const max = Number(detail?.xpMax);
+  if (Number.isFinite(got) && Number.isFinite(max) && max > 0) return { got, max };
+  const m = String(detail?.xp ?? "").match(/(\d+)\s*xp\s*\/\s*(\d+)\s*xp/i);
+  if (m) return { got: Number(m[1]), max: Number(m[2]) };
+  return null;
+}
+
+/**
+ * 피드에 보여줄 "어디서 무엇을 했는지" 요약.
+ * 학습 세트가 여러 개면 세트별로 나눠 각자의 점수를 붙인다 — 평균 하나로 뭉치지 않는다.
+ * 스크랩 원본에서 사람이 읽을 수 있는 값만 뽑는다.
+ */
+export function studySummary(
+  serviceSlug: string, units: Json[], detail: Json | null, scraped?: Json | null,
+): { items: StudyItem[]; note: string | null; lastEnd: string | null } {
+  const items: StudyItem[] = [];
+  let note: string | null = null;
+
+  if (serviceSlug === "autovoca") {
+    for (const u of units) {
+      if (!u?.unitLabel) continue;
+      const score = toScore(u?.testScore);
+      items.push({
+        kind: null,
+        label: String(u.unitLabel),
+        stats: [
+          ...(score !== null ? [{ name: "테스트", value: `${score}점` }] : []),
+          ...timeStats(u, toScore(u?.studyMinutes)),
+        ],
+      });
+    }
+  } else if (serviceSlug === "classcard-middle") {
+    for (const u of units) {
+      if (!u?.unitLabel) continue;
+      const label = String(u.unitLabel);
+      const type = u.type ? String(u.type) : null;
+      items.push({
+        kind: type === "어휘/본문" ? (classcardSetKind(label) ?? type) : type,
+        label,
+        stats: [...stageStats(u?.scores), ...timeStats(u, toScore(u?.studyMinutes))],
+      });
+    }
+  } else if (serviceSlug === "dailykor") {
+    // 초등은 지문이 아니라 과목(국어·사회…) 단위로 별·점수가 나온다
+    const elementary: Json[] = Array.isArray(scraped?.elementary) ? scraped!.elementary : [];
+    for (const e of elementary) {
+      if (!e?.subject) continue;
+      const stats: StudyStat[] = [];
+      const star = (n: unknown, label: string) => {
+        const v = Number(n);
+        if (Number.isFinite(v) && v > 0) stats.push({ name: label, value: "★".repeat(v) });
+      };
+      star(e.wordStars, "단어");
+      star(e.bookStars, "교과서");
+      star(e.testStars, "실전");
+      // null을 Number()에 넣으면 0이 되어 "0점"이 찍힌다 → 존재 여부를 먼저 본다
+      // 별이 없고 점수만 오는 경로(studylist)도 있다
+      const score = (n: unknown, label: string) => {
+        if (n == null) return;
+        stats.push({ name: label, value: `${Number(n)}점` });
+      };
+      if (e.wordStars == null) score(e.wordScore, "단어");
+      if (e.bookStars == null) score(e.bookScore, "교과서");
+      if (e.testStars == null) score(e.testScore, "실전");
+      if (e.firstPoint != null) stats.push({ name: "최초", value: `${Number(e.firstPoint)}점` });
+      if (e.reviewPoint != null) stats.push({ name: "복습", value: `${Number(e.reviewPoint)}점` });
+      stats.push(...timeStats(e));
+      items.push({
+        kind: e.round != null ? `${e.round}회차` : null,
+        label: String(e.subject),
+        stats,
+      });
+    }
+
+    const passages: Json[] = Array.isArray(detail?.passages) ? detail!.passages : [];
+    for (const p of passages) {
+      if (!p?.type) continue;
+      items.push({
+        kind: null,
+        label: String(p.type),
+        stats: p.accuracy ? [{ name: "정답률", value: String(p.accuracy) }] : [],
+      });
+    }
+    // 등급("완료")만으로는 얼마나 했는지 알 수 없다 → 획득 경험치를 쓴다
+    const xp = dailykorXp(detail);
+    if (xp) note = `경험치 ${xp.got}/${xp.max}`;
+    else {
+      const grade = units.map((u) => u?.scores?.["등급"]).find((g) => !!g);
+      if (grade) note = String(grade);
+    }
+  } else if (serviceSlug === "class5") {
+    for (const u of units) {
+      if (!u?.unitLabel) continue;
+      items.push({ kind: u.type ? String(u.type) : null, label: String(u.unitLabel), stats: timeStats(u) });
+    }
+  }
+
+  // 그 서비스에서 마지막으로 학습을 끝낸 시각 — 피드 카드의 작성 시각 기준이 된다
+  const ends: string[] = [];
+  for (const u of units) if (u?.endAt) ends.push(String(u.endAt));
+  for (const e of (Array.isArray(scraped?.elementary) ? scraped!.elementary : [])) {
+    if (e?.endAt) ends.push(String(e.endAt));
+  }
+  const lastEnd = ends.length ? ends.sort()[ends.length - 1] : null;
+
+  return { items: items.slice(0, 6), note, lastEnd };
+}
+
+export type XpComputation = {
+  xp: number; quality: number; qualityRaw: number | null; note?: string;
+  breakdown: { base: number; quality: number; volume: number; streakMult: number; lateFactor: number };
+};
+
+/** 순수 계산 — 저장하지 않는다. 소급 스크립트/재계산 도구도 이걸 쓴다. */
+export function computeXp(
+  serviceSlug: string,
+  autoStatus: string,
+  scrapedData: Json | null,
+  opts: { streak: number; late: boolean },
+): XpComputation {
+  const units: Json[] = Array.isArray(scrapedData?.units) ? scrapedData!.units : [];
+  const detail: Json | null = (scrapedData?.detail as Json) ?? null;
+
+  const base = autoStatus === "완료" ? XP.DONE : autoStatus === "진행중" ? XP.PARTIAL : 0;
+  if (base === 0) {
+    return { xp: 0, quality: 0, qualityRaw: null, breakdown: { base: 0, quality: 0, volume: 0, streakMult: 1, lateFactor: 1 } };
+  }
+
+  const qOut = serviceSlug === "autovoca" ? qualityAutovoca(units)
+    : serviceSlug === "classcard-middle" ? qualityClasscard(units)
+      : serviceSlug === "dailykor" ? qualityDailykor(detail)
+        : qualityClass5(units);
+
+  const qualityPts = Math.round(qOut.q * XP.QUALITY_MAX);
+  const volumePts = Math.min(XP.VOLUME_CAP, volumeExtra(serviceSlug, units, detail) * XP.VOLUME_UNIT);
+  const mult = streakMultiplier(opts.streak);
+  const lateFactor = opts.late ? XP.LATE_FACTOR : 1;
+
+  const xp = Math.min(XP.SERVICE_CAP, Math.round((base + qualityPts) * mult * lateFactor) + volumePts);
+  return {
+    xp, quality: qOut.q, qualityRaw: qOut.raw, note: qOut.note,
+    breakdown: { base, quality: qualityPts, volume: volumePts, streakMult: mult, lateFactor },
+  };
+}
+
+// ── 히든 뱃지 판정 ────────────────────────────────────────────────────────────
+
+type BadgeCtx = {
+  serviceSlug: string;
+  date: string;
+  autoStatus: string;
+  units: Json[];
+  detail: Json | null;
+  voca: Json[];
+  scraped: Json | null;
+  quality: number;
+  qualityRaw: number | null;
+  stats: Stats;
+  /** 이번 적립 후의 그날 완료 서비스 목록 */
+  todayDoneSlugs: string[];
+  /** 학생이 듣는 자동인증 서비스 수 */
+  subscribedCount: number;
+  badgeTotal: number;
+};
+
+/** 조건을 만족한 뱃지 코드 목록 (이미 보유한 것 포함 — 호출부에서 걸러낸다). */
+function detectBadges(ctx: BadgeCtx): string[] {
+  const out: string[] = [];
+  const { units, detail, stats } = ctx;
+  const add = (code: string, cond: unknown) => { if (cond) out.push(code); };
+
+  // ── 시간대 (모든 서비스 공통 · startHour) ──
+  const hours = units.map((u) => u?.startHour).filter((h: unknown) => typeof h === "number") as number[];
+  add("x-early-bird", hours.some((h) => h < 7));
+  add("x-night-owl", hours.some((h) => h >= 23));
+
+  if (ctx.serviceSlug === "autovoca") {
+    const tests = units.flatMap((u) => (Array.isArray(u?.testScores) ? u.testScores : [])) as number[];
+    add("av-test-triple", stats.testHundredStreak >= 3);
+    add("av-first-hundred", units.some((u) => Array.isArray(u?.testScores) && u.testScores[0] === 100));
+    add("av-perfect-spell", units.some((u) => u?.accuracy?.write === 100));
+    add("av-wrong-clear", ctx.scraped?.wrongReview?.cleared === true);
+    add("av-point-burst", (units.reduce((s, u) => s + (Number(u?.points) || 0), 0)) >= 80);
+    add("av-speedrun", units.some((u) => Number(u?.studyMinutes) > 0 && Number(u.studyMinutes) <= 10
+      && Array.isArray(u?.testScores) && u.testScores.length > 0 && Math.min(...u.testScores) >= 90));
+    add("av-grit", units.some((u) => Number(u?.studyMinutes) >= 60));
+    add("av-book-up", units.some((u) => u?.bookLabel && stats.lastBook && u.bookLabel !== stats.lastBook));
+    add("av-review-master", units.some((u) => u?.isReview && Array.isArray(u?.testScores) && u.testScores.length
+      && (avg(u.testScores) ?? 0) >= 95));
+    add("av-never-give-up", units.some((u) => u?.hardWordCleared === true));
+    void tests;
+  }
+
+  if (ctx.serviceSlug === "classcard-middle") {
+    const stepEntries = units.flatMap((u) => Object.entries(u?.scores ?? {})
+      .map(([label, v]) => ({ label, score: toScore(v), type: u?.type })));
+    const graded = stepEntries.filter((e) => e.score != null && e.score <= 100 && !/암기|리콜|스펠|스피킹|반복|완료여부/.test(e.label));
+    add("cc-all-clear", graded.length >= 3 && graded.every((e) => e.score === 100));
+    add("cc-real-master", graded.some((e) => /실전/.test(e.label) && e.score === 100));
+    add("cc-essay", graded.some((e) => /서술형/.test(e.label) && (e.score ?? 0) >= 90));
+    add("cc-wrong-clean", graded.some((e) => /누적오답/.test(e.label) && e.score === 100));
+    add("cc-concept-triple", stats.conceptPerfectStreak >= 3);
+    add("cc-long-run", units.some((u) => Number(u?.studyMinutes) >= 60) && (avg(graded.map((e) => e.score!)) ?? 0) >= 90);
+    // 듣기 '오답 테스트'는 "95 → 100" 형태 — 상승했으면 재도전 성공
+    add("cc-listen-retry", units.some((u) => {
+      const raw = String(u?.scores?.["오답 테스트"] ?? "");
+      const nums = raw.match(/\d+/g);
+      return !!nums && nums.length >= 2 && Number(nums[nums.length - 1]) > Number(nums[0]);
+    }));
+  }
+
+  if (ctx.serviceSlug === "dailykor") {
+    const got = Number(detail?.xpGot), max = Number(detail?.xpMax);
+    add("dk-perfect-day", Number.isFinite(got) && Number.isFinite(max) && max > 0 && got >= max);
+    const steps: Json[] = Array.isArray(detail?.stepXp) ? detail!.stepXp : [];
+    add("dk-prep-max", steps.some((s) => /준비/.test(s?.step) && s.got >= s.max && s.max > 0));
+    add("dk-read-max", steps.some((s) => /독해/.test(s?.step) && s.got >= s.max && s.max > 0));
+    add("dk-real-max", steps.some((s) => /실전/.test(s?.step) && s.got >= s.max && s.max > 0));
+    // 제대로 읽었다 — 속도가 적정 구간이면서 정답률 80%↑
+    const rec = Number(detail?.recommendedSpeed) || 600;
+    const passages: Json[] = Array.isArray(detail?.passages) ? detail!.passages : [];
+    const speeds = passages.map((p) => parseInt(String(p?.readingSpeed ?? ""), 10)).filter(Number.isFinite);
+    const accs = passages.map((p) => parseInt(String(p?.accuracy ?? ""), 10)).filter(Number.isFinite);
+    const sp = avg(speeds), ac = avg(accs);
+    add("dk-true-reader", sp != null && ac != null && sp >= rec * 0.8 && sp <= rec * 1.5 && ac >= 80);
+    add("dk-two-passages", passages.length >= 2 && ctx.autoStatus === "완료");
+    add("dk-voca-complete", ctx.voca.some((v) => v?.categoryComplete === true));
+    add("dk-voca-perfect", stats.vocaPerfectStreak >= 5);
+    add("x-turnaround", stats.lastDkGrade === "미흡" && units.some((u) => u?.scores?.["등급"] === "최우수"));
+  }
+
+  if (ctx.serviceSlug === "class5") {
+    add("c5-flawless", units.some((u) => u?.cardFirstTry === 100));
+    add("c5-all-steps", units.some((u) => u?.allStepsDone === true));
+    add("c5-30k", units.some((u) => Number(u?.gameScore) >= 30000));
+    add("c5-record", units.some((u) => {
+      const g = Number(u?.gameScore);
+      const prev = stats.gameHigh?.[String(u?.type ?? "etc")] ?? 0;
+      return Number.isFinite(g) && g > 0 && prev > 0 && g > prev;
+    }));
+    const types = new Set(units.filter((u) => u?.completed).map((u) => String(u?.movieType ?? "")));
+    add("c5-triple-type", types.has("movie") && types.has("book") && types.has("grammar"));
+    add("c5-focus", units.some((u) => Number(u?.durationSec) > 0 && Number(u.durationSec) <= 300 && Number(u?.cardFirstTry) >= 90));
+    add("c5-marathon", units.reduce((s, u) => s + (Number(u?.durationSec) || 0), 0) >= 1800);
+  }
+
+  // ── 크로스 ──
+  add("st-3", stats.streak >= 3);
+  add("st-7", stats.streak >= 7);
+  add("st-30", stats.streak >= 30);
+  add("st-100", stats.streak >= 100);
+  add("x-all-clear", ctx.subscribedCount > 0 && ctx.todayDoneSlugs.length >= ctx.subscribedCount);
+  add("x-perfect-week", stats.allClearStreak >= 7);
+  const dow = new Date(`${ctx.date}T00:00:00Z`).getUTCDay();
+  const weekendSet = new Set([...stats.weekendDates, ...(dow === 0 || dow === 6 ? [ctx.date] : [])]);
+  const wk = weekKey(ctx.date);
+  const thisWeekend = [...weekendSet].filter((d) => weekKey(d) === wk);
+  add("x-weekend", thisWeekend.length >= 2);
+  add("x-catchup", stats.makeupCount >= 3);
+  const wq = stats.weekly?.[ctx.serviceSlug];
+  add("x-jump", ctx.qualityRaw != null && wq?.prevAvg != null && ctx.qualityRaw - wq.prevAvg >= 15);
+  add("x-collector-10", ctx.badgeTotal >= 10);
+  add("x-collector-25", ctx.badgeTotal >= 25);
+
+  return out.filter((c) => BADGE_BY_CODE.has(c));
+}
+
+// ── 누적 상태(stats) 갱신 ─────────────────────────────────────────────────────
+
+function updateStats(stats: Stats, ctx: Omit<BadgeCtx, "stats" | "badgeTotal">): Stats {
+  const s: Stats = { ...stats, gameHigh: { ...stats.gameHigh }, weekly: { ...stats.weekly } };
+  const { units, detail, date, serviceSlug } = ctx;
+
+  // 연속 학습일 — 그날 XP를 얻은 날 기준
+  if (s.lastEarnDate !== date) {
+    s.streak = s.lastEarnDate === prevDate(date) ? s.streak + 1 : 1;
+    s.lastEarnDate = date;
+  }
+
+  // 올클리어 연속
+  if (ctx.subscribedCount > 0 && ctx.todayDoneSlugs.length >= ctx.subscribedCount && s.lastAllClearDate !== date) {
+    s.allClearStreak = s.lastAllClearDate === prevDate(date) ? s.allClearStreak + 1 : 1;
+    s.lastAllClearDate = date;
+  }
+
+  if (serviceSlug === "autovoca") {
+    // 테스트 100점 연속 (회차 순서대로 이어서 판정)
+    for (const u of units) {
+      for (const t of (Array.isArray(u?.testScores) ? u.testScores : [])) {
+        s.testHundredStreak = t === 100 ? s.testHundredStreak + 1 : 0;
+      }
+      if (u?.bookLabel) s.lastBook = String(u.bookLabel);
+    }
+  }
+  if (serviceSlug === "classcard-middle") {
+    for (const u of units) {
+      const concept = Object.entries(u?.scores ?? {}).find(([label]) => /개념/.test(label));
+      if (concept) s.conceptPerfectStreak = toScore(concept[1]) === 100 ? s.conceptPerfectStreak + 1 : 0;
+    }
+  }
+  if (serviceSlug === "dailykor") {
+    for (const v of ctx.voca) {
+      for (const g of (Array.isArray(v?.grades) ? v.grades : [])) {
+        s.vocaPerfectStreak = g === "verygood" ? s.vocaPerfectStreak + 1 : 0;
+      }
+    }
+    const grade = units.map((u) => u?.scores?.["등급"]).find((g) => typeof g === "string");
+    if (grade) s.lastDkGrade = String(grade);
+  }
+  if (serviceSlug === "class5") {
+    for (const u of units) {
+      const g = Number(u?.gameScore);
+      const key = String(u?.type ?? "etc");
+      if (Number.isFinite(g) && g > 0) s.gameHigh[key] = Math.max(s.gameHigh[key] ?? 0, g);
+    }
+  }
+
+  // 주간 품질 평균 (껑충 판정용)
+  if (ctx.qualityRaw != null) {
+    const wk = weekKey(date);
+    const cur = s.weekly[serviceSlug];
+    if (!cur || cur.week !== wk) {
+      s.weekly[serviceSlug] = { week: wk, sum: ctx.qualityRaw, n: 1, prevAvg: cur ? cur.sum / Math.max(1, cur.n) : null };
+    } else {
+      s.weekly[serviceSlug] = { ...cur, sum: cur.sum + ctx.qualityRaw, n: cur.n + 1 };
+    }
+  }
+
+  // 주말 학습 날짜 (최근 14개만 유지)
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  if ((dow === 0 || dow === 6) && !s.weekendDates.includes(date)) {
+    s.weekendDates = [...s.weekendDates, date].slice(-14);
+  }
+
+  s.unitTotal += units.filter((u) => u?.completed !== false).length;
+  void detail;
+  return s;
+}
+
+// ── 적립 ──────────────────────────────────────────────────────────────────────
+
+/**
+ * 하루·서비스 단위로 XP/포인트/뱃지를 멱등 적립한다.
+ * 재호출 시 원장의 이전 값과 비교해 **차액만** 반영하므로 몇 번 돌려도 안전하다.
+ */
+export async function awardRewards(params: {
+  childId: string;
+  serviceSlug: string;
+  date: string;
+  autoStatus: string;
+  scrapedData: Json | null;
+}): Promise<AwardResult | null> {
+  const { childId, serviceSlug, date, autoStatus, scrapedData } = params;
+  if (!REWARD_SLUGS.includes(serviceSlug)) return null;
+
+  const childRef = db.collection("children").doc(childId);
+  const statsRef = childRef.collection("stats").doc("summary");
+  const ledgerRef = childRef.collection("xpLedger").doc(`${date}_${serviceSlug}`);
+  const late = date < todayKst();
+
+  // 구독 중인 자동인증 서비스 수 (올클리어 판정) — 트랜잭션 밖에서 미리 조회
+  const subsSnap = await db.collection("subscriptions").where("childId", "==", childId).get();
+  const subscribedCount = new Set(
+    subsSnap.docs
+      .filter((d) => ["active", "transferred"].includes(String(d.data().status)))
+      .map((d) => String(d.data().serviceSlug))
+      .filter((slug) => REWARD_SLUGS.includes(slug)),
+  ).size;
+
+  try {
+    const out = await db.runTransaction(async (tx) => {
+      // ── 읽기 (쓰기 전에 전부) ──
+      const [childSnap, statsSnap, ledgerSnap, dayLedger] = await Promise.all([
+        tx.get(childRef),
+        tx.get(statsRef),
+        tx.get(ledgerRef),
+        tx.get(childRef.collection("xpLedger").where("date", "==", date)),
+      ]);
+      if (!childSnap.exists) return null;
+
+      const stats: Stats = { ...EMPTY_STATS, ...(statsSnap.data() as Partial<Stats> | undefined) };
+      const prevXp = Number(ledgerSnap.data()?.xp ?? 0);
+
+      // 그날 이미 적립된 다른 서비스 XP 합 (하루 상한 계산용)
+      const otherXp = dayLedger.docs
+        .filter((d) => d.id !== ledgerRef.id)
+        .reduce((s, d) => s + Number(d.data().xp ?? 0), 0);
+
+      // ── 계산 ──
+      const comp = computeXp(serviceSlug, autoStatus, scrapedData, { streak: stats.streak, late });
+      const capped = Math.max(0, Math.min(comp.xp, XP.DAILY_CAP - otherXp));
+      const deltaXp = capped - prevXp;
+
+      const units: Json[] = Array.isArray(scrapedData?.units) ? scrapedData!.units : [];
+      const voca: Json[] = Array.isArray(scrapedData?.voca) ? scrapedData!.voca : [];
+      const todayDoneSlugs = [
+        ...new Set([
+          ...dayLedger.docs.filter((d) => d.id !== ledgerRef.id && d.data().done === true).map((d) => String(d.data().serviceSlug)),
+          ...(autoStatus === "완료" ? [serviceSlug] : []),
+        ]),
+      ];
+
+      const ctxBase = {
+        serviceSlug, date, autoStatus, units, detail: (scrapedData?.detail as Json) ?? null, voca,
+        scraped: scrapedData, quality: comp.quality, qualityRaw: comp.qualityRaw,
+        todayDoneSlugs, subscribedCount,
+      };
+
+      // 이 날짜·서비스를 처음 적립할 때만 누적 상태를 갱신한다(재계산 시 연속 카운트 중복 방지)
+      const firstTimeForSlot = !ledgerSnap.exists;
+      const nextStats = firstTimeForSlot && capped > 0 ? updateStats(stats, ctxBase) : stats;
+
+      const owned = new Set(nextStats.badgeCodes ?? []);
+      const detected = capped > 0
+        ? detectBadges({ ...ctxBase, stats: nextStats, badgeTotal: owned.size })
+        : [];
+      const newBadges = [...new Set(detected)].filter((c) => !owned.has(c));
+
+      const badgeBonus = newBadges.reduce((s, c) => s + (RARITY_BONUS[BADGE_BY_CODE.get(c)!.rarity] ?? 0), 0);
+
+      const prevTotal = Number(childSnap.data()?.xpTotal ?? 0);
+      const newTotal = Math.max(0, prevTotal + deltaXp);
+      const prevLevel = levelFromXp(prevTotal);
+      const newLevel = levelFromXp(newTotal);
+      const levelUps = Math.max(0, newLevel - prevLevel);
+
+      const deltaPoints = Math.round(deltaXp * XP.POINT_RATE) + badgeBonus + levelUps * XP.LEVELUP_POINT;
+
+      // ── 쓰기 ──
+      // 피드 카드에 쓸 학습 요약도 원장에 함께 남긴다 — 하루 요약은 이 원장을 모아 만든다.
+      const study = studySummary(serviceSlug, units, (scrapedData?.detail as Json) ?? null, scrapedData);
+      if (deltaXp !== 0 || newBadges.length || !ledgerSnap.exists) {
+        tx.set(ledgerRef, {
+          childId, serviceSlug, date, xp: capped, done: autoStatus === "완료",
+          quality: comp.quality, qualityRaw: comp.qualityRaw, note: comp.note ?? null,
+          studyItems: study.items, studyNote: study.note, studyEndAt: study.lastEnd,
+          breakdown: comp.breakdown, computedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      if (deltaXp !== 0 || deltaPoints !== 0) {
+        tx.set(childRef, {
+          xpTotal: newTotal,
+          level: newLevel,
+          points: FieldValue.increment(deltaPoints),
+          rewardUpdatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      if (nextStats !== stats || newBadges.length) {
+        tx.set(statsRef, { ...nextStats, badgeCodes: [...owned, ...newBadges] }, { merge: true });
+      }
+      for (const code of newBadges) {
+        tx.set(childRef.collection("badges").doc(code), {
+          code, earnedAt: FieldValue.serverTimestamp(), seen: false,
+          serviceSlug: BADGE_BY_CODE.get(code)?.service ?? null,
+          rarity: BADGE_BY_CODE.get(code)?.rarity ?? "common",
+          date,
+        }, { merge: true });
+      }
+
+      // 피드에 남길 값은 트랜잭션 안에서 모아두고, 기록은 밖에서 한다
+      // (피드 실패가 적립을 되돌리면 안 되므로).
+      const feed: FeedInput | null = deltaXp !== 0 || newBadges.length
+        ? {
+          childId, date,
+          name: String(childSnap.data()?.name ?? ""),
+          grade: String(childSnap.data()?.grade ?? ""),
+          equipped: (childSnap.data()?.equipped ?? {}) as Record<string, string | null>,
+          level: newLevel, prevLevel,
+          newBadges,
+          serviceSlug,
+          dayXp: otherXp + capped,
+          doneCount: todayDoneSlugs.length,
+          streak: nextStats.streak,
+          // 그날 한 과목들을 한 카드에 모아 보여준다 (이번 서비스는 방금 계산한 값으로 대체)
+          services: [
+            ...dayLedger.docs
+              .filter((d) => d.id !== ledgerRef.id)
+              .map((d) => ({
+                slug: String(d.data().serviceSlug ?? ""),
+                xp: Number(d.data().xp ?? 0),
+                items: (d.data().studyItems ?? []) as StudyItem[],
+                note: (d.data().studyNote ?? null) as string | null,
+              })),
+            { slug: serviceSlug, xp: capped, items: study.items, note: study.note },
+          ].filter((s) => s.slug && s.xp > 0),
+          // 학습이 실제로 끝난 시각 (스크랩 시각이 아니라) — 없으면 null → 기록 시각으로 폴백
+          occurredAt: [
+            ...dayLedger.docs.filter((d) => d.id !== ledgerRef.id).map((d) => d.data().studyEndAt as string | null),
+            study.lastEnd,
+          ].filter((v): v is string => !!v).sort().pop() ?? null,
+          late,
+          optOut: childSnap.data()?.feedOptOut === true,
+        }
+        : null;
+
+      return { xp: capped, gainedXp: deltaXp, points: deltaPoints, level: newLevel, newBadges, feed };
+    });
+
+    if (!out) return null;
+    const { feed, ...result } = out;
+    if (feed) {
+      await recordRewardFeed(feed)
+        .catch((e) => functions.logger.warn("[rewards] 피드 기록 실패", { childId, date, error: String(e) }));
+    }
+    return result;
+  } catch (e) {
+    // 리워드 실패가 학습 기록 자체를 막으면 안 된다 → 로그만 남기고 통과
+    functions.logger.error("[rewards] 적립 실패", { childId, serviceSlug, date, error: String(e) });
+    return null;
+  }
+}
