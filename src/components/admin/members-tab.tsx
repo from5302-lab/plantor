@@ -312,11 +312,6 @@ function KeyBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-const deleteXStyle = (deleting: boolean): React.CSSProperties => ({
-  position: "absolute", top: 10, right: 12, background: "none", border: "none",
-  cursor: "pointer", fontSize: 16, lineHeight: 1, color: "#c0a0a0",
-  opacity: deleting ? 0.2 : 1, padding: "2px 4px",
-});
 
 function SmsSendBtn({ family, childNames, serviceNames, endDate, parentId, isDirect, tuition, disabled }: {
   family: MemberFamily; childNames: string; serviceNames: string; endDate: string; parentId: string;
@@ -678,29 +673,6 @@ function AiPackageRow({ familyId, userId, endDate }: { familyId: string; userId:
       </div>
       <span />
     </div>
-  );
-}
-
-function DeleteFamilyBtn({ familyId, childIds }: { familyId: string; childIds: string[] }) {
-  const [deleting, setDeleting] = useState(false);
-
-  async function handleDelete() {
-    if (!confirm("이 가족 전체를 삭제하시겠습니까?\n(가족 + 자녀 + 구독 전부 삭제)")) return;
-    setDeleting(true);
-    try {
-      const batch = writeBatch(db);
-      for (const childId of childIds) {
-        const subsSnap = await getDocs(query(collection(db, "subscriptions"), where("childId", "==", childId)));
-        subsSnap.docs.forEach((d) => batch.delete(d.ref));
-        batch.delete(doc(db, "children", childId));
-      }
-      batch.delete(doc(db, "families", familyId));
-      await batch.commit();
-    } catch (err) { alert(err instanceof Error ? err.message : "삭제 오류"); setDeleting(false); }
-  }
-
-  return (
-    <button onClick={handleDelete} disabled={deleting} title="가족 전체 삭제" style={deleteXStyle(deleting)}>×</button>
   );
 }
 
