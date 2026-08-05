@@ -58,6 +58,11 @@ export type ClasscardUnit = {
   avgScore: number | null;
   completed: boolean;
   scores: Record<string, number | string>;
+  /** 학습 시작 시각(시) — 얼리버드/올빼미 뱃지 판정 */
+  startHour?: number;
+  /** 학습 시작·종료 시각 "HH:MM". 리포트의 학습시작/학습종료 컬럼(듣기는 dateRangeRaw)에서 뽑는다. */
+  startAt?: string;
+  endAt?: string;
 };
 
 export type ClasscardResult = {
@@ -163,9 +168,12 @@ function parseListeningReport(html: string, dateKst: string): RosterEntry[] {
       unitLabel: unitLabel || "듣기평가",
       studyMinutes: minutes,
       dateRangeRaw: dateRaw || undefined,
+      startAt: times.length ? `${times[0][3]}:${times[0][4]}` : undefined,
+      endAt: times.length > 1 ? `${times[1][3]}:${times[1][4]}` : undefined,
       avgScore: null,
       completed: true, // 오늘 학습 흔적 = 완료(점수 무관)
       scores,
+      startHour: times.length ? parseInt(times[0][3], 10) : undefined,
     });
     byId.set(curLoginId, entry);
   }
@@ -254,6 +262,10 @@ class ClasscardClient {
         avgScore: null,
         completed: true, // 오늘 학습 흔적 = 완료(점수 무관)
         scores,
+        startHour: /(\d{2}):(\d{2})/.test(start) ? parseInt(/(\d{2}):(\d{2})/.exec(start)![1], 10) : undefined,
+        // 분까지 살린다 — 예전엔 시(hour)만 남겨 '몇 시에 시작해 몇 시에 끝났나'를 못 보여줬다
+        startAt: (/(\d{2}:\d{2})/.exec(start) ?? [])[1],
+        endAt: (/(\d{2}:\d{2})/.exec(end) ?? [])[1],
       });
       byId.set(loginId, entry);
     }
@@ -297,6 +309,7 @@ class ClasscardClient {
         avgScore: null,
         completed: true, // 오늘 학습 흔적 = 완료(점수 무관). done 은 참고용.
         scores: done ? { ...scores, 완료여부: "완료" } : scores,
+        startHour: /(\d{1,2}):(\d{2})/.test(day) ? parseInt(/(\d{1,2}):(\d{2})/.exec(day)![1], 10) : undefined,
       });
       byId.set(loginId, entry);
     }

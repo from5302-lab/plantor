@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
-import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVocaItem } from "@/lib/types";
+import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVocaItem, DailykorElementaryRound } from "@/lib/types";
 
 // 자동인증 결과를 원본 성적표 "표 모양" 그대로 페이지에 기록/표시.
 // 오토보카·클래스카드(문법/듣기/본문) 각각의 표 레이아웃을 재현한다.
@@ -57,6 +58,21 @@ function formatKoTime(sec: number): string {
 }
 
 // 완료/미완료 pill 뱃지 (헤더 status 뱃지와 동일 스타일로 통일)
+/** 시작~종료 · 소요시간 한 줄. 세 화면이 같은 컴포넌트를 쓰므로 표기가 자동으로 통일된다. */
+function TimeRange({ startAt, endAt, minutes, durationSec }: {
+  startAt?: string; endAt?: string; minutes?: number; durationSec?: number;
+}) {
+  const mins = minutes ?? (durationSec ? Math.round(durationSec / 60) : undefined);
+  const span = startAt && endAt ? `${startAt} ~ ${endAt}` : startAt ? `${startAt} 시작` : null;
+  const dur = mins && mins > 0 ? `${mins}분` : null;
+  if (!span && !dur) return null;
+  return (
+    <span className="text-[11px] text-p-muted whitespace-nowrap">
+      {span}{span && dur ? " · " : ""}{dur}
+    </span>
+  );
+}
+
 function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
   const s = done
     ? { ...gradeColor(grade), label: "완료 ✓" }
@@ -66,11 +82,14 @@ function CompletionBadge({ done, grade }: { done: boolean; grade?: string }) {
 
 // ── 공통 항목 행 — 클래스카드/클래스5/매일국어 완료 인증의 단일 문법 ─────────────
 //   [파트 뱃지] 라벨 (보조) ··· 완료/미완료 pill(우측 끝)
-function UnitRow({ badge, label, sub, done, grade }: { badge?: string; label: string; sub?: string; done: boolean; grade?: string }) {
+function UnitRow({ badge, label, sub, done, grade, time }: {
+  badge?: string; label: string; sub?: string; done: boolean; grade?: string; time?: ReactNode;
+}) {
   return (
     <div className="flex items-center gap-2 py-1.5 border-t border-black/[0.05] first:border-t-0">
       {badge && <span className="text-[9px] font-bold px-1 py-px rounded bg-black/5 text-p-secondary shrink-0">{badge}</span>}
       <span className="text-[13px] text-black/80 flex-1 min-w-0 truncate">{label}</span>
+      {time}
       {sub && <span className="text-[11px] text-p-muted shrink-0">{sub}</span>}
       <CompletionBadge done={done} grade={grade} />
     </div>
@@ -100,7 +119,14 @@ function AutovocaTable({ units }: { units: AutoUnit[] }) {
             <tr key={i}>
               <td className={td} style={{ color: "#615d59", fontWeight: 600 }}>오늘</td>
               <td className={td}>{u.unitLabel ?? "-"}</td>
-              <td className={td}>{u.studyMinutes != null ? `${u.studyMinutes}분` : "-"}</td>
+              <td className={td}>
+                {u.studyMinutes != null ? `${u.studyMinutes}분` : "-"}
+                {(u.startAt || u.endAt) && (
+                  <div className="text-[10px] text-p-muted font-normal">
+                    {u.startAt ?? ""}{u.startAt && u.endAt ? "~" : ""}{u.endAt ?? ""}
+                  </div>
+                )}
+              </td>
               <td className={td}>{u.testScore != null ? `${u.testScore}점` : "-"}</td>
               <td className={td}>{u.wrongReviewCount != null ? `${u.wrongReviewCount}개` : "-"}</td>
               <td className={td} style={{ fontWeight: 700, color: "#2a8438" }}>{u.points != null ? `+${u.points}P` : "-"}</td>
@@ -169,7 +195,13 @@ function ClasscardCompletion({ units }: { units: AutoUnit[] }) {
   return (
     <div>
       {units.map((u, i) => (
-        <UnitRow key={i} badge={u.type} label={u.unitLabel ?? "학습"} done={u.completed ?? false} />
+        <UnitRow
+          key={i}
+          badge={u.type}
+          label={u.unitLabel ?? "학습"}
+          done={u.completed ?? false}
+          time={<TimeRange startAt={u.startAt} endAt={u.endAt} minutes={u.studyMinutes} durationSec={u.durationSec} />}
+        />
       ))}
     </div>
   );
@@ -218,6 +250,7 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const svcName = svc?.name ?? null;
   const units = log?.scrapedData?.units ?? [];
   const voca = log?.scrapedData?.voca ?? [];
+  const elementary = log?.scrapedData?.elementary ?? [];
   const isEmpty = units.length === 0 && voca.length === 0; // 어휘만 학습한 경우도 표시
 
   if (loading && isEmpty) {
@@ -239,26 +272,58 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const isCompletion = isClasscard || isDailykor || isClass5;
   const badge = statusBadge(log.autoStatus);
 
-  return (
-    <div className="rounded-xl border border-black/[0.08] bg-white p-3">
-      <div className="flex items-center gap-2 mb-2">
-        {svc && <ServiceIcon service={svc} size={16} />}
-        <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isCompletion ? "완료 인증" : "성적표"}</span>
-        {!isCompletion && (
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
+  const header = (
+    <div className="flex items-center gap-2 mb-2">
+      {svc && <ServiceIcon service={svc} size={16} />}
+      <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isCompletion ? "완료 인증" : "성적표"}</span>
+      {!isCompletion && (
+        <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
+      )}
+    </div>
+  );
+
+  // 매일국어: '오늘의 학습'과 '어휘력 센터'는 성격이 다른 학습이라 카드를 나눠 표기
+  if (isDailykor) {
+    return (
+      <div className="flex flex-col gap-2">
+        {units.length > 0 && (
+          <Panel>
+            {header}
+            {elementary.length > 0
+              ? <DailykorElementary rounds={elementary} />
+              : <DailykorCompletion units={units} detail={log.scrapedData?.detail} />}
+          </Panel>
+        )}
+        {voca.length > 0 && (
+          <Panel>
+            <div className="flex items-center gap-2 mb-2">
+              {svc && <ServiceIcon service={svc} size={16} />}
+              <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} 어휘력 센터</span>
+            </div>
+            <DailykorVoca voca={voca} />
+          </Panel>
         )}
       </div>
+    );
+  }
+
+  return (
+    <Panel>
+      {header}
       {isAutovoca ? (
         <AutovocaTable units={units} />
       ) : isClasscard || isClass5 ? (
         <ClasscardCompletion units={units} />
-      ) : isDailykor ? (
-        <DailykorCompletion units={units} detail={log.scrapedData?.detail} voca={log.scrapedData?.voca} />
       ) : (
         units.map((u, i) => <ClasscardUnit key={i} unit={u} />)
       )}
-    </div>
+    </Panel>
   );
+}
+
+// 자동인증 카드 한 장의 외곽 (매일국어는 2장으로 나뉜다)
+function Panel({ children }: { children: ReactNode }) {
+  return <div className="rounded-xl border border-black/[0.08] bg-white p-3">{children}</div>;
 }
 
 // 라벨 위 / 값 아래의 지표 셀 (Toss식 또렷한 숫자 위계)
@@ -320,7 +385,50 @@ function TrainTime({ p }: { p: DailykorPassage }) {
 }
 
 // ── 매일국어: "오늘 학습 완료" 여부 + 오늘의 학습 상세(지문별) ────────────────────
-function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }) {
+/**
+ * 초등 매일국어 — 과목별 회차 결과.
+ * 중등은 지문(passages) 단위지만 초등은 과목(국어·사회…) 단위로 별·점수가 나온다.
+ * 학생·학부모·어드민이 이 카드를 공유하므로 여기 한 곳만 고치면 세 화면에 함께 반영된다.
+ */
+function DailykorElementary({ rounds }: { rounds: DailykorElementaryRound[] }) {
+  const stars = (n: number | null) => (n && n > 0 ? "★".repeat(n) : null);
+  return (
+    <div className="flex flex-col gap-1.5">
+      {rounds.map((r, i) => (
+        <div key={`${r.subject}-${i}`} className="rounded-lg bg-p-bg px-2.5 py-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[12px] font-bold text-black/85">{r.subject}</span>
+            {r.round != null && <span className="text-[11px] text-p-muted">{r.round}회차</span>}
+            <span className="ml-auto flex items-center gap-1.5">
+              {r.firstPoint != null && (
+                <span className="text-[11px] text-p-secondary">최초 <b className="text-black/80">{r.firstPoint}점</b></span>
+              )}
+              {r.reviewPoint != null && (
+                <span className="text-[11px] text-p-teal font-semibold">복습 {r.reviewPoint}점</span>
+              )}
+            </span>
+          </div>
+          {(r.startAt || r.endAt) && (
+            <div className="mt-0.5"><TimeRange startAt={r.startAt ?? undefined} endAt={r.endAt ?? undefined} /></div>
+          )}
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            {([["단어", r.wordStars, r.wordScore], ["교과서", r.bookStars, r.bookScore], ["실전", r.testStars, r.testScore]] as const).map(([label, st, sc]) => {
+              const s = stars(st);
+              if (!s && sc == null) return null;
+              return (
+                <span key={label} className="text-[11px] text-p-secondary">
+                  {label} {s ? <span className="text-[#f0a500]">{s}</span> : <b className="text-black/75">{sc}점</b>}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DailykorCompletion({ units, detail }: { units: AutoUnit[]; detail?: DailykorDetail | null }) {
   const done = units.some((u) => u.completed);
   const grade = unitsGrade(units);
 
@@ -376,21 +484,25 @@ function DailykorCompletion({ units, detail, voca }: { units: AutoUnit[]; detail
           {detail?.xp && <Stat label="획득 경험치" value={detail.xp} strong chip={grade ? { label: grade, ...gradeColor(grade) } : undefined} />}
         </div>
       )}
-      {voca && voca.length > 0 && (
-        // '오늘의 학습'(+요약) 아래 '어휘력 센터'도 동일한 파트 행 문법
-        <div className="mt-2">
-          <UnitRow label="어휘력 센터" sub={`${voca.reduce((n, v) => n + v.sets.length, 0)}세트`} done />
-          {/* 카테고리 → 세트: 이 detail만 박스 안 */}
-          <div className="mt-2 rounded-[10px] border border-black/[0.06] bg-p-bg/50 px-3 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
-            {voca.map((v, i) => (
-              <span key={i}>
-                <span className="text-p-muted">{v.category}</span>{" "}
-                <span className="text-black/80 font-medium tabular-nums">{v.sets.join("·")}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+    </div>
+  );
+}
+
+// ── 매일국어: 어휘력 센터 (별도 패널) ─────────────────────────────────────────
+function DailykorVoca({ voca }: { voca: DailykorVocaItem[] }) {
+  return (
+    <div>
+      {/* '오늘의 학습'과 동일한 파트 행 문법 */}
+      <UnitRow label="어휘력 센터" sub={`${voca.reduce((n, v) => n + v.sets.length, 0)}세트`} done />
+      {/* 카테고리 → 세트: 이 detail만 박스 안 */}
+      <div className="mt-2 rounded-[10px] border border-black/[0.06] bg-p-bg/50 px-3 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+        {voca.map((v, i) => (
+          <span key={i}>
+            <span className="text-p-muted">{v.category}</span>{" "}
+            <span className="text-black/80 font-medium tabular-nums">{v.sets.join("·")}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

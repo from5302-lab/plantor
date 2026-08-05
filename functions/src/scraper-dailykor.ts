@@ -30,10 +30,39 @@ export type DailykorDetail = {
   passages?: DailykorPassage[];  // 오늘 학습한 지문들 (열 단위)
   xp?: string;                   // 오늘 총 획득/최대 경험치 "18xp / 30xp"
   recommendedSpeed?: number;     // 리포트 각주의 추천 분당 독해속도 600 (매일국어 기준)
+  // ── 리워드(품질·뱃지) 판정용 ──
+  xpGot?: number;                // 14
+  xpMax?: number;                // 30  → 달성률 = got/max 가 품질 Q의 기준축
+  /** 단계별 경험치 — 준비/독해/실전 각각의 획득·최대 */
+  stepXp?: Array<{ step: string; got: number; max: number }>;
+};
+
+/**
+ * 초등 '오늘의 학습' 회차 한 건 (과목별).
+ * 중등은 지문 단위(passages)지만 초등은 과목 단위라 스키마를 따로 둔다.
+ */
+export type DailykorElementaryRound = {
+  date: string | null;
+  round: number | null;      // 회차
+  subject: string;           // 국어 · 사회 · 과학 …
+  wordStars: number | null;  // 단어 별 1~5
+  bookStars: number | null;  // 교과서 별
+  testStars: number | null;  // 실전 별
+  firstPoint: number | null; // 최초 점수
+  reviewPoint: number | null;// 복습 점수
+  reviewDate: string | null;
+  /** 학습 시작·종료 시각 "HH:MM" (studylist 경로에서만 채워진다) */
+  startAt?: string | null;
+  endAt?: string | null;
+  /** 별 뒤의 실제 점수 (studylist 경로에서만) */
+  wordScore?: number | null;
+  bookScore?: number | null;
+  testScore?: number | null;
 };
 
 // 어휘력 센터 완료 세트 (누적) — { category:"문학", sets:["08","09"] }
-export type DailykorVocaItem = { category: string; sets: string[] };
+// grades: sets와 같은 순서의 등급 class (verygood=100% / good=99~85 / normal=84~70 / nogood=69↓)
+export type DailykorVocaItem = { category: string; sets: string[]; grades?: string[]; categoryComplete?: boolean };
 
 export type DailykorResult = {
   autoStatus: "시작전" | "진행중" | "완료";
@@ -43,6 +72,8 @@ export type DailykorResult = {
   totalStudyMinutes: number;
   matchedName?: string;
   detail?: DailykorDetail | null;
+  /** 초등 전용 — 과목별 회차 결과 (중등의 detail.passages에 대응) */
+  elementary?: DailykorElementaryRound[] | null;
   voca?: DailykorVocaItem[] | null;
 };
 
@@ -74,10 +105,12 @@ function norm(s: unknown) { return String(s ?? "").replace(/\s+/g, ""); }
 type DkSession = {
   get: (path: string, extra?: Record<string, string>) => Promise<Response>;
   postForm: (path: string, form: Record<string, string>, extra?: Record<string, string>) => Promise<Response>;
+  /** 절대 URL 요청 — 초등 상세 API는 app/api 호스트라 BASE 접두가 맞지 않는다. */
+  absGet: (url: string, extra?: Record<string, string>) => Promise<Response>;
   csrf: string;
 };
 
-type NameInfo = { status: string; scores: Record<string, number | string>; idx?: string; kind?: "mh" | "el" };
+type NameInfo = { status: string; scores: Record<string, number | string>; idx?: string; kind?: "mh" | "el"; elCell?: string; elRow?: string };
 // 이름 → { "YYYY-MM-DD": "완료"|"진행중" } — 그 달에 학습 흔적이 있는 날짜만 (시작전은 미수록)
 export type MonthByName = Record<string, Record<string, string>>;
 
@@ -117,7 +150,10 @@ async function dailykorLogin(creds: DailykorCreds): Promise<DkSession> {
   const csrf = parse(sreportHtml).querySelector('meta[name="csrf-token"]')?.getAttribute("content");
   if (!csrf) throw new Error("매일국어 csrf meta 없음");
 
-  return { get, postForm, csrf };
+  const absGet = (url: string, extra: Record<string, string> = {}) =>
+    fetch(url, { headers: { ...UA, ...extra, Cookie: jar.header() }, redirect: "manual" });
+
+  return { get, postForm, absGet, csrf };
 }
 
 // 리포트 파싱 → { 이름: { status, scores, idx, kind } } (전체 학생). idx/kind는 일별 상세 조회용.
@@ -169,6 +205,9 @@ async function reportByName(session: DkSession, dateKst: string): Promise<{ byNa
             scores: { ...(prev?.scores ?? {}), ...scores },
             idx: idx ?? prev?.idx,
             kind: rep.kind,
+            // [조사용] 초등 모달이 어떤 속성으로 상세를 여는지 보려고 원문을 남긴다
+            elCell: rep.kind === "el" ? td.outerHTML?.slice(0, 800) : prev?.elCell,
+            elRow: rep.kind === "el" ? row.outerHTML?.slice(0, 2500) : prev?.elRow,
           };
         }
       }
@@ -192,6 +231,146 @@ async function fetchDailykorDetail(session: DkSession, idx: string, dateKst: str
     functions.logger.warn("[dailykor] 상세 실패", { idx, error: String(e) });
     return null;
   }
+}
+
+/**
+ * 초등 일별 상세 — 학원 리포트 셀(btn_learning_modal)이 여는 것과 같은 엔드포인트.
+ *   GET /academy/elementary/ajax_dailyreport/{student_idx}/date/{YYYY-MM-DD}  → { code, html }
+ * www 호스트·학원 세션 그대로라 별도 토큰이 필요 없다(앱 API는 Access-Token이 따로 필요해 쓰지 않는다).
+ *
+ * 표: 학습일자 · 회차 · 과목 · 단어 · 교과서 · 실전 · 최초점수 · 복습점수 · 복습일자
+ * 별은 <div class="main_stars"><i class="s3"></i></div> 형태로 s1~s5.
+ */
+/**
+ * 초등 학습 목록 — 시작·종료 시각과 별 뒤의 실제 점수까지 있는 경로.
+ *   GET /academy/elementary/studylist/{student_idx}
+ * 학원 세션으로 열면 앱(app.dailykor.com)으로 **토큰이 붙은 채** 리다이렉트된다.
+ * 그 토큰으로 앱 API(learning_history/academy)를 부르면 JSON을 그대로 받을 수 있다.
+ * 실패하면 null → 호출부가 기존 ajax_dailyreport 경로로 폴백한다.
+ */
+async function fetchElementaryStudyList(
+  session: DkSession, idx: string, dateKst: string,
+): Promise<DailykorElementaryRound[] | null> {
+  try {
+    // 리다이렉트를 따라가며 token/api_key 를 회수
+    let url = `${BASE}/academy/elementary/studylist/${idx}`;
+    let token = "", apiKey = "";
+    for (let i = 0; i < 6; i++) {
+      const r = await session.absGet(url, { Referer: `${BASE}/academy/elementary/sreport` });
+      const loc = r.headers.get("location");
+      if (!(r.status >= 300 && r.status < 400 && loc)) break;
+      url = new URL(loc, url).toString();
+      const q = new URL(url).searchParams;
+      token = q.get("token") ?? token;
+      apiKey = q.get("api_key") ?? apiKey;
+    }
+    if (!token) return null;
+
+    const call = async (path: string) => {
+      const r = await session.absGet(`https://dailykor.com/api/${path}`, {
+        "Access-Token": token, ...(apiKey ? { "Api-Key": apiKey } : {}),
+        Accept: "application/json", Referer: "https://app.dailykor.com/",
+      });
+      if (r.status !== 200) return null;
+      try { return JSON.parse(await r.text()); } catch { return null; }
+    };
+
+    // 학년/학기/개정은 meta에서 오므로 먼저 기본 호출로 받아온다
+    const first = await call(`learning_history/academy/${idx}`);
+    const gt = first?.meta?.grade_term;
+    let rows = first?.data?.learning_history;
+    if (!rows && Array.isArray(gt) && gt.length) {
+      const g = gt[gt.length - 1];
+      const second = await call(`learning_history/academy/${idx}/${g.grade}/${g.term}/${g.version ?? ""}`);
+      rows = second?.data?.learning_history;
+    }
+    if (!Array.isArray(rows)) return null;
+
+    const hhmm = (v: unknown) => {
+      const m = String(v ?? "").match(/\d{2}:\d{2}/);
+      return m ? m[0] : null;
+    };
+    const nz = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+
+    return rows
+      .filter((r: Record<string, unknown>) => String(r?.date ?? "").slice(0, 10) === dateKst)
+      .map((r: Record<string, unknown>) => ({
+        date: String(r.date ?? "").slice(0, 10) || null,
+        round: nz(r.round),
+        subject: String(r.subject ?? ""),
+        wordStars: null, bookStars: null, testStars: null,
+        wordScore: nz(r.voca), bookScore: nz(r.training), testScore: nz(r.question),
+        firstPoint: nz(r.first_point),
+        reviewPoint: nz(r.last_point) !== nz(r.first_point) ? nz(r.last_point) : null,
+        reviewDate: r.restudy_date ? String(r.restudy_date).slice(0, 10) : null,
+        startAt: hhmm(r.start_date),
+        endAt: hhmm(r.end_date),
+      }))
+      .filter((r) => r.subject);
+  } catch (e) {
+    functions.logger.warn("[dailykor] 초등 studylist 실패", { idx, error: String(e) });
+    return null;
+  }
+}
+
+async function fetchDailykorDetailElementary(
+  session: DkSession, idx: string, dateKst: string,
+): Promise<DailykorElementaryRound[] | null> {
+  // 시작·종료 시각과 실제 점수까지 주는 경로를 먼저 시도하고, 안 되면 모달(별)로 폴백
+  const rich = await fetchElementaryStudyList(session, idx, dateKst);
+  if (rich?.length) return rich;
+  try {
+    const r = await session.get(`/academy/elementary/ajax_dailyreport/${idx}/date/${dateKst}`,
+      { "X-Requested-With": "XMLHttpRequest", Referer: `${BASE}/academy/elementary/sreport` });
+    const raw = await r.text();
+    let rounds: DailykorElementaryRound[] = [];
+    try {
+      const data = JSON.parse(raw);
+      if (data?.html) rounds = parseDailykorElementary(String(data.html));
+    } catch { /* JSON 아님 → 아래 진단 로그로 확인 */ }
+    if (!rounds.length) {
+      functions.logger.warn("[dailykor] 초등 상세 비어있음", {
+        idx, dateKst, status: r.status, len: raw.length, head: raw.slice(0, 400),
+      });
+    }
+    return rounds.length ? rounds : null;
+  } catch (e) {
+    functions.logger.warn("[dailykor] 초등 상세 실패", { idx, error: String(e) });
+    return null;
+  }
+}
+
+/** main_stars 안의 <i class="sN"> → N (없으면 null). */
+function starsOf(td: ReturnType<typeof parse>): number | null {
+  const i = td.querySelector(".main_stars i") ?? td.querySelector("i");
+  const m = (i?.getAttribute("class") ?? "").match(/\bs([1-5])\b/);
+  return m ? Number(m[1]) : null;
+}
+
+export function parseDailykorElementary(html: string): DailykorElementaryRound[] {
+  const root = parse(html);
+  const txt = (n?: { text?: string }) => (n?.text ?? "").replace(/\s+/g, " ").trim();
+  const num = (v: string) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+  const out: DailykorElementaryRound[] = [];
+
+  for (const tr of root.querySelectorAll("tbody tr")) {
+    const tds = tr.querySelectorAll("td");
+    if (tds.length < 7) continue;
+    const subject = txt(tds[2]);
+    if (!subject) continue;
+    out.push({
+      date: txt(tds[0]) || null,
+      round: num(txt(tds[1])),
+      subject,
+      wordStars: starsOf(tds[3]),
+      bookStars: starsOf(tds[4]),
+      testStars: starsOf(tds[5]),
+      firstPoint: num(txt(tds[6])),
+      reviewPoint: num(txt(tds[7] ?? { text: "" })),
+      reviewDate: txt(tds[8] ?? { text: "" }).replace(/^-$/, "") || null,
+    });
+  }
+  return out;
 }
 
 // 리포트는 "지문 = 열(column)" 매트릭스 테이블. thead의 지문 컬럼 헤더, tbody 각 지표 행의
@@ -252,9 +431,29 @@ function parseDailykorDetail(html: string): DailykorDetail {
 
   const detail: DailykorDetail = { passages };
   const flat = root.text.replace(/\s+/g, " ");
-  // 오늘 총 획득/최대 경험치 ("오늘 획득 경험치(최대 획득 경험치) 18xp(30xp)")
+  // 오늘 총 획득/최대 경험치 ("오늘 획득 경험치(최대 획득 경험치) 18xp(30xp)") — 표 밖 modal-footer
   const xpm = flat.match(/오늘 획득 경험치[^0-9]*(\d+)xp\s*\(\s*(\d+)xp/);
-  if (xpm) detail.xp = `${xpm[1]}xp / ${xpm[2]}xp`;
+  if (xpm) {
+    detail.xp = `${xpm[1]}xp / ${xpm[2]}xp`;
+    detail.xpGot = parseInt(xpm[1], 10);
+    detail.xpMax = parseInt(xpm[2], 10);
+  }
+
+  // 단계별 경험치 — 표 안의 '획득 경험치' 행을 섹션(준비/독해/실전)과 짝지어 읽는다.
+  // (flat 텍스트 정규식으로 긁으면 표 밖 합계 문구가 섞여 들어와 단계가 밀린다)
+  const stepXp: Array<{ step: string; got: number; max: number }> = [];
+  let section = "";
+  for (const tr of bodyRows) {
+    const label = tr.querySelectorAll("th").map(norm).join(" ");
+    if (/준비\s*훈련/.test(label)) section = "준비";
+    else if (/독해\s*훈련/.test(label)) section = "독해";
+    else if (/실전\s*대비/.test(label)) section = "실전";
+    if (!/획득\s*경험치/.test(label) || !section) continue;
+    const cell = tr.querySelectorAll("td").map(norm).find((t) => /\d+\s*xp/.test(t));
+    const m = cell?.match(/(\d+)\s*xp\s*\(\s*(\d+)\s*xp/);
+    if (m) stepXp.push({ step: section, got: parseInt(m[1], 10), max: parseInt(m[2], 10) });
+  }
+  if (stepXp.length) detail.stepXp = stepXp;
   // 각주 "* 추천 분당 독해속도는 600자 이며, ..." — 기준을 우리가 정하지 않고 리포트에서 그대로 가져온다
   const rec = Number(flat.match(/추천\s*분당\s*독해속도는\s*(\d+)\s*자/)?.[1]);
   if (Number.isFinite(rec) && rec > 0) detail.recommendedSpeed = rec;
@@ -300,16 +499,23 @@ async function fetchVocaToday(session: DkSession, idx: string, dateKst: string):
     // 1) 오늘 분류별 학습 횟수
     const today = await fetchVocaDailyCounts(session, idx, dateKst);
     if (!today.length) return [];
-    // 2) 분류(분류2) → cate_id 매핑
+    // 2) 분류(분류2) → cate_id + 진행률 매핑
     const cateMap = await fetchVocaCateMap(session, idx);
     // 3) 분류별로 완료 세트 중 마지막 N개
     const out: DailykorVocaItem[] = [];
     for (const t of today) {
-      const cate = cateMap[t.category];
-      if (!cate || t.count <= 0) continue;
-      const all = await fetchVocaSetNumbers(session, idx, cate);
-      const sets = all.slice(-t.count);
-      if (sets.length) out.push({ category: t.category, sets });
+      const info = cateMap[t.category];
+      if (!info || t.count <= 0) continue;
+      const all = await fetchVocaSetNumbers(session, idx, info.cateId);
+      const picked = all.slice(-t.count);
+      if (picked.length) {
+        out.push({
+          category: t.category,
+          sets: picked.map((p) => p.set),
+          grades: picked.map((p) => p.grade),
+          categoryComplete: info.total > 0 && info.done >= info.total,
+        });
+      }
     }
     return out;
   } catch (e) {
@@ -336,41 +542,45 @@ async function fetchVocaDailyCounts(session: DkSession, idx: string, dateKst: st
   return out;
 }
 
-// 분류(분류2) → cate_id: ajax_voca_status
-async function fetchVocaCateMap(session: DkSession, idx: string): Promise<Record<string, string>> {
+// 분류(분류2) → cate_id + 진행률("19 / 19"): ajax_voca_status
+async function fetchVocaCateMap(session: DkSession, idx: string): Promise<Record<string, { cateId: string; done: number; total: number }>> {
   const r = await session.get(`/academy/student/ajax_voca_status/${idx}`, { "X-Requested-With": "XMLHttpRequest", Referer: `${BASE}/academy/student/sreport` });
   if (r.status !== 200) return {};
   const data = JSON.parse(await r.text());
   if (data?.code !== 200 || !data.content) return {};
   const root = parse(String(data.content));
-  const map: Record<string, string> = {};
+  const map: Record<string, { cateId: string; done: number; total: number }> = {};
   for (const tr of root.querySelectorAll("tr")) {
     const tds = tr.querySelectorAll("td");
     if (tds.length < 4) continue;
     const cate = tr.querySelector(".btn_voca_status_detail")?.getAttribute("data-cate_id");
     const name = (tds[1].text ?? "").trim();
-    if (cate && name) map[name] = cate;
+    const prog = /(\d+)\s*\/\s*(\d+)/.exec((tds[2]?.text ?? "").trim());
+    if (cate && name) {
+      map[name] = { cateId: cate, done: prog ? parseInt(prog[1], 10) : 0, total: prog ? parseInt(prog[2], 10) : 0 };
+    }
   }
   return map;
 }
 
-// 분류상세 격자에서 완료 세트 번호. 세트 셀 = <td class="등급"><span>N</span></td>.
+// 분류상세 격자에서 완료 세트. 세트 셀 = <td class="등급"><span>N</span></td>.
 // 미완료/미학습(able·ready) 및 등급 없는 셀 제외 → 완료 세트만.
-async function fetchVocaSetNumbers(session: DkSession, idx: string, cate: string): Promise<string[]> {
+// class가 곧 정답률 등급: verygood=100% / good=99~85% / normal=84~70% / nogood=69%↓
+async function fetchVocaSetNumbers(session: DkSession, idx: string, cate: string): Promise<Array<{ set: string; grade: string }>> {
   try {
     const r = await session.get(`/academy/student/ajax_voca_status_detail/${idx}/${cate}`, { "X-Requested-With": "XMLHttpRequest", Referer: `${BASE}/academy/student/sreport` });
     if (r.status !== 200) return [];
     const root = parse(await r.text());
-    const done: number[] = [];
+    const done: Array<{ n: number; grade: string }> = [];
     for (const td of root.querySelectorAll("td")) {
       const t = (td.text ?? "").trim();
       if (!/^\d+$/.test(t)) continue;               // 세트 번호 셀만 (범례는 "100%" 등 → 제외)
-      const cls = td.getAttribute("class") ?? "";
-      if (!cls.trim() || /\b(able|ready)\b/.test(cls)) continue;  // 미완료/미학습 제외
-      done.push(parseInt(t, 10));
+      const cls = (td.getAttribute("class") ?? "").trim();
+      if (!cls || /\b(able|ready)\b/.test(cls)) continue;  // 미완료/미학습 제외
+      done.push({ n: parseInt(t, 10), grade: cls.split(/\s+/)[0] });
     }
-    done.sort((a, b) => a - b);
-    return done.map((n) => String(n).padStart(2, "0"));
+    done.sort((a, b) => a.n - b.n);
+    return done.map((d) => ({ set: String(d.n).padStart(2, "0"), grade: d.grade }));
   } catch {
     return [];
   }
@@ -414,7 +624,8 @@ export async function scrapeDailykorForStudent(
   if (!hitName) return { autoStatus: "시작전", units: [], totalStudyMinutes: 0, voca, monthStatus };
   const info = byName[hitName];
   const detail = info.kind === "mh" && info.idx ? await fetchDailykorDetail(session, info.idx, dateKst) : null;
-  return { autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), totalStudyMinutes: 0, matchedName: hitName, detail, voca, monthStatus };
+  const elementary = info.kind === "el" && info.idx ? await fetchDailykorDetailElementary(session, info.idx, dateKst) : null;
+  return { autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), totalStudyMinutes: 0, matchedName: hitName, detail, elementary, voca, monthStatus };
 }
 
 // 전체 학생: 배치(스케줄러)용 — 로그인 1회로 오늘 학습한 모든 학생 반환 (중고등은 상세 포함).
@@ -423,19 +634,20 @@ export async function scrapeDailykorAll(
   creds: DailykorCreds,
   dateKst: string,
 ): Promise<{
-  students: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }>;
+  students: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; elementary?: DailykorElementaryRound[] | null; voca?: DailykorVocaItem[] | null }>;
   monthByName: MonthByName;
 }> {
   const session = await dailykorLogin(creds);
   const { byName, monthByName } = await reportByName(session, dateKst);
   const vocaMap = await vocaByName(session, dateKst);
   const studied = Object.entries(byName).filter(([, info]) => Object.keys(info.scores).length);
-  const out: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; voca?: DailykorVocaItem[] | null }> = [];
+  const out: Array<{ name: string; autoStatus: DailykorResult["autoStatus"]; units: DailykorResult["units"]; detail?: DailykorDetail | null; elementary?: DailykorElementaryRound[] | null; voca?: DailykorVocaItem[] | null }> = [];
   for (const [name, info] of studied) {
     const detail = info.kind === "mh" && info.idx ? await fetchDailykorDetail(session, info.idx, dateKst) : null;
+    const elementary = info.kind === "el" && info.idx ? await fetchDailykorDetailElementary(session, info.idx, dateKst) : null;
     const vHit = findName(Object.keys(vocaMap), norm(name));
     const items = vHit && vocaMap[vHit].studiedToday && vocaMap[vHit].idx ? await fetchVocaToday(session, vocaMap[vHit].idx as string, dateKst) : [];
-    out.push({ name, autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), detail, voca: items.length ? items : null });
+    out.push({ name, autoStatus: info.status as DailykorResult["autoStatus"], units: toUnits(info), detail, elementary, voca: items.length ? items : null });
   }
   return { students: out, monthByName };
 }

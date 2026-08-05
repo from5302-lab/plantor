@@ -11,7 +11,25 @@ const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Appl
 export type Class5Creds = { id: string; pw: string };
 
 // AutoUnit(클라이언트 types.ts) 호환: type=카테고리, unitLabel=교재/유닛, completed=is_end
-export type Class5Unit = { type: string; unitLabel: string; completed: boolean };
+export type Class5Unit = {
+  type: string;
+  unitLabel: string;
+  completed: boolean;
+  // ── 리워드(품질·뱃지) 판정용 — 학생별 상세(user_hw_list)에서만 얻을 수 있다 ──
+  /** 카드(단어·문장) 1회 정답률 % — 클래스5의 실질 품질 지표 (score는 완료 시 전부 100이라 못 씀) */
+  cardFirstTry?: number;
+  /** 과제 총 학습시간(초) */
+  durationSec?: number;
+  /** 게임형 활동의 raw 점수 (백분율 아님 — 문법 게임은 2~5만점대) */
+  gameScore?: number;
+  /** 배정된 활동을 하나도 빠짐없이 끝냈는지 */
+  allStepsDone?: boolean;
+  movieType?: string;
+  startHour?: number;
+  /** 학습 시작·종료 시각 "HH:MM". last_ts가 마지막(=종료) 시각이라 소요시간으로 시작을 역산한다. */
+  startAt?: string;
+  endAt?: string;
+};
 
 export type Class5Result = {
   autoStatus: "시작전" | "진행중" | "완료";
@@ -20,8 +38,11 @@ export type Class5Result = {
   matchedStudentId?: string; // std_user_idx (이름 폴백 매칭 성공 시 저장용)
 };
 
-// plantor class5 서비스 파트(site.ts): phonics/song/movie/reading/writing — 카테고리와 1:1
-const CLASS5_CATEGORIES = new Set(["Phonics", "Song", "Movie", "Reading", "Writing"]);
+// plantor class5 서비스 파트(site.ts): phonics/song/movie/reading/writing/grammar — 카테고리와 1:1
+const CLASS5_CATEGORIES = new Set(["Phonics", "Song", "Movie", "Reading", "Writing", "Grammar"]);
+
+// 과제 유형 필터. 6=Grammar, 7=예비 — 0~5만 조회하면 Grammar 과제가 통째로 누락된다.
+const HW_TYPES = "0,1,2,3,4,5,6,7";
 
 /** 완료 유닛들이 커버하는 파트 슬러그 집합 (파트 단위 자동체크용). */
 export function class5DonePartSlugs(units: Array<{ type?: string; completed?: boolean }>): string[] {
@@ -84,8 +105,17 @@ class Class5Client {
 
   /** 해당 날짜의 전 학생 과제 목록(hw_list) — is_end/progress/std_user_idx 포함. */
   async fetchDateHomework(date: string): Promise<Class5Item[]> {
-    const res = await this.request(`/movie/reportHomeworkDate/${date}/0,1,2,3,4,5`);
+    const res = await this.request(`/movie/reportHomeworkDate/${date}/${HW_TYPES}`);
     return parseVar(await res.text(), "hw_list") as Class5Item[];
+  }
+
+  /**
+   * 학생 1명의 해당 날짜 과제 상세(user_hw_list) — 활동별 점수·카드별 정답 여부·학습시간 포함.
+   * 날짜 단위 hw_list에는 activity_list가 없어서, 품질 판정용으로 학생당 1회 더 조회한다.
+   */
+  async fetchStudentHomework(studentId: string, date: string): Promise<Class5UserItem[]> {
+    const res = await this.request(`/movie/reportHomework/${studentId}/${date}/${HW_TYPES}`);
+    return parseVar(await res.text(), "user_hw_list") as Class5UserItem[];
   }
 
   /** 학원 재원생 명단: std_user_idx → 이름 ([렉사일] 접두어 제거). */
@@ -109,6 +139,7 @@ class Class5Client {
 }
 
 type Class5Item = {
+  hw_idx?: string | number;
   std_user_idx?: string | number;
   is_end?: string | number;
   progress?: string | number;
@@ -119,6 +150,49 @@ type Class5Item = {
   grade?: string | number;
   last_ts?: string;      // 마지막 학습 시각 "2026-07-16 21:41:16" — 배정일 이후면 만회
 };
+
+// 학생별 상세(user_hw_list) — 활동·카드 단위 결과가 들어 있다
+type Class5Card = { try_cnt?: string | number; is_correct?: string | number };
+type Class5Activity = { activity?: string | number; score?: string | number; card_list?: Class5Card[] };
+type Class5UserItem = Class5Item & {
+  total_duration?: string | number;
+  is_clear?: boolean;
+  activity_list?: Class5Activity[];
+};
+
+/** 과제 1건의 상세 → 품질 지표. 채점하지 않는 활동(더빙 등)은 정답률 계산에서 뺀다. */
+function summarizeUserItem(it: Class5UserItem): Pick<Class5Unit, "cardFirstTry" | "durationSec" | "gameScore" | "allStepsDone" | "movieType" | "startHour" | "startAt" | "endAt"> {
+  const acts = it.activity_list ?? [];
+  // 정답 카드가 하나도 없는 활동 = 채점 대상이 아님(더빙·쉐도잉) → 제외하지 않으면 정답률이 부당하게 깎인다
+  const graded = acts.filter((a) => (a.card_list ?? []).some((c) => String(c.is_correct) === "1"));
+  const cards = graded.flatMap((a) => a.card_list ?? []);
+  const firstTry = cards.length
+    ? Math.round((100 * cards.filter((c) => String(c.try_cnt) === "1" && String(c.is_correct) === "1").length) / cards.length)
+    : undefined;
+  // 백분율 범위를 벗어나는 score는 게임 raw 점수
+  const gameScores = acts.map((a) => Number(a.score)).filter((n) => Number.isFinite(n) && n > 100);
+  const ts = norm(it.last_ts);
+  return {
+    cardFirstTry: firstTry,
+    durationSec: Number(it.total_duration) || undefined,
+    gameScore: gameScores.length ? Math.max(...gameScores) : undefined,
+    allStepsDone: it.is_clear === true || String(it.progress) === "100",
+    movieType: it.movie_type ? String(it.movie_type) : undefined,
+    startHour: ts.length >= 13 ? parseInt(ts.slice(11, 13), 10) : undefined,
+    ...timeRange(ts, Number(it.total_duration) || 0),
+  };
+}
+
+/** last_ts는 마지막 학습 시각(=종료). 소요시간을 빼면 시작 시각이 나온다. */
+function timeRange(lastTs: string, durationSec: number): { startAt?: string; endAt?: string } {
+  if (lastTs.length < 16) return {};
+  const endAt = lastTs.slice(11, 16);
+  if (durationSec <= 0) return { endAt };
+  const end = new Date(`${lastTs.slice(0, 10)}T${endAt}:00`);
+  if (Number.isNaN(end.getTime())) return { endAt };
+  const start = new Date(end.getTime() - durationSec * 1000);
+  return { startAt: `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`, endAt };
+}
 
 // 과거 배정일 1일치 판정 (만회 확인용)
 export type Class5PastDay = {
@@ -207,13 +281,27 @@ function statusOf(items: Class5Item[]): Class5Result["autoStatus"] {
   return started ? "진행중" : "시작전";
 }
 
-async function toUnits(items: Class5Item[]): Promise<Class5Unit[]> {
+async function toUnits(items: Class5Item[], detailByHw?: Map<string, Class5UserItem>): Promise<Class5Unit[]> {
   const catMap = await getCategoryMap();
-  return items.map((it) => ({
-    type: inferCategory(it, catMap),
-    unitLabel: unitLabelOf(it),
-    completed: String(it.is_end) === "1",
-  }));
+  return items.map((it) => {
+    const detail = detailByHw?.get(String(it.hw_idx ?? ""));
+    return {
+      type: inferCategory(it, catMap),
+      unitLabel: unitLabelOf(it),
+      completed: String(it.is_end) === "1",
+      ...(detail ? summarizeUserItem(detail) : {}),
+    };
+  });
+}
+
+/** 학생 상세 조회 → hw_idx 기준 맵. 실패해도 완료 판정에는 영향이 없으므로 조용히 빈 맵. */
+async function detailMap(client: Class5Client, studentId: string, date: string): Promise<Map<string, Class5UserItem>> {
+  try {
+    const items = await client.fetchStudentHomework(studentId, date);
+    return new Map(items.map((it) => [String(it.hw_idx ?? ""), it]));
+  } catch {
+    return new Map();
+  }
 }
 
 function nameMatch(roster: Map<string, string>, studentName: string): string {
@@ -247,9 +335,13 @@ export async function scrapeClass5ForStudent(
 
   const all = await client.fetchDateHomework(dateKst);
   const items = resolved ? all.filter((it) => String(it.std_user_idx) === resolved) : [];
+  // 활동·카드 단위 결과(품질 지표)는 학생별 상세에만 있다 → 학습 흔적이 있을 때만 1회 더 조회
+  const detail = resolved && items.some((it) => String(it.is_end) === "1" || String(it.progress ?? "0") !== "0")
+    ? await detailMap(client, resolved, dateKst)
+    : undefined;
   return {
     autoStatus: statusOf(items),
-    units: await toUnits(items),
+    units: await toUnits(items, detail),
     totalStudyMinutes: 0,
     matchedStudentId: resolved || undefined,
   };
@@ -277,11 +369,14 @@ export async function scrapeClass5All(
 
   const out: Array<{ studentId: string; name: string; autoStatus: Class5Result["autoStatus"]; units: Class5Unit[] }> = [];
   for (const [studentId, items] of byStudent) {
+    // 학습 흔적이 있는 학생만 상세를 추가 조회한다 (학생당 요청 1회 — 배정만 있고 안 한 학생은 생략)
+    const touched = items.some((it) => String(it.is_end) === "1" || String(it.progress ?? "0") !== "0");
+    const detail = touched ? await detailMap(client, studentId, dateKst) : undefined;
     out.push({
       studentId,
       name: roster.get(studentId) ?? "",
       autoStatus: statusOf(items),
-      units: await toUnits(items),
+      units: await toUnits(items, detail),
     });
   }
   return out;

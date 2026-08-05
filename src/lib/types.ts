@@ -79,6 +79,11 @@ export type AutoUnit = {
   points?: number | null;
   completed?: boolean;
   scores?: Record<string, number | string>;
+  /** 학습 시작·종료 시각 "HH:MM" (스크래퍼가 원본에서 보존) */
+  startAt?: string;
+  endAt?: string;
+  /** 클래스5 소요시간(초) */
+  durationSec?: number;
 };
 
 // 매일국어 "오늘의 학습" 지문 1개 상세 (지문코드·유형·정답률 등)
@@ -112,11 +117,30 @@ export type DailykorDetail = {
 // 어휘력 센터 완료 세트 (누적) — { category:"문학", sets:["08","09"] }
 export type DailykorVocaItem = { category: string; sets: string[] };
 
+/** 초등 매일국어 — 과목별 회차 결과 (중등의 detail.passages에 대응) */
+export type DailykorElementaryRound = {
+  date: string | null;
+  round: number | null;
+  subject: string;
+  wordStars: number | null;
+  bookStars: number | null;
+  testStars: number | null;
+  firstPoint: number | null;
+  reviewPoint: number | null;
+  reviewDate: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  wordScore?: number | null;
+  bookScore?: number | null;
+  testScore?: number | null;
+};
+
 export type AutoScrapedData = {
   source?: string;
   units?: AutoUnit[];
   totalStudyMinutes?: number;
   detail?: DailykorDetail | null;
+  elementary?: DailykorElementaryRound[] | null;
   voca?: DailykorVocaItem[] | null;
 };
 
