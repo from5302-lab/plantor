@@ -26,6 +26,7 @@ import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
+import { RewardHeader } from "./reward-header";
 
 // 자동 인증(Classcard 스크래핑)을 사용하는 서비스 slug 목록
 const AUTO_VERIFIED_SLUGS = new Set(["classcard-middle", "autovoca", "dailykor"]);
@@ -70,7 +71,7 @@ export function LearnDashboard({
   previewLoginId?: string;
 }) {
   const {
-    childId, childName, childGrade, childLoginId, studentPhone, subscriptions,
+    childId, childName, studentPhone, subscriptions,
     logs, setLogs, allLogs, setAllLogs,
     todayAttended, ready,
   } = useChildData({
@@ -305,15 +306,11 @@ export function LearnDashboard({
       }
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 90);
-      const displayId = childLoginId || `pln_${childId.slice(0, 4).toLowerCase()}`;
       await addDoc(collection(db, "learningLogs"), {
         childId, serviceSlug, date: todayStr(), method: "self", confirmedAt: serverTimestamp(),
         screenshotUrl: screenshotUrl ?? null,
         screenshotExpiresAt: screenshotUrl ? Timestamp.fromDate(expiresAt) : null,
-        grade: childGrade,
-        displayId,
         durationSeconds: durationSeconds > 0 ? durationSeconds : null,
-        reportCount: 0,
         flagged: false,
       });
     } catch (err) { alert(err instanceof Error ? err.message : "기록 중 오류가 발생했습니다."); }
@@ -480,6 +477,9 @@ export function LearnDashboard({
             <a href="/account" className="text-xs font-semibold text-p-green no-underline shrink-0">로그인 →</a>
           </div>
         )}
+
+        {/* 리워드 — 레벨·XP·포인트·뱃지 (첫 화면 최상단) */}
+        <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
 
         {/* 날짜 헤더 */}
         <div className="mb-8">

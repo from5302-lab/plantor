@@ -44,7 +44,6 @@ export async function writeAutoLog(params: {
     scrapedData: scrapedData ?? null,
     confirmedAt: FieldValue.serverTimestamp(),
     flagged: false,
-    reportCount: 0,
   });
   return "created";
 }
