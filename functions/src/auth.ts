@@ -186,6 +186,10 @@ export const approveSignup = onCall(
       subsByChildAndSlug: Map<string, FirebaseFirestore.QueryDocumentSnapshot>;
     } | null = null;
 
+    // 보안 규칙이 "내 가족"을 판정하는 기준 — users.familyId 로 비정규화해 둔다.
+    // (규칙은 쿼리를 못 하므로 uid로 바로 get 할 수 있어야 한다)
+    batch.set(db.collection("users").doc(parentUid), { familyId }, { merge: true });
+
     for (const child of childAuthUids) {
       // users 문서 (child)
       batch.set(db.collection("users").doc(child.uid), {
@@ -194,6 +198,7 @@ export const approveSignup = onCall(
         role: "student",
         grade: child.grade,
         parentUid,
+        familyId,
         selectedServices: child.selectedServices,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
@@ -529,6 +534,7 @@ export const createChildAccount = onCall(async (request) => {
     role: "student",
     grade,
     parentUid,
+    familyId,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 
