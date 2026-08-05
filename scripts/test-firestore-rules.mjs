@@ -44,6 +44,29 @@ const tc = (name, expectation, uid, path, resourceFamily, mocks, token = {}) => 
   resource: resourceFamily ? { data: { familyId: resourceFamily } } : undefined,
 });
 
+/**
+ * 목록 조회(list) 케이스 — **resource 를 주지 않는다.**
+ *
+ * 실제 list 는 문서 내용을 읽지 못하고, 규칙이 쿼리 제약만으로 증명돼야 통과한다.
+ * 여기에 resource 를 넣으면 통과한다고 잘못 나온다(2026-08-05 장애 때 그렇게 오진했다).
+ * 그래서 "문서를 모를 때 막히는가"만 확인한다 — 안전한 방향의 검증이다.
+ *
+ * 경로는 컬렉션이 아니라 **문서 패턴**(children/c1)을 준다.
+ * 컬렉션 경로를 주면 match /children/{childId} 에 걸리지 않고 맨 아래 catch-all 로 떨어져
+ * 엉뚱한 이유로 DENY 가 나온다.
+ */
+const listTc = (name, expectation, uid, path, mocks, token = {}) => ({
+  _name: name,
+  expectation,
+  request: {
+    auth: { uid, token: { email: `${uid}@plantor.app`, ...token } },
+    path: DOC(path),
+    method: "list",
+    time: new Date().toISOString(),
+  },
+  functionMocks: mocks,
+});
+
 const cases = [
   tc("학생 → 내 가족 자녀", "ALLOW", STUDENT, "children/c1", MYFAM, [userMock(STUDENT, MYFAM)]),
   tc("학생 → 남의 자녀", "DENY", STUDENT, "children/c9", OTHERFAM, [userMock(STUDENT, MYFAM)]),
@@ -54,6 +77,16 @@ const cases = [
   tc("학생 → 남의 자녀 리워드(하위)", "DENY", STUDENT, "children/c9/stats/summary", null,
      [userMock(STUDENT, MYFAM), childMock("c9", OTHERFAM)]),
   tc("운영자 → 남의 자녀", "ALLOW", ADMIN, "children/c9", OTHERFAM,
+     [userMock(ADMIN, null, "admin")], { admin: true }),
+
+  // ── 목록 조회 ────────────────────────────────────────────────────────────
+  // 좁히지 않은 children 목록 조회는 일반 사용자에게 막혀야 한다.
+  // (클라이언트는 반드시 where("familyId","==",내 familyId) 로 좁힌다)
+  listTc("학생 → children 목록(안 좁힘)", "DENY", STUDENT, "children/c1",
+     [userMock(STUDENT, MYFAM)]),
+  listTc("학부모 → children 목록(안 좁힘)", "DENY", PARENT, "children/c1",
+     [userMock(PARENT, MYFAM, "parent")]),
+  listTc("운영자 → children 목록", "ALLOW", ADMIN, "children/c1",
      [userMock(ADMIN, null, "admin")], { admin: true }),
 ];
 

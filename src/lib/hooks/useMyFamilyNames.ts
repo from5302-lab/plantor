@@ -33,6 +33,8 @@ export function useMyFamilyNames(uid: string | null, isAdmin = false): Map<strin
 
         const userSnap = await getDoc(doc(db, "users", uid));
         const plantorId = String(userSnap.data()?.plantor_id ?? "").toLowerCase();
+        // 규칙의 list 는 쿼리 제약으로만 증명된다 → children 조회는 언제나 familyId 로 좁힌다
+        const myFamilyId = (userSnap.data()?.familyId as string | undefined) ?? null;
 
         // 학부모: families.userId 또는 families.parentId 로 가족을 찾는다
         let familyId: string | null = null;
@@ -43,11 +45,8 @@ export function useMyFamilyNames(uid: string | null, isAdmin = false): Map<strin
           if (!byParent.empty) familyId = byParent.docs[0].id;
         }
 
-        // 학생: 본인 children 문서에서 familyId 를 얻는다 (형제도 같은 familyId)
-        if (!familyId && plantorId) {
-          const me = await getDocs(query(collection(db, "children"), where("loginId", "==", plantorId)));
-          if (!me.empty) familyId = String(me.docs[0].data().familyId ?? "") || null;
-        }
+        // 학생: users 문서에 비정규화된 familyId 를 쓴다 (형제도 같은 familyId)
+        if (!familyId) familyId = myFamilyId;
         if (!familyId || !alive) return;
 
         const kids = await getDocs(query(collection(db, "children"), where("familyId", "==", familyId)));

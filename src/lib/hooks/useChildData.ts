@@ -85,15 +85,25 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
     }
     let unsubChild: (() => void) | undefined;
     getDoc(doc(db, "users", userId)).then((userSnap) => {
-      let plantorId = userSnap.data()?.plantor_id as string | undefined;
+      const me = userSnap.data();
+      let plantorId = (me?.plantor_id as string | undefined)?.toLowerCase();
       if (!plantorId && userEmail?.endsWith("@plantor.app")) {
-        plantorId = userEmail.replace("@plantor.app", "");
+        plantorId = userEmail.replace("@plantor.app", "").toLowerCase();
       }
-      if (!plantorId) { setReady(true); return; }
-      const q = query(collection(db, "children"), where("loginId", "==", plantorId));
+      const familyId = me?.familyId as string | undefined;
+      if (!plantorId || !familyId) {
+        // familyId 가 없으면 규칙상 children 을 못 읽는다(계정 생성 때 넣어준다).
+        if (plantorId && !familyId) console.warn("[useChildData] users 문서에 familyId 가 없습니다", userId);
+        setReady(true);
+        return;
+      }
+      // 보안 규칙의 list 는 문서를 못 읽고 **쿼리 제약으로만** 통과 여부가 정해진다.
+      // 그래서 loginId 가 아니라 familyId 로 좁혀 조회하고, 내 문서는 받아온 뒤에 고른다.
+      // (2026-08-05: loginId 로 조회하던 탓에 규칙을 조이자 학생 과제 페이지가 통째로 막혔다)
+      const q = query(collection(db, "children"), where("familyId", "==", familyId));
       unsubChild = onSnapshot(q, (snap) => {
-        if (!snap.empty) {
-          const d = snap.docs[0];
+        const d = snap.docs.find((x) => String(x.data().loginId ?? "").toLowerCase() === plantorId);
+        if (d) {
           setChildId(d.id);
           setChildName(d.data().name ?? "");
           setChildGrade(d.data().grade ?? "");
