@@ -86,15 +86,34 @@ function parseScoreCell(text: string): { label: string; value: number | string }
   return { label: t, value: t };
 }
 
-// "2026-07-05 00:00" ~ "2026-07-05 00:11" → 11(분). 자정 넘김/파싱불가 시 0.
-function minutesBetween(start: string, end: string): number {
-  const p = (s: string) => {
-    const m = /(\d{2}):(\d{2})/.exec(s);
-    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
-  };
-  const a = p(start); const b = p(end);
-  if (a == null || b == null || !start.slice(0, 10) || start.slice(0, 10) !== end.slice(0, 10)) return 0;
-  return Math.max(0, b - a);
+/** "2026-07-05 00:11" → { date: "2026-07-05", hhmm: "00:11" }. 형식이 아니면 null. */
+function stamp(s: string): { date: string; hhmm: string } | null {
+  const d = /^(\d{4}-\d{2}-\d{2})/.exec(s ?? "");
+  const t = /(\d{1,2}):(\d{2})/.exec(s ?? "");
+  if (!d || !t) return null;
+  const h = parseInt(t[1], 10); const mi = parseInt(t[2], 10);
+  if (h > 23 || mi > 59) return null;
+  return { date: d[1], hhmm: `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}` };
+}
+
+/**
+ * 리포트의 학습시작·학습종료를 그날 기준으로 정리한다.
+ *
+ * 리포트가 두 값을 뒤집어 주는 경우가 있어(끝이 시작보다 빠름) 이른 쪽을 시작으로 세운다.
+ * 그날이 아닌 값은 버린다 — 다른 날 시각을 오늘 시계로 읽으면 "21:40 ~ 19:54"가 만들어진다.
+ */
+export function unitSpan(start: string, end: string, dateKst: string): {
+  startAt?: string; endAt?: string; minutes: number;
+} {
+  const a = stamp(start); const b = stamp(end);
+  const times = [a, b]
+    .filter((x): x is { date: string; hhmm: string } => x?.date === dateKst)
+    .map((x) => x.hhmm)
+    .sort();
+  if (!times.length) return { minutes: 0 };
+  if (times.length === 1) return { startAt: times[0], minutes: 0 };
+  const toMin = (v: string) => parseInt(v.slice(0, 2), 10) * 60 + parseInt(v.slice(3), 10);
+  return { startAt: times[0], endAt: times[1], minutes: toMin(times[1]) - toMin(times[0]) };
 }
 
 // 반 명단 1명 (오늘 활동 있으면 units 포함)
@@ -248,6 +267,7 @@ class ClasscardClient {
       if (!loginId) continue;
       const start = String(row[cStart] ?? ""); const end = String(row[cEnd] ?? "");
       if (!start.startsWith(dateKst) && !end.startsWith(dateKst)) continue; // 오늘만
+      const span = unitSpan(start, end, dateKst);
       const scores: Record<string, number | string> = {};
       row.forEach((cell, i) => {
         if (knownCols.has(i)) return;
@@ -258,14 +278,14 @@ class ClasscardClient {
       entry.units.push({
         type: typeLabel,
         unitLabel: String(row[cUnit] ?? typeLabel).trim() || typeLabel,
-        studyMinutes: minutesBetween(start, end),
+        studyMinutes: span.minutes,
         avgScore: null,
         completed: true, // 오늘 학습 흔적 = 완료(점수 무관)
         scores,
-        startHour: /(\d{2}):(\d{2})/.test(start) ? parseInt(/(\d{2}):(\d{2})/.exec(start)![1], 10) : undefined,
+        startHour: span.startAt ? parseInt(span.startAt.slice(0, 2), 10) : undefined,
         // 분까지 살린다 — 예전엔 시(hour)만 남겨 '몇 시에 시작해 몇 시에 끝났나'를 못 보여줬다
-        startAt: (/(\d{2}:\d{2})/.exec(start) ?? [])[1],
-        endAt: (/(\d{2}:\d{2})/.exec(end) ?? [])[1],
+        startAt: span.startAt,
+        endAt: span.endAt,
       });
       byId.set(loginId, entry);
     }

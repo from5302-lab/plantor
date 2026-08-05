@@ -45,4 +45,15 @@ export const SERVICE_META: Record<string, { name: string; icon: string }> = {
 };
 
 export const db = admin.firestore();
+
+/**
+ * undefined 필드는 무시하고 저장한다.
+ *
+ * 기본값에서는 값 하나가 undefined 이기만 해도 **그 문서 쓰기 전체가 거부된다.**
+ * 스크래퍼는 파트너 사이트 응답에서 값을 뽑아오므로 어떤 필드든 빌 수 있고,
+ * 실제로 2026-08-05 에 `accuracy.mem` / `startAt` 이 undefined 라는 이유로
+ * 학생 학습로그가 통째로 저장되지 않아 "진도 자동 확인 실패"가 두 번 발생했다.
+ * undefined = "값 없음" 이므로 키를 빼고 저장하는 편이 옳다.
+ */
+db.settings({ ignoreUndefinedProperties: true });
 export const auth = admin.auth();

@@ -261,15 +261,14 @@ function extractToday(weekly: any, dateKst: string): AutovocaResult {
         const startHour = unitStart ? new Date(new Date(unitStart).getTime() + 9 * 3600 * 1000).getUTCHours() : undefined;
         const { startAt, endAt } = unitTimes(unitStart, unitEnd, duration, dateKst);
 
+        // 값이 없는 필드(빈 단어 리스트의 accuracy, 그날이 아닌 startAt 등)는 undefined 로 두고,
+        // 저장 단계에서 키가 빠진다 (config.ts 의 ignoreUndefinedProperties).
         units.push({
           unitLabel, studyMinutes: minutes, testScore, wrongReviewCount, points, completed,
           testScores: tsl.length ? tsl : undefined,
           accuracy,
           pointsByActivity: Object.keys(pointsByActivity).length ? pointsByActivity : undefined,
-          startHour,
-          // Firestore 는 undefined 를 거부한다 — 그날 시각이 아니면 키 자체를 넣지 않는다
-          ...(startAt ? { startAt } : {}),
-          ...(endAt ? { endAt } : {}),
+          startHour, startAt, endAt,
           bookLabel: unit?.book_short_name ? String(unit.book_short_name) : undefined,
           isReview: /리뷰/.test(String(unit?.report_name ?? "")),
           hardWordCleared: hasHardWin([jd.mem_list, jd.write_list, jd.speak_list, jd.check_list]),
