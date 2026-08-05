@@ -72,6 +72,13 @@ service cloud.firestore {
     match /children/{childId} {
       allow read: if request.auth != null;
       allow write: if isAdmin();
+
+      // 리워드 하위 컬렉션(xpLedger·badges·inventory·stats): 읽기는 로그인 사용자,
+      // 쓰기는 서버(콜러블/배치)만 — 포인트·XP를 클라이언트가 못 건드리게 한다.
+      match /{sub=**} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
     }
     match /subscriptions/{subscriptionId} {
       allow read: if request.auth != null;
@@ -79,23 +86,30 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
-    // learningLogs: 누구나 읽기 (공개 피드), 학생 본인 생성, 운영자 전체
+    // learningLogs: 로그인 회원만 읽기, 학생 본인 생성, 운영자 전체
+    //   scrapedData에 전 과목 상세 점수가 들어 있어 공개 읽기를 닫았다.
+    //   공개 피드는 feedEvents(표시용 값만 비정규화)가 대신한다.
     // ─────────────────────────────────────────────────────────
     match /learningLogs/{logId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow write: if isAdmin();
     }
 
     // ─────────────────────────────────────────────────────────
-    // feedReports: 로그인 회원만 신고 생성, 1인 1신고는 프론트에서 관리
+    // feedEvents: 리워드 자랑 피드. 읽기는 누구나, 생성은 서버(리워드 엔진)만.
+    //   엄지척은 문서 ID를 uid로 고정해 1인 1회를 규칙으로 강제한다
+    //   (개수 집계는 onFeedLike/onFeedUnlike가 한다 — 클라이언트는 못 건드림).
     // ─────────────────────────────────────────────────────────
-    match /feedReports/{reportId} {
-      allow create: if request.auth != null
-        && request.resource.data.reporterUid == request.auth.uid
-        && request.resource.data.logId is string;
-      allow read: if request.auth != null;
+    match /feedEvents/{eventId} {
+      allow read: if true;
       allow write: if isAdmin();
+
+      match /likes/{uid} {
+        allow read: if request.auth != null;
+        allow create, delete: if request.auth != null && request.auth.uid == uid;
+        allow update: if false;
+      }
     }
 
     // ─────────────────────────────────────────────────────────
