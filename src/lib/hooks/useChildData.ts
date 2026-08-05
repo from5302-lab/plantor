@@ -171,11 +171,19 @@ export function useChildData({ userId, userEmail, isDemo = false, previewChildId
     );
   }, [childId, isDemo]);
 
-  // 4) 전체 로그 (스트릭용)
+  // 4) 스트릭 계산용 로그 — 최근 1년치만.
+  // 스트릭은 오늘부터 거꾸로 연속된 날짜만 세므로(calcStreak) 그 이전 로그는 결과에 영향이 없다.
+  // 전체를 받으면 학생·기간이 늘수록 화면 열 때마다 읽기가 무한히 늘어난다.
   useEffect(() => {
     if (isDemo || !childId) return;
+    const from = new Date();
+    from.setDate(from.getDate() - 365);
     return onSnapshot(
-      query(collection(db, "learningLogs"), where("childId", "==", childId)),
+      query(
+        collection(db, "learningLogs"),
+        where("childId", "==", childId),
+        where("date", ">=", from.toLocaleDateString("sv-SE")),
+      ),
       (snap) => setAllLogs(snap.docs.map((d) => ({
         id: d.id,
         serviceSlug: d.data().serviceSlug ?? "",

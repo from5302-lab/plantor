@@ -166,11 +166,18 @@ export function StudentLearningGrid({
     setAutoRunning(false);
   }
 
-  // 자동인증 로그 구독 (스크래핑 결과) — childId 단일 조회 후 주간은 렌더에서 필터.
-  // (범위 쿼리는 인덱스 미존재 시 onSnapshot이 조용히 실패하는 버그가 있어 taskChecks와 동일 패턴 유지)
+  // 자동인증 로그 구독 — **보고 있는 주간만** 조회한다.
+  // 예전엔 childId 전체를 받아 렌더에서 걸렀는데, 로그가 쌓이면 화면 한 번 열 때마다
+  // 그 학생의 평생 로그를 전부 읽어(=Firestore 읽기 폭증) 비용이 학생·기간에 비례해 늘었다.
+  // 복합 인덱스(learningLogs: childId+date)를 만들어 뒀으므로 범위 쿼리가 안전하다.
   useEffect(() => {
     return onSnapshot(
-      query(collection(db, "learningLogs"), where("childId", "==", childId)),
+      query(
+        collection(db, "learningLogs"),
+        where("childId", "==", childId),
+        where("date", ">=", weekDates[0]),
+        where("date", "<=", weekDates[6]),
+      ),
       (snap) => {
         const map: Record<string, Record<string, LearningLog>> = {};
         snap.forEach((d) => {
@@ -185,7 +192,8 @@ export function StudentLearningGrid({
         setAutoLogs(map);
       }
     );
-  }, [childId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId, weekDates[0], weekDates[6]]);
 
   // tasks 구독
   useEffect(() => {

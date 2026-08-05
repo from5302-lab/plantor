@@ -7,11 +7,17 @@ import type { Child, Subscription, WeeklyLog } from "@/lib/types";
 import { tsToDate } from "@/lib/format";
 import { getWeekDates } from "@/lib/learn-utils";
 
-/** familyId로 자녀 목록, 구독, 주간 학습 로그를 실시간으로 가져온다. */
+/** 완료 판정용 최소 필드 (확정 과제 / 과제 체크) */
+export type DayTask = { id: string; childId: string; scheduleDays: number[] };
+export type DayCheck = { childId: string; taskId: string; date: string; status: string };
+
+/** familyId로 자녀 목록, 구독, 주간 학습 로그, 확정 과제·체크를 실시간으로 가져온다. */
 export function useFamilyData(familyId: string | null, weekOffset = 0) {
   const [children, setChildren] = useState<Child[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [weeklyLogs, setWeeklyLogs] = useState<WeeklyLog[]>([]);
+  const [tasks, setTasks] = useState<DayTask[]>([]);
+  const [checks, setChecks] = useState<DayCheck[]>([]);
 
   useEffect(() => {
     if (!familyId) return;
@@ -53,15 +59,16 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
     if (!familyId || children.length === 0) return;
     const childIds = children.map((c) => c.id);
     const weekDates = getWeekDates(weekOffset);
-    // 복합 인덱스(childId in + date범위) 회피: childId in 만으로 구독하고 주간은 콜백에서 필터.
-    // (범위 쿼리는 인덱스 미존재 시 onSnapshot이 조용히 실패해 로그가 통째로 안 뜨는 버그)
+    // 그 주간만 조회한다. 전체를 받아 걸러내면 로그가 쌓일수록 읽기가 무한히 늘어난다.
+    // 복합 인덱스(learningLogs: childId+date)가 있으므로 범위 쿼리가 안전하다.
     return onSnapshot(
-      query(collection(db, "learningLogs"), where("childId", "in", childIds)),
+      query(
+        collection(db, "learningLogs"),
+        where("childId", "in", childIds),
+        where("date", ">=", weekDates[0]),
+        where("date", "<=", weekDates[6]),
+      ),
       (snap) => setWeeklyLogs(snap.docs
-        .filter((d) => {
-          const date = d.data().date ?? "";
-          return date >= weekDates[0] && date <= weekDates[6];
-        })
         .map((d) => ({
           id: d.id,
           childId: d.data().childId ?? "",
@@ -75,5 +82,42 @@ export function useFamilyData(familyId: string | null, weekOffset = 0) {
     );
   }, [familyId, children, weekOffset]);
 
-  return { children, subscriptions, weeklyLogs };
+  // 확정 과제 — 복합 인덱스 회피: childId in 만으로 구독하고 status는 콜백에서 필터
+  useEffect(() => {
+    if (!familyId || children.length === 0) return;
+    const childIds = children.map((c) => c.id);
+    return onSnapshot(
+      query(collection(db, "tasks"), where("childId", "in", childIds)),
+      (snap) => setTasks(snap.docs
+        .filter((d) => d.data().status === "confirmed")
+        .map((d) => ({
+          id: d.id,
+          childId: d.data().childId ?? "",
+          scheduleDays: d.data().scheduleDays ?? [],
+        })))
+    );
+  }, [familyId, children]);
+
+  // 과제 체크 — 주간 범위는 콜백에서 필터 (learningLogs와 동일 패턴)
+  useEffect(() => {
+    if (!familyId || children.length === 0) return;
+    const childIds = children.map((c) => c.id);
+    const weekDates = getWeekDates(weekOffset);
+    return onSnapshot(
+      query(collection(db, "taskChecks"), where("childId", "in", childIds)),
+      (snap) => setChecks(snap.docs
+        .filter((d) => {
+          const date = d.data().date ?? "";
+          return date >= weekDates[0] && date <= weekDates[6];
+        })
+        .map((d) => ({
+          childId: d.data().childId ?? "",
+          taskId: d.data().taskId ?? "",
+          date: d.data().date ?? "",
+          status: d.data().status ?? "",
+        })))
+    );
+  }, [familyId, children, weekOffset]);
+
+  return { children, subscriptions, weeklyLogs, tasks, checks };
 }
