@@ -401,6 +401,19 @@ function fillTemplate(
   );
 }
 
+/** 오늘 날짜(KST) "YYYY-MM-DD" */
+function todayKst(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// 만료월(ym="YYYY-MM") 기준 앵커 날짜 문자열. 해당 월에 그 날이 없으면 말일로 클램프.
+function monthAnchor(ym: string, day: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const d = Math.min(day, lastDay);
+  return `${ym}-${String(d).padStart(2, "0")}`;
+}
+
 // ─── 1:1 수업 만료 안내 공통 로직 ───────────────────────────────────────────────
 
 const DIRECT_CLASS_FALLBACK = [
@@ -422,24 +435,35 @@ export async function sendDirectClassExpiryNotice(
   apiKey: string,
   apiSecret: string
 ) {
-  const now = new Date();
-  const from = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-  const to   = new Date(now.getTime() + (daysAhead + 1) * 24 * 60 * 60 * 1000);
+  // 오늘(KST) + daysAhead 날짜 문자열
+  const KST_OFFSET = 9 * 60 * 60 * 1000;
+  const nowKst = new Date(Date.now() + KST_OFFSET);
+  const targetStr = new Date(
+    Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate() + daysAhead)
+  ).toISOString().slice(0, 10);
 
-  const fromStr = from.toISOString().slice(0, 10);
-  const toStr   = to.toISOString().slice(0, 10);
-
+  // status만 필터 후 코드에서 날짜 매칭 (만료월 30일 앵커 지원)
   const snap = await db.collection("directClasses")
     .where("status", "==", "active")
-    .where("expiry", ">=", fromStr)
-    .where("expiry", "<",  toStr)
     .get();
 
-  if (snap.empty) return;
+  const matchingDocs = snap.docs.filter((doc) => {
+    const expiry = doc.data().expiry as string | undefined;
+    if (!expiry) return false;
+    const ym = expiry.slice(0, 7); // "YYYY-MM"
+    // 2026-08 이상 만료: 구독과 동일하게 만료월 25일 기준 (신청 마감일과 통일)
+    if (ym >= "2026-08") {
+      return monthAnchor(ym, 25) === targetStr;
+    }
+    // 2026-07 이하 만료: 기존(실제 expiry) 기준 유지
+    return expiry === targetStr;
+  });
+
+  if (matchingDocs.length === 0) return;
 
   const tpl = await loadTemplate(`directClass_d${daysAhead}`, DIRECT_CLASS_FALLBACK);
 
-  for (const doc of snap.docs) {
+  for (const doc of matchingDocs) {
     try {
       const cls = doc.data();
       const students: Array<{ parentPhone?: string; name?: string }> = cls.students ?? [];
@@ -490,7 +514,20 @@ export const notifyExpiringDirectClassD3 = onSchedule(
 export const notifyExpiringDirectClassD0 = onSchedule(
   { schedule: "0 2 * * *", timeZone: "UTC", secrets: [solapiApiKey, solapiApiSecret] },
   async () => {
+    // 2026-07-31 만료분은 7/30에 추가 안내를 이미 보냈으므로 이틀 연속 수신 방지
+    if (todayKst() === "2026-07-31") return;
     await sendDirectClassExpiryNotice(0, solapiApiKey.value(), solapiApiSecret.value());
+  }
+);
+
+// ─── [일회성] 2026-07-30 — 7/31 만료자 추가 안내 (구독 + 1:1) ────────────────
+// 사용자 요청으로 이번 달만 30일에 한 번 더 발송. 대신 7/31 D-0은 위에서 건너뛴다.
+export const notifyExpiring20260730 = onSchedule(
+  { schedule: "0 2 30 7 *", timeZone: "UTC", secrets: [solapiApiKey, solapiApiSecret] },
+  async () => {
+    if (todayKst() !== "2026-07-30") return; // 다음 해 재실행 방지
+    await sendSubscriptionExpiryNotice(1, solapiApiKey.value(), solapiApiSecret.value());
+    await sendDirectClassExpiryNotice(1, solapiApiKey.value(), solapiApiSecret.value());
   }
 );
 
@@ -531,9 +568,16 @@ export async function sendSubscriptionExpiryNotice(
     .get();
 
   const matching = allActive.docs.filter((d) => {
-    const ed = d.data().endDate;
+    const data = d.data();
+    const ed = data.endDate;
     if (!ed?.toDate) return false;
     const edKstStr = new Date(ed.toDate().getTime() + KST_OFFSET).toISOString().slice(0, 10);
+    const ym = edKstStr.slice(0, 7); // "YYYY-MM"
+    // 2026-08 이상 만료: 신청 마감(매달 25일)에 맞춰 만료월 25일 기준 — 1:1 포함 전 서비스 동일
+    if (ym >= "2026-08") {
+      return monthAnchor(ym, 25) === targetStr;
+    }
+    // 2026-07 이하 만료: 기존(실제 만료일) 기준 유지
     return edKstStr === targetStr;
   });
 
@@ -646,6 +690,8 @@ export const notifyExpiringSubscriptionD3 = onSchedule(
 export const notifyExpiringSubscriptionD0 = onSchedule(
   { schedule: "0 2 * * *", timeZone: "UTC", secrets: [solapiApiKey, solapiApiSecret] },
   async () => {
+    // 2026-07-31 만료분은 7/30에 추가 안내를 이미 보냈으므로 이틀 연속 수신 방지
+    if (todayKst() === "2026-07-31") return;
     await sendSubscriptionExpiryNotice(0, solapiApiKey.value(), solapiApiSecret.value());
   }
 );
