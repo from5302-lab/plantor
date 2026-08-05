@@ -19,4 +19,4 @@ export { autoVerifyScheduled, runAutoVerifyNow } from "./auto-verify-batch";
 export { onTaskCheckWritten } from "./completion-notify";
 export { gradeWriting } from "./writing";
 export { class5Library } from "./class5-proxy";
-export { purchaseShopItem, equipAvatarItem, markBadgesSeen, setRewardNickname, setFeedOptOut } from "./rewards-api";
+export { purchaseShopItem, equipAvatarItem, markBadgesSeen, setFeedOptOut } from "./rewards-api";

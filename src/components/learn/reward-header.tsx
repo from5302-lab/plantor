@@ -94,7 +94,7 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
       {queue.length > 0 && (
         <BadgeDiscoveryModal
           codes={queue}
-          name={childName || state.displayName || "플랜토"}
+          name={childName || "플랜토"}
           grade={state.grade}
           title={state.title.name}
           level={state.level}

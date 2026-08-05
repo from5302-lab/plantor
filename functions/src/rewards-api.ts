@@ -5,7 +5,7 @@ import { db } from "./config";
 import { DEFAULT_ITEMS, SHOP_BY_ID, levelFromXp } from "./rewards-config";
 import { recordPurchaseFeed } from "./feed-events";
 
-// 학생이 직접 호출하는 리워드 API — 구매·착용·뱃지 확인·닉네임.
+// 학생이 직접 호출하는 리워드 API — 구매·착용·뱃지 확인·피드 공개 설정.
 // 포인트 차감은 클라이언트를 믿을 수 없으므로 전부 서버에서 처리한다.
 
 /** 호출자 → 본인 children 문서. 남의 계정은 건드릴 수 없다. */
@@ -122,14 +122,4 @@ export const markBadgesSeen = onCall(async (request) => {
   }
   await batch.commit();
   return { result: "ok", count: codes.length };
-});
-
-/** 공유 카드에 쓸 닉네임. 실명은 카드에 절대 노출하지 않으므로 별도로 받는다. */
-export const setRewardNickname = onCall(async (request) => {
-  const { nickname } = (request.data ?? {}) as { nickname?: string };
-  const clean = String(nickname ?? "").trim().slice(0, 12);
-  if (clean.length < 1) throw new HttpsError("invalid-argument", "닉네임을 입력해 주세요.");
-  const childDoc = await resolveChild(request.auth as never);
-  await childDoc.ref.set({ displayName: clean }, { merge: true });
-  return { result: "ok", displayName: clean };
 });
