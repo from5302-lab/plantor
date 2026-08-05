@@ -14,7 +14,6 @@ export function Navbar() {
   const isNote = pathname?.startsWith("/note");
   const isVault = pathname?.startsWith("/vault");
 
-  if (isVault) return null;
   const [showAuth, setShowAuth] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -28,6 +27,11 @@ export function Navbar() {
       return () => { document.body.style.overflow = ""; };
     }
   }, [menuOpen]);
+
+  // 금고는 자체 상단바를 쓴다.
+  // 이 반환은 반드시 훅 **뒤에** 와야 한다 — 앞에 두면 /vault 를 드나들 때
+  // 렌더마다 훅 개수가 달라져 React 가 상태를 어긋나게 읽는다.
+  if (isVault) return null;
 
   return (
     <>

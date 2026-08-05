@@ -665,15 +665,6 @@ function AiPackageStatusBadge({ familyId, userId, endDate }: { familyId: string;
 
 function AiPackageRow({ familyId, userId, endDate }: { familyId: string; userId: string | null; endDate?: string }) {
   if (!endDate) return null;
-  const [deleting, setDeleting] = useState(false);
-  async function handleDelete() {
-    if (!confirm("Mom& AI 패키지를 삭제하시겠습니까?")) return;
-    setDeleting(true);
-    try {
-      await updateDoc(doc(db, "families", familyId), { aiPackageEndDate: null });
-      if (userId) await updateDoc(doc(db, "users", userId), { aiPackageEndDate: null });
-    } catch (err) { alert(err instanceof Error ? err.message : "삭제 오류"); setDeleting(false); }
-  }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto 24px", alignItems: "center", gap: 8 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#615d59", overflow: "hidden" }}>
