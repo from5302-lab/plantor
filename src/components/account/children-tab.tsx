@@ -11,7 +11,6 @@ import { ServiceIcon } from "@/components/ui/service-icon";
 import { REASONS_6HDL, ONE_ON_ONE_PREFIX } from "@/lib/types";
 import type { Child, Subscription, WalletCoupon, TaskCheck } from "@/lib/types";
 import type { RenewalTarget } from "./renewal-modal";
-import { StudentWeekJournal, type JournalStudent } from "./direct-journal-panel";
 import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 
 function tsToDate(ts: unknown): Date | null {
@@ -74,7 +73,6 @@ interface ChildrenSectionProps {
   userId: string;
   userName: string | null;
   walletCoupons: WalletCoupon[];
-  journalStudents: JournalStudent[];
 }
 
 export function ChildrenSection({
@@ -86,7 +84,6 @@ export function ChildrenSection({
   userId,
   userName,
   walletCoupons,
-  journalStudents,
 }: ChildrenSectionProps) {
   // 체크 실시간 구독 (6Hdl 사유 통계용 — 주간 그리드는 공용 StudentLearningGrid가 자체 구독)
   const [taskChecks, setTaskChecks] = useState<TaskCheck[]>([]);
@@ -124,7 +121,6 @@ export function ChildrenSection({
       <div className="flex flex-col gap-3">
         {childList.map((child) => {
           const childSubs = subscriptions.filter((s) => s.childId === child.id);
-          const childJournal = journalStudents.find((s) => s.studentName === child.name);
           const childChecks = taskChecks.filter(c => c.childId === child.id);
 
           // 6Hdl 사유 통계
@@ -157,13 +153,6 @@ export function ChildrenSection({
                   readOnly
                 />
               </div>
-
-              {/* 수업일지 (직강 자녀만 — 일지가 있을 때) */}
-              {childJournal && childJournal.logs.length > 0 && (
-                <div className="mb-3.5">
-                  <StudentWeekJournal logs={childJournal.logs} />
-                </div>
-              )}
 
               {/* 6Hdl 사유 분석 */}
               {weekReasons.length > 0 && (

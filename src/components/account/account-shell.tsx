@@ -18,7 +18,6 @@ import { LoginPrompt } from "@/components/ui/login-prompt";
 import { PageWrap } from "@/components/ui/page-wrap";
 import { RenewalModal } from "./renewal-modal";
 import { ChildrenSection } from "./children-tab";
-import { DirectJournalPanel, type JournalStudent } from "./direct-journal-panel";
 import type { RenewalTarget } from "./renewal-modal";
 import type { WalletCoupon } from "@/lib/types";
 import { useServices } from "@/lib/services-context";
@@ -52,17 +51,6 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   const { children, subscriptions, tasks, checks } = useFamilyData(familyId);
   const [renewalTarget, setRenewalTarget] = useState<RenewalTarget | null>(null);
   const [walletCoupons, setWalletCoupons] = useState<WalletCoupon[]>([]);
-  const [journalStudents, setJournalStudents] = useState<JournalStudent[]>([]);
-
-  // 직강 수업일지 — 본인(또는 미리보기 대상)의 직강 자녀 일지 (콜러블, lessonLogs는 어드민 전용)
-  useEffect(() => {
-    let cancelled = false;
-    const fn = httpsCallable<{ targetUid?: string; targetPlantorId?: string }, { students: JournalStudent[] }>(functions, "getParentLessonLogs");
-    fn(previewLoginId ? { targetPlantorId: previewLoginId } : previewUid ? { targetUid: previewUid } : {})
-      .then((r) => { if (!cancelled) setJournalStudents(r.data.students); })
-      .catch(() => { if (!cancelled) setJournalStudents([]); });
-    return () => { cancelled = true; };
-  }, [previewUid, previewLoginId]);
 
   useEffect(() => {
     if (!familyId) return;
@@ -80,12 +68,10 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
   if (!familyLoaded) return <CenterMsg>불러오는 중…</CenterMsg>;
 
   if (!familyId) {
-    // 직강 전용 학부모(구독 가족 없음): 직강 수업일지만 표시. 직강도 없으면 신청 안내.
     return (
       <PageWrap>
         <div className="max-w-[640px] mx-auto">
-          <DirectJournalPanel students={journalStudents} />
-          {journalStudents.length === 0 && (
+          {(
             <div className="max-w-[440px] mx-auto bg-white border border-black/10 rounded-[16px] px-8 py-10 max-[600px]:px-5 max-[600px]:py-7 text-center" style={{ boxShadow: T.shadow }}>
               <div className="mb-4"><img src="/favicon.svg" alt="" width={56} height={56} /></div>
               <h2 className="m-0 text-[20px] font-bold text-black/95 tracking-[-0.25px]">아직 등록된 가족 정보가 없습니다</h2>
@@ -236,11 +222,8 @@ export function AccountDashboard({ userId, fallbackName, readOnly = false, previ
           userId={userId}
           userName={userName}
           walletCoupons={walletCoupons}
-          journalStudents={journalStudents}
         />
 
-        {/* 직강 전용 학생(구독 카드 없음) 수업일지 패널 */}
-        <DirectJournalPanel students={journalStudents.filter((s) => !children.some((c) => c.name === s.studentName))} />
 
         {/* 하단 CTA */}
         {!allExpired && !readOnly && (
