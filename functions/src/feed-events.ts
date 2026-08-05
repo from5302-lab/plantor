@@ -12,6 +12,19 @@ import { BADGE_BY_CODE, SHOP_BY_ID, titleFromLevel } from "./rewards-config";
 // 히든 뱃지 조건(desc)은 절대 담지 않는다. 조건을 미리 공개하지 않는 것이
 // 뱃지 설계의 전제이고(plan-reward-system.md §5.0), 피드는 그걸 무너뜨리기 가장 쉬운 곳이다.
 
+/**
+ * 이름 가운데를 ○로 가린다. 피드는 공개 페이지라 **공개 문서에 실명을 두지 않는다**
+ * (화면에서만 가리면 Firestore를 직접 읽어 실명을 볼 수 있다).
+ * 같은 가족은 클라이언트가 childId로 실명을 되살린다.
+ *   임효주 → 임○주 / 김민 → 김○ / 남궁민수 → 남○○수
+ */
+export function maskName(name: string): string {
+  const n = (name ?? "").trim();
+  if (n.length <= 1) return n;
+  if (n.length === 2) return `${n[0]}○`;
+  return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;
+}
+
 /** 성장형 뱃지 — 잘하는 학생이 아니라 나아진 학생이 눈에 띄게 한다. */
 const GROWTH_BADGES = new Set(["x-jump", "x-turnaround", "av-never-give-up", "x-catchup", "c5-record"]);
 
@@ -81,7 +94,8 @@ async function putOnce(id: string, data: Record<string, unknown>, occurred?: Fir
 function authorFields(a: Author) {
   return {
     childId: a.childId,
-    name: a.name,
+    // 공개 문서에는 가린 이름만. 가족은 클라이언트가 childId로 실명을 되살린다.
+    name: maskName(a.name),
     grade: a.grade,
     equipped: a.equipped,
     level: a.level,

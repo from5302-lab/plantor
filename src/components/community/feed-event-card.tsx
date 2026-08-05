@@ -34,7 +34,9 @@ export type StudyEntry = {
 export type FeedEvent = {
   id: string;
   type: "badge" | "title" | "level" | "item" | "daily";
+  /** 가린 이름(임○주). 같은 가족이면 childId로 실명을 되살린다. */
   name: string;
+  childId?: string;
   grade: string;
   equipped: Record<string, string | null>;
   level: number;
@@ -274,7 +276,13 @@ function Body({ e }: { e: FeedEvent }) {
   );
 }
 
-export function FeedEventCard({ event, myUid }: { event: FeedEvent; myUid: string | null }) {
+export function FeedEventCard({ event, myUid, familyNames }: {
+  event: FeedEvent;
+  myUid: string | null;
+  familyNames: Map<string, string>;
+}) {
+  // 본인·형제·자녀는 실명으로. 나머지는 가린 이름 그대로.
+  const displayName = (event.childId && familyNames.get(event.childId)) || event.name;
   return (
     <article className="bg-white border-b border-black/[0.07] px-4 sm:px-5 py-4">
       <div className="flex gap-3">
@@ -291,7 +299,7 @@ export function FeedEventCard({ event, myUid }: { event: FeedEvent; myUid: strin
                   {event.grade}
                 </span>
               )}
-              <span className="text-[13px] font-bold text-black/90 truncate">{event.name}</span>
+              <span className="text-[13px] font-bold text-black/90 truncate">{displayName}</span>
               <span className="text-[12px] text-p-muted shrink-0">Lv.{event.level}</span>
             </div>
             <span className="text-[11px] text-p-muted shrink-0">{timeAgo(event.createdAt)}</span>

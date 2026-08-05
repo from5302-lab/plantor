@@ -19,6 +19,14 @@ const db = admin.firestore();
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
+/** 이름 가운데를 ○로 (functions/src/feed-events.ts의 maskName과 같은 규칙). */
+function maskName(name) {
+  const n = String(name ?? "").trim();
+  if (n.length <= 1) return n;
+  if (n.length === 2) return `${n[0]}○`;
+  return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;
+}
+
 /** 뱃지 코드 접두사 → 과목. rewards-config.ts의 BADGES.service와 같은 규칙. */
 function serviceOfBadge(code) {
   if (!code) return null;
@@ -193,7 +201,8 @@ async function main() {
     if (!child) { skipped++; continue; }
 
     const patch = {};
-    if (e.name !== child.name) patch.name = child.name ?? "";
+    const masked = maskName(child.name ?? "");
+    if (e.name !== masked) patch.name = masked;
     if (e.grade !== (child.grade ?? "")) patch.grade = child.grade ?? "";
 
     // 뱃지 카드에 과목명이 없으면 뱃지 코드에서 복원

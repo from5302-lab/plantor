@@ -56,7 +56,7 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid }: { myUid: string | null }) {
+export function FeedList({ myUid, familyNames }: { myUid: string | null; familyNames: Map<string, string> }) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -88,6 +88,7 @@ export function FeedList({ myUid }: { myUid: string | null }) {
           exclusive: data.exclusive === true,
           serviceSlug: data.serviceSlug ?? undefined,
           date: data.date ?? undefined,
+          childId: String(data.childId ?? ""),
           xp: Number(data.xp ?? 0),
           doneCount: Number(data.doneCount ?? 0),
           streak: Number(data.streak ?? 0),
@@ -115,7 +116,7 @@ export function FeedList({ myUid }: { myUid: string | null }) {
             </p>
           </div>
         ) : (
-          events.map((e) => <FeedEventCard key={e.id} event={e} myUid={myUid} />)
+          events.map((e) => <FeedEventCard key={e.id} event={e} myUid={myUid} familyNames={familyNames} />)
         )}
       </div>
     </div>
