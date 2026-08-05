@@ -1230,7 +1230,7 @@ export const deleteFamily = onCall(async (request) => {
         const userRecord = await auth.getUserByEmail(idToEmail(loginId));
         await auth.deleteUser(userRecord.uid);
         batch.delete(db.collection("users").doc(userRecord.uid));
-      } catch (e) {
+      } catch {
         functions.logger.info("deleteFamily: 자녀 Auth 없음 (정상)", { loginId });
       }
     }
@@ -1248,7 +1248,7 @@ export const deleteFamily = onCall(async (request) => {
     familyPhone = (familyData.phone as string) ?? "";
     const userId = familyData.userId as string | undefined;
     if (userId) {
-      try { await auth.deleteUser(userId); } catch (e) {
+      try { await auth.deleteUser(userId); } catch {
         functions.logger.info("deleteFamily: 학부모 Auth 없음 (정상)", { userId });
       }
       batch.delete(db.collection("users").doc(userId));

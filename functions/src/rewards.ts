@@ -13,6 +13,9 @@ import { recordRewardFeed, type FeedInput } from "./feed-events";
 //   같은 날짜·서비스가 하루에도 여러 번 재계산되므로 **멱등**이 핵심:
 //   원장(xpLedger)에 이전 적립값을 남기고, 재계산 시 '차액'만 합계에 반영한다.
 
+// 스크랩 원본은 파트너 사이트마다 모양이 달라 스키마를 못 박는다.
+// 값은 꺼낼 때 toScore()/String()/Array.isArray 로 좁힌다.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>;
 
 export type AwardResult = {
@@ -173,7 +176,6 @@ function formatStage(label: string, v: unknown): string | null {
   return n == null ? raw : `${n}점`;
 }
 
-/** 시작~종료 · 소요시간 칩. 세트마다 "언제 얼마나 했는지"를 붙인다. */
 /** "HH:MM" → 분. 형식이 아니면 null. */
 function hhmmToMin(v: string | null): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v ?? "");

@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   collection,
-  addDoc, doc, serverTimestamp,
-  getDocs, query, where, deleteDoc, Timestamp, onSnapshot, orderBy,
+  addDoc, serverTimestamp,
+  query, where, Timestamp, onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -178,7 +178,7 @@ export function LearnDashboard({
 
   const todayTaskChecks = allTaskChecks.filter((c) => c.date === todayStr());
 
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [, setSubmitting] = useState<string | null>(null);
   const [startedSlugs, setStartedSlugs] = useState<Set<string>>(new Set());
   const [savedSlug, setSavedSlug] = useState<string | null>(null);
   const [showMonitoringToast, setShowMonitoringToast] = useState(false);
@@ -193,15 +193,15 @@ export function LearnDashboard({
   const {
     attendanceState, setAttendanceState,
     sessionId, sessionStart,
-    interrupted, setInterrupted,
-    interruptCount, setInterruptCount,
+    interrupted,
+    setInterruptCount,
     sessionIdRef,
     startScreenShare, endSession, restoreSession,
   } = useAttendanceSession({ childId, isDemo, onMobileStart: showToast });
 
   const [timeSummary, setTimeSummary] = useState<Record<string, number>>({});
 
-  const { windowsRef, handleWindowOpened, recordSlugTime, getTimeSummary } = useWindowTracking({
+  const { windowsRef, recordSlugTime, getTimeSummary } = useWindowTracking({
     active: attendanceState === "sharing",
     childId,
     isDemo,
@@ -283,7 +283,7 @@ export function LearnDashboard({
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, blob);
         screenshotUrl = await getDownloadURL(storageRef);
-      } catch (err) {
+      } catch {
         alert("인증샷 전송 중 오류가 발생했어요. 다시 시도해 주세요.");
         return;
       }
@@ -317,27 +317,6 @@ export function LearnDashboard({
     finally { setSubmitting(null); }
   }
 
-  async function handleRedo(serviceSlug: string) {
-    if (!childId || readOnly) return;
-    setSubmitting(serviceSlug);
-    try {
-      if (isDemo) {
-        await new Promise((r) => setTimeout(r, 200));
-        setLogs((prev) => prev.filter((l) => l.serviceSlug !== serviceSlug));
-        setAllLogs((prev) => prev.filter((l) => !(l.serviceSlug === serviceSlug && l.date === todayStr())));
-        return;
-      }
-      const snap = await getDocs(query(
-        collection(db, "learningLogs"),
-        where("childId", "==", childId),
-        where("serviceSlug", "==", serviceSlug),
-        where("date", "==", todayStr()),
-      ));
-      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
-    } catch (err) { alert(err instanceof Error ? err.message : "오류가 발생했습니다."); }
-    finally { setSubmitting(null); }
-  }
-
   if (!ready) return <CenterMsg>로딩 중…</CenterMsg>;
 
   if (!childId) {
@@ -367,12 +346,6 @@ export function LearnDashboard({
     }
   }
 
-  const doneSlugs = new Set(
-    logs
-      .filter((l) => !l.flagged)
-      .filter((l) => l.method !== "auto" || l.autoStatus === "완료")
-      .map((l) => l.serviceSlug)
-  );
   const logDates = new Set(allLogs.map((l) => l.date));
   const today = todayStr();
   const weekDates = getWeekDates();

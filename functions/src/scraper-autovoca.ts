@@ -7,6 +7,11 @@ import * as functions from "firebase-functions";
 
 const AUTOVOCA_BASE = "https://mobile.autovoca.co.kr";
 
+// 오토보카 응답에는 스키마 보증이 없다(필드가 언제든 늘거나 빈다).
+// 구조를 강제하는 대신 느슨하게 받고, 값을 꺼낼 때 num()/String()/Array.isArray 로 좁힌다.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ApiJson = any;
+
 export type AutovocaCreds = { loginId: string; loginPw: string; hmacSecret: string };
 
 export type AutovocaUnit = {
@@ -103,7 +108,7 @@ class AutovocaClient {
   private token = "";
   constructor(private creds: AutovocaCreds) {}
 
-  private async req(method: "GET" | "POST", path: string, body?: unknown): Promise<any> {
+  private async req(method: "GET" | "POST", path: string, body?: unknown): Promise<ApiJson> {
     const ts = kstTs();
     const sig = sign(this.creds.hmacSecret, this.token, method, path, body, ts);
     const headers: Record<string, string> = {
@@ -134,12 +139,12 @@ class AutovocaClient {
     this.token = data.res_data.token;
   }
 
-  async getStudentList(): Promise<Array<Record<string, any>>> {
+  async getStudentList(): Promise<Array<Record<string, ApiJson>>> {
     const data = await this.req("GET", "/academy/student/list");
     return data?.res_data?.student_list ?? [];
   }
 
-  async getWeeklyReport(userIdx: number | string, year: number, month: number): Promise<any> {
+  async getWeeklyReport(userIdx: number | string, year: number, month: number): Promise<ApiJson> {
     const mm = String(month).padStart(2, "0");
     const data = await this.req("GET", `/report/get_user_weekly_report/${userIdx}/${year}/${mm}`);
     return data?.res_data?.weekly_report_data ?? {};
@@ -192,7 +197,7 @@ function num(v: unknown): number | null {
  * 확인해 정확한 키로 교체해야 한다(사용자 캡쳐: "4권 유닛 9" · 오답복습 3개 · +35P).
  * 현재는 추정 키 + 원본 passthrough(rawToday) 로 안전하게 수집한다.
  */
-function extractToday(weekly: any, dateKst: string): AutovocaResult {
+function extractToday(weekly: ApiJson, dateKst: string): AutovocaResult {
   const todayDom = parseInt(dateKst.split("-")[2], 10);
   let status = "시작전";
   let totalMinutes = 0;
