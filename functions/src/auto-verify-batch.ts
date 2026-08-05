@@ -9,7 +9,7 @@ import { scrapeDailykorAll, DAILYKOR_REPORT_PARTS } from "./scraper-dailykor";
 import { scrapeClasscardAll, classcardDonePartSlugs, classcardDonePartCounts } from "./scraper-classcard";
 import { scrapeClass5All, scrapeClass5Past, class5PastDates, class5DonePartSlugs, class5DonePartCounts } from "./scraper-class5";
 import { loadClasscardConfig } from "./verify-auto";
-import { reconcileAutoChecks, reconcileDailykorPast, reconcileClass5Past, runIncompleteNotify } from "./completion-notify";
+import { reconcileAutoChecks, reconcileDailykorPast, reconcileClass5Past, runIncompleteNotify, writeFeedStats } from "./completion-notify";
 import { awardRewards } from "./rewards";
 
 // 클릭 없이 전 학생 자동인증(오토보카·매일국어·클래스카드)을 스케줄로 기록한다.
@@ -131,6 +131,9 @@ async function runBatch(date: string) {
       await reconcileClass5Past(childId, byDate, date).catch((e) => functions.logger.warn("[batch] class5 과거정정 실패", { studentId, error: String(e) }));
     }
   } catch (e) { functions.logger.error("[batch] class5 실패", { error: String(e) }); }
+
+  // 피드 상단 집계(이름 없이 숫자만) — 스크랩이 끝난 뒤라야 완료 판정이 정확하다
+  await writeFeedStats(date);
 
   functions.logger.info("[batch] 완료", { date, summary });
   return summary;

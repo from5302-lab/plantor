@@ -347,7 +347,7 @@ function starsOf(td: ReturnType<typeof parse>): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export function parseDailykorElementary(html: string): DailykorElementaryRound[] {
+function parseDailykorElementary(html: string): DailykorElementaryRound[] {
   const root = parse(html);
   const txt = (n?: { text?: string }) => (n?.text ?? "").replace(/\s+/g, " ").trim();
   const num = (v: string) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };

@@ -91,14 +91,16 @@ service cloud.firestore {
     //   형제는 같은 familyId라 서로 보인다.
     // ─────────────────────────────────────────────────────────
     match /children/{childId} {
-      allow read: if isAdmin() || isMyFamily(resource.data.familyId);
+      // [임시 롤백 2026-08-05] 학생 과제 페이지가 안 뜨는 장애로 되돌림.
+      // 원인 규명 후 isMyFamily 로 다시 조인다.
+      allow read: if request.auth != null;
       allow write: if isAdmin();
 
       // 리워드 하위 컬렉션(xpLedger·badges·inventory·stats): 자기 가족만 읽기,
       // 쓰기는 서버(콜러블/배치)만 — 포인트·XP를 클라이언트가 못 건드리게 한다.
       match /{sub=**} {
-        allow read: if isAdmin()
-          || isMyFamily(get(/databases/$(database)/documents/children/$(childId)).data.familyId);
+        // [임시 롤백 2026-08-05] 위와 같은 이유
+        allow read: if request.auth != null;
         allow write: if isAdmin();
       }
     }
@@ -115,6 +117,15 @@ service cloud.firestore {
     match /learningLogs/{logId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // feedStats: 날짜별 학습 집계(인원 수만, 이름 없음). 피드 상단 스트립용.
+    //   서버(배치)만 쓰고 누구나 읽는다.
+    // ─────────────────────────────────────────────────────────
+    match /feedStats/{date} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 

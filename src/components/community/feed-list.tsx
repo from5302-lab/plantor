@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { collection, doc, query, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Rarity } from "@/lib/rewards/catalog";
 import { FeedEventCard, type FeedEvent, type StudyEntry } from "./feed-event-card";
@@ -18,8 +18,19 @@ const PAGE = 40;
  */
 function TodaySummary({ events }: { events: FeedEvent[] }) {
   const today = new Date().toLocaleDateString("sv-SE");
+  const [pending, setPending] = useState<number | null>(null);
+
+  // 아직 학습 중인 인원 — 서버가 만든 집계를 읽는다(이름 없음).
+  // 클라이언트는 children 전체를 못 읽으므로 직접 셀 수 없고, 그게 맞다.
+  useEffect(() => {
+    return onSnapshot(doc(db, "feedStats", today), (snap) => {
+      const n = Number(snap.data()?.pending ?? 0);
+      setPending(Number.isFinite(n) ? n : 0);
+    }, () => setPending(null));
+  }, [today]);
+
   const daily = events.filter((e) => e.type === "daily" && e.date === today);
-  if (daily.length === 0) return null;
+  if (daily.length === 0 && !pending) return null;
 
   const students = new Set(daily.map((e) => e.name)).size;
   const xp = daily.reduce((sum, e) => sum + (e.xp ?? 0), 0);
@@ -36,6 +47,11 @@ function TodaySummary({ events }: { events: FeedEvent[] }) {
       {streak >= 2 && (
         <span className="text-[12px] text-p-secondary">
           최고 연속 <b className="text-[15px] font-bold text-[#b45309] tabular-nums">{streak}</b>일
+        </span>
+      )}
+      {!!pending && (
+        <span className="text-[12px] text-p-secondary">
+          아직 <b className="text-[15px] font-bold text-[#8a6d10] tabular-nums">{pending}</b>명 학습 중
         </span>
       )}
     </div>

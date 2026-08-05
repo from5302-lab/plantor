@@ -334,6 +334,46 @@ export const onTaskCheckWritten = onDocumentWritten(
 // ── 미완료 마감 (학생 톡) ─────────────────────────────────────────────
 // 21시 자동인증 스크랩(autoVerifyScheduled)이 끝난 뒤 그 함수에서 직접 호출한다.
 // → "스크랩(완료 마크 갱신) → 미완료 판정·알림"을 한 실행 안에서 순서 보장(경쟁/헛알림 방지).
+/**
+ * 오늘 학습 집계를 feedStats/{date} 에 기록한다 — 피드 상단 스트립이 읽는다.
+ *
+ * **이름을 담지 않는다.** 누가 안 했는지 공개하면 부담되는 학생이 피드를 꺼버려
+ * 정작 독려가 필요한 쪽이 사라진다(feedOptOut). 반 전체의 긴장감만 숫자로 전한다.
+ * children 읽기가 가족 범위로 잠겨 있어 클라이언트는 이 집계를 만들 수 없다 — 서버가 만든다.
+ */
+export async function writeFeedStats(dateKst: string): Promise<void> {
+  try {
+    const dow = dowMon0(dateKst);
+    const snap = await db.collection("tasks").where("status", "==", "confirmed").get();
+    const childIds = new Set<string>();
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.active !== false && Array.isArray(data.scheduleDays) && data.scheduleDays.includes(dow)) {
+        childIds.add(String(data.childId));
+      }
+    });
+
+    let assigned = 0, done = 0;
+    for (const childId of childIds) {
+      const res = await evalCompletion(childId, dateKst);
+      if (res.total === 0) continue;
+      assigned++;
+      if (res.allDone) done++;
+    }
+
+    await db.collection("feedStats").doc(dateKst).set({
+      date: dateKst,
+      assigned,          // 오늘 과제가 배정된 학생 수
+      done,              // 그중 다 끝낸 학생 수
+      pending: Math.max(0, assigned - done),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    functions.logger.info("[feedStats] 집계 기록", { dateKst, assigned, done });
+  } catch (e) {
+    functions.logger.warn("[feedStats] 집계 실패", { dateKst, error: String(e) });
+  }
+}
+
 export async function runIncompleteNotify(): Promise<void> {
   const cfg = await loadNotifyConfig();
   if (!cfg.enabled) { functions.logger.info("[notify] 미완료 배치 스킵 (OFF)"); return; }

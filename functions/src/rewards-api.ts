@@ -23,8 +23,12 @@ async function resolveChild(auth: { uid: string; token: Record<string, unknown> 
   return snap.docs[0];
 }
 
+/** 상점 준비 중 — 아이템이 확정될 때까지 구매를 받지 않는다. 열 때 true로 바꾼다. */
+const SHOP_OPEN = false;
+
 /** 상점 구매 — 포인트 차감과 인벤토리 추가를 한 트랜잭션으로 (이중 차감 방지). */
 export const purchaseShopItem = onCall(async (request) => {
+  if (!SHOP_OPEN) throw new HttpsError("failed-precondition", "상점은 준비 중이에요. 포인트는 그대로 쌓이고 있어요.");
   const { itemId } = (request.data ?? {}) as { itemId?: string };
   const item = itemId ? SHOP_BY_ID.get(itemId) : undefined;
   if (!item) throw new HttpsError("invalid-argument", "없는 아이템입니다.");

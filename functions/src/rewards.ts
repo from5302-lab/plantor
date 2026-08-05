@@ -222,7 +222,7 @@ function dailykorXp(detail: Json | null): { got: number; max: number } | null {
  * 학습 세트가 여러 개면 세트별로 나눠 각자의 점수를 붙인다 — 평균 하나로 뭉치지 않는다.
  * 스크랩 원본에서 사람이 읽을 수 있는 값만 뽑는다.
  */
-export function studySummary(
+function studySummary(
   serviceSlug: string, units: Json[], detail: Json | null, scraped?: Json | null,
 ): { items: StudyItem[]; note: string | null; lastEnd: string | null } {
   const items: StudyItem[] = [];

@@ -18,7 +18,7 @@ import { BADGE_BY_CODE, SHOP_BY_ID, titleFromLevel } from "./rewards-config";
  * 같은 가족은 클라이언트가 childId로 실명을 되살린다.
  *   임효주 → 임○주 / 김민 → 김○ / 남궁민수 → 남○○수
  */
-export function maskName(name: string): string {
+function maskName(name: string): string {
   const n = (name ?? "").trim();
   if (n.length <= 1) return n;
   if (n.length === 2) return `${n[0]}○`;
