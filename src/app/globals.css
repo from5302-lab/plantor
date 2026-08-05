@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
-html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+/* overflow-x: hidden 은 body를 스크롤 컨테이너로 만들어 상단바의 position:sticky 를 깨뜨린다.
+   clip 은 같은 '가로 넘침 차단' 효과를 내면서 스크롤 컨테이너를 만들지 않는다. */
+/* overscroll-behavior: none — 오버스크롤 바운스(고무줄 스크롤) 전면 금지.
+   스크롤 끝에서 페이지가 튕기면 고정 상단바가 같이 딸려 움직여 보인다. 사용자 확정 선호. */
+html, body { overflow-x: clip; overscroll-behavior: none; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
@@ -214,4 +218,32 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 12px !important;
     white-space: nowrap;
   }
+}
+
+/* ── 뱃지 발견 연출 ─────────────────────────────────────────────
+   0.6초 뒤 카드가 뒤집히며 조건이 공개된다. JS 타이머 없이 CSS만으로. */
+@keyframes badge-flip {
+  from { transform: rotateY(180deg) scale(0.94); }
+  to   { transform: none; }
+}
+@keyframes badge-reveal {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes badge-hide {
+  to { opacity: 0; }
+}
+.badge-card      { animation: badge-flip 460ms ease 600ms both; }
+.badge-face-back { animation: badge-hide 1ms linear 700ms forwards; }
+.badge-face-front{ opacity: 0; animation: badge-reveal 420ms ease 700ms both; }
+.badge-desc      { opacity: 0; animation: badge-reveal 320ms ease 900ms both; }
+
+/* 학습 피드 — 엄지척 버튼 hover (누르고 싶게 보여야 카드가 살아난다) */
+.thumbs-btn:hover:not(:disabled) {
+  background-color: #f0faf1 !important;
+  border-color: rgba(56, 168, 72, 0.35) !important;
+  color: #2a8438 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thumbs-btn { transition: none !important; }
 }
