@@ -83,6 +83,7 @@ export type Service = {
   highlight?: boolean;
   brandColor?: string;
   agencyFee?: number;  // 가맹비 (원/월)
+  isOneOnOne?: boolean;  // 1:1 수업 — 라인업 서비스지만 1:1로 집계·표시 (slug "1on1-"과 동일 취급)
   status?: "active" | "coming_soon";  // 없으면 slug 기반 자동 판별
   signupType?: "new" | "renewal" | "both";  // status=active 일 때
   order?: number;  // 노출 순서 (낮을수록 앞)
@@ -219,6 +220,7 @@ export const SERVICES: Service[] = [
     priceLabel: "₩150,000/월",
     targetGrades: "초등 ~ 중3",
     category: "premium",
+    isOneOnOne: true,
     bullets: [
       "주 1회 수업 — 이론 + 실습 + 퀴즈 구성",
       "AI 협업 → UI 설계 → Firebase → 배포 전 과정 커버",
@@ -304,3 +306,15 @@ export const FAQS: Faq[] = [
     a: "네, 모든 기기에서 이용하실 수 있습니다. 이동 중에도 스마트폰 하나로 충분히 학습할 수 있어요.",
   },
 ];
+
+/**
+ * 1:1 수업 여부 판정.
+ * - "1on1-<과목>" 슬러그 (어드민에서 추가한 1:1 학습)
+ * - 라인업 서비스지만 실제로는 1:1인 것 (isOneOnOne 플래그, 예: 바이브코딩)
+ * 신청 폼으로 들어와도 자동으로 1:1로 분류되도록 슬러그 변경 대신 플래그로 판정한다.
+ */
+export function isOneOnOneService(slug: string): boolean {
+  if (!slug) return false;
+  if (slug.startsWith("1on1-")) return true;
+  return SERVICES.some((s) => s.slug === slug && s.isOneOnOne === true);
+}

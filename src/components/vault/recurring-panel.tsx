@@ -35,14 +35,24 @@ export function RecurringPanel({ recurringItems, entries, categories, month }: P
   const paidFor = (itemId: string, m: string) =>
     entries.filter((e) => e.recurringId === itemId && e.date.startsWith(m)).reduce((s, e) => s + e.amount, 0);
 
-  // 활성 고정거래 (지정일 순)
-  const items = useMemo(
-    () =>
-      recurringItems
-        .filter((r) => r.active && (!r.startMonth || r.startMonth <= month))
-        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
-    [recurringItems, month]
-  );
+  // 활성 고정거래 — 1순위: 미납 먼저(완료는 아래로), 2순위: 이름 가나다 오름차순
+  const items = useMemo(() => {
+    const paidOf = (r: RecurringItem) =>
+      entries
+        .filter((e) => e.recurringId === r.id && e.date.startsWith(month))
+        .reduce((s, e) => s + e.amount, 0);
+    const isPaid = (r: RecurringItem) => paidOf(r) >= r.amount;
+    const nameOf = (r: RecurringItem) =>
+      r.memo || r.category || (r.type === "income" ? "수입" : "지출");
+    return recurringItems
+      .filter((r) => r.active && (!r.startMonth || r.startMonth <= month))
+      .sort((a, b) => {
+        const pa = isPaid(a) ? 1 : 0;
+        const pb = isPaid(b) ? 1 : 0;
+        if (pa !== pb) return pa - pb; // 미납(0) → 완료(1)
+        return nameOf(a).localeCompare(nameOf(b), "ko"); // 가나다 오름차순
+      });
+  }, [recurringItems, month, entries]);
 
   // 이번 달 상태 판정 (분납은 unpaid로 보되 진행률 표시)
   const statusOf = (item: RecurringItem): Status => {

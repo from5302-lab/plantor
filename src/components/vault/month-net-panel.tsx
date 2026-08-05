@@ -13,7 +13,7 @@ type Props = {
 
 // 상단 요약: 들어올 예정(미입금) − 고정지출(미납)을 일/주/달 생활비로 환산
 export function MonthNetPanel({ month, entries, recurringItems }: Props) {
-  const { items } = useAdminBilling(month);
+  const { items, agencyByService } = useAdminBilling(month);
 
   const net = useMemo(() => {
     // 미입금 예상 수입
@@ -31,8 +31,17 @@ export function MonthNetPanel({ month, entries, recurringItems }: Props) {
       .filter((r) => r.type === "expense" && r.active && (!r.startMonth || r.startMonth <= month))
       .reduce((s, r) => s + Math.max(0, r.amount - paidFor(r.id)), 0);
 
-    return incomePending - fixedPending;
-  }, [items, entries, recurringItems, month]);
+    // 미납 가맹비 (서비스별) — 고정지출 패널 미납과 동일 기준으로 함께 차감
+    const agencyPaid = new Set(
+      entries.filter((e) => e.sourceKey?.startsWith("agency_")).map((e) => e.sourceKey!)
+    );
+    const agencyPending = agencyByService.reduce(
+      (s, a) => (agencyPaid.has(`agency_${a.key}_${month}`) ? s : s + a.amount),
+      0
+    );
+
+    return incomePending - fixedPending - agencyPending;
+  }, [items, agencyByService, entries, recurringItems, month]);
 
   const [y, mm] = month.split("-").map(Number);
   const daysInMonth = new Date(y, mm, 0).getDate();

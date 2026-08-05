@@ -63,6 +63,8 @@ export function useAdminBilling(month: string) {
   const [classes, setClasses] = useState<DirectClass[]>([]);
   // 벤더별 수동 인원 (Class5·클래스카드) — 설정에서 입력, 있으면 자동집계 대신 사용
   const [manualCounts, setManualCounts] = useState<Record<string, number>>({});
+  // 승인된 연장신청 (가정·자녀·서비스) — 입금확인 완료 건을 '받을(미입금)'에서 제외하기 위함
+  const [approvedRenewals, setApprovedRenewals] = useState<{ familyId: string; childId: string | null; serviceSlug: string; created: string }[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "vault", "agencyConfig"), (snap) => {
@@ -120,6 +122,26 @@ export function useAdminBilling(month: string) {
   }, []);
 
   useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "renewalRequests"), where("status", "==", "approved")),
+      (snap) => {
+        setApprovedRenewals(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              familyId: data.familyId ?? "",
+              childId: (data.childId ?? null) as string | null,
+              serviceSlug: data.serviceSlug ?? "",
+              created: toYMD(tsToDate(data.createdAt)) ?? "",
+            };
+          })
+        );
+      }
+    );
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     const unsub = onSnapshot(collection(db, "directClasses"), (snap) => {
       setClasses(
         snap.docs.map((d) => {
@@ -154,6 +176,16 @@ export function useAdminBilling(month: string) {
       if (!g) { g = { amount: 0, due: "", names: new Set(), parts: [], hasSub: false }; groups.set(fid, g); }
       return g;
     };
+
+    // 이번 달 연장 승인(입금확인 완료)된 (가정|자녀|서비스) 키 — '받을(미입금)'에서 제외
+    const normChild = (c: string | null) => (c && c.length > 0 ? c : "parent");
+    const renewedKeys = new Set(
+      approvedRenewals
+        .filter((r) => r.created.startsWith(month))
+        .map((r) => `${r.familyId}|${normChild(r.childId)}|${r.serviceSlug}`)
+    );
+    const isRenewed = (fid: string, childId: string, slug: string) =>
+      renewedKeys.has(`${fid}|${normChild(childId || null)}|${slug}`);
 
     let revenueTotal = 0;
 
@@ -205,6 +237,8 @@ export function useAdminBilling(month: string) {
       const amount = Math.max(0, s.monthlyPrice - s.discount);
       if (amount <= 0) return;
       revenueTotal += amount;
+      // 이미 이번 달 연장 승인(입금확인)된 건은 '받을(미입금)' 목록에서 제외 (endDate 동기화 실패 방어)
+      if (isRenewed(s.familyId, s.childId, s.serviceSlug)) return;
       const g = ensure(s.familyId);
       g.amount += amount;
       g.hasSub = true;
@@ -258,5 +292,5 @@ export function useAdminBilling(month: string) {
 
     items.sort((a, b) => a.due.localeCompare(b.due));
     return { items, revenueTotal, agencyFeeTotal, monthlyTotal, agencyByService };
-  }, [subs, classes, families, children, month, manualCounts]);
+  }, [subs, classes, families, children, month, manualCounts, approvedRenewals]);
 }
