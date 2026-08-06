@@ -125,7 +125,7 @@ export function StudentPlan({ userId, userEmail, previewChildId, embedded = fals
 
   return (
     <PageWrap paddingBottom="96px" embedded={embedded}>
-      <div className="max-w-[480px] mx-auto">
+      <div className={embedded ? "" : "max-w-[480px] mx-auto"}>
 
         {/* 헤더 — 프로필 탭 안에서는 통째로 뺀다.
             탭 라벨이 이미 "계획하기"이고 위에 프로필 카드가 있어, 제목을 또 얹으면
@@ -164,7 +164,7 @@ export function StudentPlan({ userId, userEmail, previewChildId, embedded = fals
         {/* 검토 중 (draft) */}
         {draftTasks.length > 0 && (
           <div className="mb-6">
-            <div className="text-[11px] font-bold text-p-green tracking-[0.08em] mb-2.5">
+            <div className="text-[12px] font-bold text-p-green mb-2.5">
               선생님 검토 중 {draftTasks.length}건
             </div>
             {draftTasks.map(task => (
@@ -178,7 +178,7 @@ export function StudentPlan({ userId, userEmail, previewChildId, embedded = fals
           <div className="mb-6">
             {/* muted(#a39e98)는 배경 대비 2.3:1 로 AA 미달이었다.
                 정작 확정 과제가 이 화면의 주 목록인데 라벨이 가장 안 읽혔다. */}
-            <div className="text-[11px] font-bold text-p-secondary tracking-[0.08em] mb-2.5">
+            <div className="text-[12px] font-bold text-p-secondary mb-2.5">
               확정된 과제 {confirmedTasks.length}건
             </div>
             {confirmedTasks.map(task => (

@@ -37,7 +37,7 @@ export function BadgeVault({ state }: { state: RewardState }) {
 
   return (
     <div>
-      <div className="text-[13px] font-bold text-black/85 mb-2">
+      <div className="text-[15px] font-bold text-black/90 tracking-[-0.2px] mb-2">
         모은 뱃지 {earned.length}
         <span className="text-p-muted font-semibold"> / {TOTAL_BADGES}</span>
       </div>

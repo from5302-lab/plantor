@@ -366,7 +366,7 @@ export function LearnDashboard({
 
     return (
       <PageWrap paddingBottom="96px" embedded={embedded}>
-        <div className="max-w-[480px] mx-auto">
+        <div className={embedded ? "" : "max-w-[480px] mx-auto"}>
           <Card style={{ padding: "40px 28px" }}>
             <div className="text-center mb-7">
               <div className="text-[52px] mb-3">🎉</div>
@@ -422,7 +422,7 @@ export function LearnDashboard({
 
   return (
     <PageWrap paddingBottom="96px" embedded={embedded}>
-      <div className="max-w-[480px] mx-auto">
+      <div className={embedded ? "" : "max-w-[480px] mx-auto"}>
 
         {attendanceState === "consent" && (
           <ConsentModal onAgree={() => { setAttendanceState("idle"); startScreenShare(); }} onCancel={() => setAttendanceState("idle")} />
@@ -595,7 +595,7 @@ export function LearnDashboard({
         ) : (
           <>
             {/* 오늘 할 일 (태스크 기반) — 이 화면의 주인공. 날짜에서 넘겨받은 크기를 여기 쓴다 */}
-            <div className="text-[16px] font-bold text-black/90 tracking-[-0.3px] pl-0.5 mb-2">오늘 할 일</div>
+            <div className="text-[15px] font-bold text-black/90 tracking-[-0.2px] pl-0.5 mb-2">오늘 할 일</div>
             <Card style={{ overflow: "hidden", padding: 0 }}>
               {childId && (
                 <TaskChecklist
