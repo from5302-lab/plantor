@@ -12,7 +12,7 @@ import { RewardHeader } from "@/components/learn/reward-header";
  * readOnly = 학부모가 보는 자녀 카드. 상점·피드 공개설정은 콜러블이 호출자 본인의
  * 학생을 찾으므로(rewards-api.ts resolveChild) 학부모가 누르면 실패한다 → 잠근다.
  */
-export function FeedProfileCard({ childId, name, readOnly = false, note, previewEquipped, nameClass = "" }: {
+export function FeedProfileCard({ childId, name, readOnly = false, note, previewEquipped, nameClass = "", onPanel, activePanel = null }: {
   childId: string;
   name: string;
   readOnly?: boolean;
@@ -22,6 +22,9 @@ export function FeedProfileCard({ childId, name, readOnly = false, note, preview
   previewEquipped?: Record<string, string | null | undefined>;
   /** 이름 스타일 아이템의 CSS 클래스. 이름을 사는 슬롯이라 여기서 보여야 한다 */
   nameClass?: string;
+  /** 주면 뱃지·상점을 모달 대신 바깥 프레임에서 전환한다 */
+  onPanel?: (p: "badges" | "shop") => void;
+  activePanel?: "badges" | "shop" | null;
 }) {
   return (
     <div>
@@ -31,7 +34,7 @@ export function FeedProfileCard({ childId, name, readOnly = false, note, preview
           {note && <span className="text-[11px] text-p-muted">{note}</span>}
         </div>
       )}
-      <RewardHeader childId={childId} childName={name} readOnly={readOnly} previewEquipped={previewEquipped} />
+      <RewardHeader childId={childId} childName={name} readOnly={readOnly} previewEquipped={previewEquipped} onPanel={onPanel} activePanel={activePanel} />
     </div>
   );
 }

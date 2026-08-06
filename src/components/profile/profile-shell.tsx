@@ -20,12 +20,12 @@ import { FeedProfileCard } from "@/components/community/feed-profile-card";
 
 type Tab = "mine" | "learn" | "plan" | "badges" | "shop" | "all";
 
+// 뱃지·상점은 탭 바에 두지 않는다 — 프로필 카드의 두 버튼이 이미 그 자리다.
+// 같은 곳으로 가는 길을 두 줄에 나란히 두면 어느 쪽이 진짜인지 헷갈린다.
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: "mine", label: "내 기록" },
   { key: "learn", label: "학습하기" },
   { key: "plan", label: "계획하기" },
-  { key: "badges", label: "뱃지" },
-  { key: "shop", label: "상점" },
   { key: "all", label: "전체" },
 ];
 
@@ -40,7 +40,9 @@ export function ProfileShell({ previewChildId, previewName }: {
   const [tab, setTab] = useState<Tab>("learn");
 
   const isPreview = !!previewChildId;
-  const family = useMyFamilyNames(user?.uid ?? null, isPreview, user?.email ?? null);
+  // 미리보기에서는 운영자 권한을 쓰지 않는다 — 그 학생의 가족만 실명으로 되살려
+  // 학생이 실제로 보는 화면과 같게 만든다.
+  const family = useMyFamilyNames(user?.uid ?? null, false, user?.email ?? null, previewChildId);
   const childId = previewChildId ?? family.myChildId;
 
   // 뱃지·상점 탭은 리워드 상태를 직접 쓴다 (카드와 같은 구독이라 값이 어긋나지 않는다)
@@ -75,6 +77,9 @@ export function ProfileShell({ previewChildId, previewName }: {
               readOnly={isPreview}
               previewEquipped={tab === "shop" ? previewEquipped : undefined}
               nameClass={nameClass}
+              // 카드의 뱃지·상점 버튼이 아래 프레임을 갈아 끼운다(모달 없음)
+              onPanel={(p) => { setTab(p); if (p !== "shop") setTryOn({}); }}
+              activePanel={tab === "badges" || tab === "shop" ? tab : null}
             />
           </div>
         )}

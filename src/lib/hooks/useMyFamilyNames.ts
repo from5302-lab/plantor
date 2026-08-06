@@ -27,7 +27,7 @@ const EMPTY: MyFamily = { names: new Map(), myChildId: null, childIds: [] };
  *
  * 가족 구성은 세션 중 바뀌지 않으므로 실시간 구독 대신 1회 조회한다(읽기 비용 절약).
  */
-export function useMyFamilyNames(uid: string | null, isAdmin = false, email?: string | null): MyFamily {
+export function useMyFamilyNames(uid: string | null, isAdmin = false, email?: string | null, asChildId?: string): MyFamily {
   const [family, setFamily] = useState<MyFamily>(EMPTY);
 
   useEffect(() => {
@@ -36,6 +36,25 @@ export function useMyFamilyNames(uid: string | null, isAdmin = false, email?: st
 
     (async () => {
       try {
+        // 어드민 미리보기 — 그 학생이 보는 것과 같아야 한다.
+        // 여기서 운영자 권한(전 학생 실명)을 쓰면 미리보기가 실제 학생 화면과 달라진다.
+        if (asChildId) {
+          const child = await getDoc(doc(db, "children", asChildId));
+          const fid = child.data()?.familyId as string | undefined;
+          if (!fid || !alive) return;
+          const kids = await getDocs(query(collection(db, "children"), where("familyId", "==", fid)));
+          if (!alive) return;
+          const docs = kids.docs
+            .map((d) => ({ id: d.id, name: String(d.data().name ?? "") }))
+            .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+          setFamily({
+            names: new Map(docs.map((d) => [d.id, d.name])),
+            myChildId: asChildId,
+            childIds: docs.map((d) => d.id),
+          });
+          return;
+        }
+
         // 운영자는 전 학생을 실명으로 본다(규칙상 children 전체 읽기 허용).
         // 자기 자녀가 아니므로 카드 대상(myChildId·childIds)은 비운다.
         if (isAdmin) {
@@ -89,7 +108,7 @@ export function useMyFamilyNames(uid: string | null, isAdmin = false, email?: st
     })();
 
     return () => { alive = false; };
-  }, [uid, isAdmin, email]);
+  }, [uid, isAdmin, email, asChildId]);
 
   // 로그아웃 상태는 렌더에서 처리한다(효과 안에서 setState 하면 렌더가 한 번 더 돈다)
   return uid ? family : EMPTY;
