@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Flame } from "lucide-react";
 import { T } from "@/lib/design-tokens";
+import { SERVICES } from "@/data/site";
+import { ServiceIcon } from "@/components/ui/service-icon";
 import { SHOP_BY_ID } from "@/lib/rewards/catalog";
+import { useActiveServiceSlugs } from "@/lib/hooks/useActiveServiceSlugs";
 import { useMarkBadgesSeen, useRewards } from "@/lib/hooks/useRewards";
 import { AvatarView } from "./avatar-view";
 import { BadgeDiscoveryModal } from "./badge-discovery-modal";
@@ -11,7 +15,7 @@ import { RewardPanels } from "./reward-panels";
 // /learn 첫 화면 최상단 위젯 — 레벨·XP 진행바·포인트·뱃지.
 // 배치(09·13·17·21시)로 뒤늦게 발견된 뱃지는 여기서 큐로 연출된다.
 
-export function RewardHeader({ childId, childName, isDemo = false, readOnly = false, previewEquipped, onPanel, activePanel = null }: {
+export function RewardHeader({ childId, childName, isDemo = false, readOnly = false, previewEquipped, onPanel, activePanel = null, showIdentity = false, note, nameClass = "" }: {
   childId: string | null;
   childName: string;
   isDemo?: boolean;
@@ -25,11 +29,22 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
   onPanel?: (p: "badges" | "shop") => void;
   /** 바깥에서 열려 있는 패널 — 카드 버튼이 지금 무엇을 보고 있는지 표시한다 */
   activePanel?: "badges" | "shop" | null;
+  /**
+   * 프로필 화면용 — 이름·학년·학습 중인 서비스를 카드 안에 넣어 한 장의 명함으로 만든다.
+   * /learn 단독 화면은 위에 날짜·인사가 따로 있어 켜지 않는다.
+   */
+  showIdentity?: boolean;
+  /** 이름 옆 꼬리표 (학부모 화면의 "자녀") */
+  note?: string;
+  /** 이름 스타일 아이템의 CSS 클래스 — 이름을 사는 슬롯이라 이름에 입혀야 보인다 */
+  nameClass?: string;
 }) {
   const state = useRewards(childId, !isDemo);
   const markSeen = useMarkBadgesSeen();
   const [panel, setPanel] = useState<null | "badges" | "shop">(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  // 지금 학습 중인 서비스 — 스레드의 bio 자리에 파비콘으로 세운다
+  const activeSlugs = useActiveServiceSlugs(showIdentity ? childId : null);
 
   // 아직 안 보여준 뱃지 → 발견 연출 큐 (읽기전용 미리보기에서는 띄우지 않는다).
   // seen 플래그가 서버에 반영되기까지 시차가 있어, 닫은 것은 로컬에서도 걸러낸다.
@@ -44,6 +59,9 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
   const eq = previewEquipped ?? state.equipped;
   const themeCls = SHOP_BY_ID.get(String(eq.cardTheme ?? ""))?.cssClass ?? "";
   const xpCls = SHOP_BY_ID.get(String(eq.xpBar ?? ""))?.cssClass ?? "";
+  const services = activeSlugs
+    .map((slug) => SERVICES.find((s) => s.slug === slug))
+    .filter((s): s is NonNullable<typeof s> => !!s);
 
   return (
     <>
@@ -51,34 +69,84 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
         className={`mb-5 rounded-2xl px-4 py-3.5 ${themeCls}`}
         style={{ background: T.white, border: T.borderSubtle, boxShadow: T.shadow }}
       >
+        {/* 이름 + 아바타 — 스레드 프로필처럼 이름이 왼쪽에서 시작하고 아바타가 오른쪽 끝에 선다.
+            전에는 이름이 카드 **밖에** 따로 한 줄을 차지했다. 명함이라면 이름이 명함 안에 있어야 한다. */}
+        {showIdentity && (
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className={`truncate text-[20px] font-bold leading-tight text-black/95 ${nameClass}`} style={{ letterSpacing: "-0.4px" }}>
+                  {childName}
+                </span>
+                {note && <span className="shrink-0 text-[11px] text-p-secondary">{note}</span>}
+              </div>
+              {/* 스레드의 @핸들 자리 — 이 학생이 어디쯤 와 있는지 한 줄 */}
+              <div className="mt-0.5 flex items-center gap-1.5 text-[13px]">
+                {state.grade && <span className="font-medium text-p-secondary">{state.grade}</span>}
+                {state.grade && <span className="text-black/15">·</span>}
+                <span className="font-bold" style={{ color: state.title.color }}>{state.title.name}</span>
+                <span className="font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
+                {state.streak >= 3 && (
+                  <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
+                    <Flame size={11} strokeWidth={2.5} aria-hidden />{state.streak}일
+                  </span>
+                )}
+              </div>
+            </div>
+            <button onClick={() => (onPanel ? onPanel("shop") : setPanel("shop"))} aria-label="아바타 꾸미기" className="shrink-0">
+              <AvatarView equipped={eq} size={64} />
+            </button>
+          </div>
+        )}
+
+        {/* 스레드의 bio 자리 — "이 학생이 무엇을 하는 사람인지". 파비콘만으로 읽힌다. */}
+        {showIdentity && services.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {services.map((s) => (
+              <span
+                key={s.slug}
+                title={s.name}
+                className="inline-flex items-center gap-1 rounded-lg bg-black/[0.035] px-2 py-1"
+              >
+                <ServiceIcon service={s} size={15} />
+                <span className="text-[11.5px] font-semibold text-black/70">{s.name}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
-          <button onClick={() => (onPanel ? onPanel("shop") : setPanel("shop"))} aria-label="아바타 꾸미기">
-            <AvatarView equipped={eq} size={54} />
-          </button>
+          {!showIdentity && (
+            <button onClick={() => (onPanel ? onPanel("shop") : setPanel("shop"))} aria-label="아바타 꾸미기">
+              <AvatarView equipped={eq} size={54} />
+            </button>
+          )}
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[14px] font-bold truncate" style={{ color: state.title.color }}>
-                {state.title.name}
-              </span>
-              <span className="text-[13px] font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
-              {state.streak >= 3 && (
-                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-[#fff4e5] text-[#a86a00] shrink-0">
-                  🔥 {state.streak}일 연속
+            {!showIdentity && (
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[14px] font-bold truncate" style={{ color: state.title.color }}>
+                  {state.title.name}
                 </span>
-              )}
-            </div>
+                <span className="text-[13px] font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
+                {state.streak >= 3 && (
+                  <span className="ml-auto shrink-0 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
+                    <Flame size={11} strokeWidth={2.5} aria-hidden />{state.streak}일 연속
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* XP 진행바 */}
-            <div className="mt-1.5 h-2 rounded-full bg-black/[0.06] overflow-hidden">
+            <div className={`${showIdentity ? "" : "mt-1.5"} h-2 rounded-full bg-black/[0.06] overflow-hidden`}>
               <div
                 className={`h-full rounded-full transition-[width] duration-500 ${xpCls}`}
                 style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${T.teal}, #7bd18a)` }}
               />
             </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-p-muted tabular-nums">
-              <span>{state.xpInLevel.toLocaleString("ko-KR")} / {state.xpNeeded.toLocaleString("ko-KR")} XP</span>
-              <span>다음 레벨까지 {(state.xpNeeded - state.xpInLevel).toLocaleString("ko-KR")}</span>
+            {/* "다음 레벨까지 N" 은 뺐다 — 280/500 이 이미 남은 양을 말한다. 같은 숫자를 두 번 적는 셈. */}
+            <div className="mt-1 text-[11px] text-p-secondary tabular-nums">
+              {state.xpInLevel.toLocaleString("ko-KR")} / {state.xpNeeded.toLocaleString("ko-KR")} XP
             </div>
           </div>
         </div>
