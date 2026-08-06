@@ -84,7 +84,7 @@ export function ServiceCard({ service, onEdit, onMoveLeft, onMoveRight }: { serv
           {service.priceLabel}
         </span>
       </div>
-      <p className="mt-0.5 text-[11px] text-p-muted">대상: {service.targetGrades}</p>
+      <p className="mt-0.5 text-[11px] text-p-secondary">대상: {service.targetGrades}</p>
 
       <ul className="mt-3.5 flex-1 p-0 list-none border-t border-black/[0.07] pt-3.5 flex flex-col gap-1.5">
         {service.bullets.map((b) => (
@@ -95,7 +95,14 @@ export function ServiceCard({ service, onEdit, onMoveLeft, onMoveRight }: { serv
         ))}
       </ul>
 
-      {/* 하단 버튼 */}
+      {/*
+        하단 버튼.
+        전에는 학습사이트의 브랜드 색을 배경으로 깔고 흰 글자를 얹었는데,
+        그 색들은 파비콘용이라 흰 글자를 받치지 못한다 — 실측 대비가
+        맘스코딩 1.66:1 · 클래스카드 1.90 · 클래스5 1.92 · 매일국어 2.43 (기준 4.5).
+        게다가 카드마다 CTA 색이 달라 "신청하기"라는 같은 행동이 매번 다른 신호로 보였다.
+        브랜드 색은 아이콘이 이미 담당하므로 버튼은 플랜토 그린 하나로 통일한다.
+      */}
       {isComingSoon ? (
         <div className="mt-4 flex items-center justify-center h-10 rounded bg-black/[0.06] text-[13px] font-semibold text-p-muted">
           준비 중
@@ -105,16 +112,14 @@ export function ServiceCard({ service, onEdit, onMoveLeft, onMoveRight }: { serv
           href={service.signupUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn-primary mt-4 flex items-center justify-center h-10 rounded text-[13px] font-semibold text-white no-underline"
-          style={{ backgroundColor: service.brandColor ?? "#38a848" }}
+          className="btn-primary mt-4 flex items-center justify-center h-10 rounded bg-p-green text-[13px] font-semibold text-white no-underline"
         >
           신청하기 →
         </a>
       ) : (
         <Link
           href="/signup"
-          className="btn-primary mt-4 flex items-center justify-center h-10 rounded text-[13px] font-semibold text-white no-underline"
-          style={{ backgroundColor: service.brandColor ?? "#38a848" }}
+          className="btn-primary mt-4 flex items-center justify-center h-10 rounded bg-p-green text-[13px] font-semibold text-white no-underline"
         >
           신청하기 →
         </Link>
