@@ -293,12 +293,19 @@ function FeedPrivacy({ state }: { state: RewardState }) {
   );
 }
 
-export function RewardPanels({ state, tab, onTab, onClose }: {
+export function RewardPanels({ state, tab, onTab, onClose, readOnly = false }: {
   state: RewardState;
   tab: "badges" | "shop";
   onTab: (t: "badges" | "shop") => void;
   onClose: () => void;
+  /**
+   * 남의 카드(학부모가 보는 자녀)에서는 조작을 전부 잠근다.
+   * 상점 구매·아바타 착용·피드 공개설정 콜러블은 전부 **호출자 본인**의 학생을 찾으므로
+   * (rewards-api.ts resolveChild) 학부모가 누르면 실패한다. 눌리게 두면 안 된다.
+   */
+  readOnly?: boolean;
 }) {
+  const tabs = readOnly ? (["badges"] as const) : (["badges", "shop"] as const);
   return (
     <ModalOverlay onClose={onClose} align="top" padding="12px" zIndex={1100}>
       {/*
@@ -311,7 +318,7 @@ export function RewardPanels({ state, tab, onTab, onClose }: {
         style={{ background: T.white, boxShadow: T.shadowFloat, height: "min(82dvh, 640px)" }}
       >
         <div className="flex items-center gap-1.5 mb-3 shrink-0">
-          {(["badges", "shop"] as const).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               onClick={() => onTab(t)}
@@ -325,10 +332,11 @@ export function RewardPanels({ state, tab, onTab, onClose }: {
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col">
-          {tab === "badges" ? (
+          {tab === "badges" || readOnly ? (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <BadgeVault state={state} />
-              <FeedPrivacy state={state} />
+              {/* 피드 공개설정도 본인만 바꾼다 */}
+              {!readOnly && <FeedPrivacy state={state} />}
             </div>
           ) : <Shop state={state} />}
         </div>

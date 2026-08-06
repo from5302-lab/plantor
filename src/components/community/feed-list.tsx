@@ -71,7 +71,12 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid, familyNames }: { myUid: string | null; familyNames: Map<string, string> }) {
+export function FeedList({ myUid, familyNames, header }: {
+  myUid: string | null;
+  familyNames: Map<string, string>;
+  /** 피드 맨 위에 얹을 것(프로필 카드). 조립은 CommunityShell 이 한다. */
+  header?: React.ReactNode;
+}) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -88,6 +93,8 @@ export function FeedList({ myUid, familyNames }: { myUid: string | null; familyN
   return (
     <div className="min-h-screen bg-p-bg">
       <div className="max-w-[600px] mx-auto bg-white min-h-[calc(100vh-113px)]">
+        {header && <div className="px-4 sm:px-5 pt-4">{header}</div>}
+
         <div className="px-4 sm:px-5 py-4 border-b border-black/[0.07]">
           <TodaySummary events={events} />
         </div>
