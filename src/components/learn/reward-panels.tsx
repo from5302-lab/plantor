@@ -61,12 +61,17 @@ export function BadgeVault({ state, readOnly = false }: { state: RewardState; re
         <span className="text-p-muted font-semibold"> / {TOTAL_BADGES}</span>
       </div>
 
-      {!readOnly && (
-        <div className="mb-2 text-[12px] text-p-secondary">
-          뱃지를 눌러 장착하세요. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요
-          {slots < 3 && <span className="text-p-muted"> · Lv.{slots === 1 ? 10 : 30}에 한 칸 더</span>}
-        </div>
-      )}
+      {/* 읽기 전용에서도 왜 안 눌리는지 말해 준다 — 아무 반응 없이 무시하면 고장으로 읽힌다 */}
+      <div className="mb-2 text-[12px] text-p-secondary">
+        {readOnly ? (
+          <>장착은 학생 본인 계정에서만 됩니다. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요</>
+        ) : (
+          <>
+            뱃지를 눌러 장착하세요. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요
+            {slots < 3 && <span className="text-p-muted"> · Lv.{slots === 1 ? 10 : 30}에 한 칸 더</span>}
+          </>
+        )}
+      </div>
 
       {/* 한 줄 가로 스크롤 — 상점과 같은 리듬. 격자로 깔면 뱃지가 늘수록 세로로만 길어진다.
           카드는 정사각 고정폭이라 개수가 달라도 목록으로 읽힌다. */}
@@ -79,7 +84,7 @@ export function BadgeVault({ state, readOnly = false }: { state: RewardState; re
               key={b.code}
               onClick={() => toggle(b.code)}
               title={`${b.desc}${effectLabel(b.code) ? ` · ${effectLabel(b.code)}` : ""}`}
-              className="relative w-[92px] h-[92px] shrink-0 rounded-xl p-1.5 flex flex-col items-center justify-center cursor-pointer"
+              className={`relative w-[92px] h-[92px] shrink-0 rounded-xl p-1.5 flex flex-col items-center justify-center ${readOnly ? "cursor-default" : "cursor-pointer"}`}
               style={{
                 background: r.bg,
                 border: `1.5px solid ${isOn ? "#1f7a33" : r.ring}`,
