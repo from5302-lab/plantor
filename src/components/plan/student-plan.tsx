@@ -19,11 +19,13 @@ function tsToDate(ts: unknown): Date | null {
 
 // ── 메인 ───────────────────────────────────────────────────────────────────────
 
-export function StudentPlan({ userId, userEmail, previewChildId }: {
+export function StudentPlan({ userId, userEmail, previewChildId, embedded = false }: {
   userId: string;
   userEmail?: string | null;
   /** 어드민 미리보기 — 이 학생의 계획을 그대로 보여준다(추가·삭제는 화면에서 막는다) */
   previewChildId?: string;
+  /** 프로필 화면의 탭 안에서 쓸 때 — 배경·여백은 바깥 화면에 맡긴다 */
+  embedded?: boolean;
 }) {
   const { childId, childName, subscriptions, ready } = useChildData({ userId, userEmail, previewChildId });
   const subscribedSlugs = subscriptions.map(s => s.serviceSlug);
@@ -70,7 +72,7 @@ export function StudentPlan({ userId, userEmail, previewChildId }: {
 
   if (!childId) {
     return (
-      <PageWrap paddingBottom="96px">
+      <PageWrap paddingBottom="96px" embedded={embedded}>
         <Card style={{ maxWidth: 440, margin: "0 auto", padding: "40px 32px", textAlign: "center" }}>
           <p className="m-0 text-sm text-p-secondary">학생 정보가 연결되지 않았습니다.</p>
         </Card>
@@ -82,7 +84,7 @@ export function StudentPlan({ userId, userEmail, previewChildId }: {
   const confirmedTasks = tasks.filter(t => t.status === "confirmed");
 
   return (
-    <PageWrap paddingBottom="96px">
+    <PageWrap paddingBottom="96px" embedded={embedded}>
       <div className="max-w-[480px] mx-auto">
 
         {/* 헤더 */}

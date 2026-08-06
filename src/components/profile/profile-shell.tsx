@@ -69,7 +69,8 @@ export function ProfileShell({ previewChildId, previewName }: {
 
         {/* 탭 — 좁은 화면에서는 가로로 밀린다 */}
         <div className="sticky top-14 z-40 bg-white border-b border-black/[0.07]">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar px-3 sm:px-4">
+          {/* 가운데 정렬 — 넘칠 때만 왼쪽부터 밀린다(justify-center 는 넘치면 앞이 잘린다) */}
+          <div className="flex gap-1 overflow-x-auto no-scrollbar px-3 sm:px-4 justify-start sm:justify-center [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto">
             {TABS.map((t) => (
               <button
                 key={t.key}
@@ -132,7 +133,7 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
         userId={isPreview ? (childId ?? "") : uid}
         userName={userName}
         userEmail={userEmail}
-        hideRewardHeader
+        embedded
         readOnly={isPreview}
         previewChildId={isPreview ? (childId ?? undefined) : undefined}
       />
@@ -145,6 +146,7 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
         userId={isPreview ? (childId ?? "") : uid}
         userEmail={userEmail}
         previewChildId={isPreview ? (childId ?? undefined) : undefined}
+        embedded
       />
     );
   }

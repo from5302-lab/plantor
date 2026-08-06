@@ -61,7 +61,7 @@ export function LearnDashboard({
   readOnly = false,
   previewChildId,
   previewLoginId,
-  hideRewardHeader = false,
+  embedded = false,
 }: {
   userId: string;
   userName: string | null;
@@ -70,8 +70,11 @@ export function LearnDashboard({
   readOnly?: boolean;
   previewChildId?: string;
   previewLoginId?: string;
-  /** 프로필 화면의 탭 안에서 쓸 때 — 카드가 이미 위에 있으므로 두 번 그리지 않는다 */
-  hideRewardHeader?: boolean;
+  /**
+   * 프로필 화면의 탭 안에서 쓸 때.
+   * 카드는 이미 위에 있으므로 두 번 그리지 않고, 배경·여백은 바깥 화면에 맡긴다.
+   */
+  embedded?: boolean;
 }) {
   const {
     childId, childName, studentPhone, subscriptions,
@@ -324,7 +327,7 @@ export function LearnDashboard({
 
   if (!childId) {
     return (
-      <PageWrap paddingBottom="96px">
+      <PageWrap paddingBottom="96px" embedded={embedded}>
         <Card style={{ maxWidth: 440, margin: "0 auto", padding: "40px 32px", textAlign: "center" }}>
           <div className="mb-4"><img src="/favicon.svg" alt="" width={56} height={56} /></div>
           <h2 className="m-0 text-[22px] font-bold text-black/95 tracking-[-0.25px]">학생 정보가 연결되지 않았습니다</h2>
@@ -361,7 +364,7 @@ export function LearnDashboard({
     const weekPastCount = weekDates.filter((d) => d <= today).length;
 
     return (
-      <PageWrap paddingBottom="96px">
+      <PageWrap paddingBottom="96px" embedded={embedded}>
         <div className="max-w-[480px] mx-auto">
           <Card style={{ padding: "40px 28px" }}>
             <div className="text-center mb-7">
@@ -417,7 +420,7 @@ export function LearnDashboard({
   }
 
   return (
-    <PageWrap paddingBottom="96px">
+    <PageWrap paddingBottom="96px" embedded={embedded}>
       <div className="max-w-[480px] mx-auto">
 
         {attendanceState === "consent" && (
@@ -455,7 +458,7 @@ export function LearnDashboard({
         )}
 
         {/* 리워드 — 레벨·XP·포인트·뱃지 (첫 화면 최상단) */}
-        {!hideRewardHeader && (
+        {!embedded && (
           <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
         )}
 
