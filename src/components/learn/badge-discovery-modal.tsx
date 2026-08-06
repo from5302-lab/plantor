@@ -11,7 +11,7 @@ import { T } from "@/lib/design-tokens";
 const SHARE_SIZE = 1080;
 
 /** 뱃지 공유 카드 PNG 생성 — 피드와 같이 학년·실명을 넣는다(2026-08-05 사용자 확정). */
-async function buildShareCard(badge: BadgeDef, opts: { name: string; grade: string; title: string; level: number }): Promise<Blob | null> {
+async function buildShareCard(badge: BadgeDef, opts: { name: string; grade: string; level: number }): Promise<Blob | null> {
   const canvas = document.createElement("canvas");
   canvas.width = SHARE_SIZE;
   canvas.height = SHARE_SIZE;
@@ -58,7 +58,7 @@ async function buildShareCard(badge: BadgeDef, opts: { name: string; grade: stri
   ctx.font = "700 44px system-ui, -apple-system, sans-serif";
   ctx.fillStyle = "rgba(0,0,0,0.85)";
   const who = [opts.grade, opts.name].filter(Boolean).join(" ");
-  ctx.fillText(`${who} · ${opts.title} Lv.${opts.level}`, SHARE_SIZE / 2, 940);
+  ctx.fillText(`${who} · Lv.${opts.level}`, SHARE_SIZE / 2, 940);
 
   ctx.font = "600 30px system-ui, -apple-system, sans-serif";
   ctx.fillStyle = "#a39e98";
@@ -68,12 +68,11 @@ async function buildShareCard(badge: BadgeDef, opts: { name: string; grade: stri
 }
 
 export function BadgeDiscoveryModal({
-  codes, name, grade, title, level, onClose,
+  codes, name, grade, level, onClose,
 }: {
   codes: string[];
   name: string;
   grade: string;
-  title: string;
   level: number;
   onClose: () => void;
 }) {
@@ -89,7 +88,6 @@ export function BadgeDiscoveryModal({
         badge={badge}
         name={name}
         grade={grade}
-        title={title}
         level={level}
         step={idx + 1}
         total={codes.length}
@@ -99,11 +97,10 @@ export function BadgeDiscoveryModal({
   );
 }
 
-function DiscoveryCard({ badge, name, grade, title, level, step, total, onNext }: {
+function DiscoveryCard({ badge, name, grade, level, step, total, onNext }: {
   badge: BadgeDef;
   name: string;
   grade: string;
-  title: string;
   level: number;
   step: number;
   total: number;
@@ -115,7 +112,7 @@ function DiscoveryCard({ badge, name, grade, title, level, step, total, onNext }
 
   async function share() {
     setShareState("working");
-    const blob = await buildShareCard(badge, { name, grade, title, level });
+    const blob = await buildShareCard(badge, { name, grade, level });
     if (!blob) { setShareState("idle"); return; }
     const file = new File([blob], `plantor-${badge.code}.png`, { type: "image/png" });
     const text = `${badge.name} 뱃지를 땄어요! ${badge.desc}`;

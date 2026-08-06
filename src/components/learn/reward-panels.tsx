@@ -239,9 +239,7 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
             <div className={`text-[19px] font-bold text-black/90 truncate ${previewName}`}>
               {state.name || "내 이름"}
             </div>
-            <div className="text-[12px] mt-0.5" style={{ color: state.title.color }}>
-              {state.title.name} Lv.{state.level}
-            </div>
+            <div className="text-[12px] mt-0.5 text-p-secondary">Lv.{state.level}</div>
             <div className="text-[13px] font-bold mt-1" style={{ color: T.teal }}>
               ⭐ {state.points.toLocaleString("ko-KR")}P
             </div>

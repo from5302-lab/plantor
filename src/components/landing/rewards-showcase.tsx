@@ -1,10 +1,10 @@
-import { BADGES, RARITY, SHOP_ITEMS, TOTAL_BADGES, titleOf, type Rarity } from "@/lib/rewards/catalog";
+import { BADGES, BADGE_BY_CODE, RARITY, SHOP_ITEMS, TOTAL_BADGES, effectLabel, type Rarity } from "@/lib/rewards/catalog";
 
 // 리워드가 어떻게 생겼는지 보여주는 섹션.
 // 숫자는 전부 카탈로그에서 계산한다 — 손으로 적으면 뱃지가 늘어난 날 소개만 옛 숫자로 남는다.
 
-/** 칭호가 바뀌는 레벨 (catalog.ts TITLES 의 min 값). */
-const TITLE_LEVELS = [1, 5, 10, 20, 30, 40, 50, 60, 80];
+/** 소개에 세울 장착 효과 — 뱃지의 의미와 효과가 붙어 있는 것들로 고른다. */
+const SHOWCASE_EQUIP = ["x-early-bird", "x-weekend", "dk-true-reader", "x-catchup"];
 
 /** 연속 학습일 배수 — functions/src/rewards-config.ts streakMultiplier 와 같은 값. */
 const STREAKS = [
@@ -19,7 +19,6 @@ const RARITY_ORDER: Rarity[] = ["common", "rare", "epic", "legend"];
 export function RewardsShowcase() {
   const hidden = BADGES.filter((b) => b.hidden).length;
   const characters = SHOP_ITEMS.filter((i) => i.slot === "base").length;
-  const titles = TITLE_LEVELS.map((lv) => ({ lv, ...titleOf(lv) }));
 
   return (
     <section className="bg-p-bg px-5 py-16 sm:px-6 sm:py-20">
@@ -34,25 +33,28 @@ export function RewardsShowcase() {
         </div>
 
         <div className="mt-9 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
-          {/* 레벨 — 씨앗에서 큰나무까지 */}
+          {/* 장착 — 딴 뱃지가 장식으로 끝나지 않는다는 것이 이 리워드의 핵심이다 */}
           <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-6">
             <h3 className="text-[16px] font-bold text-black/90" style={{ letterSpacing: "-0.02em" }}>
-              씨앗에서 큰나무까지
+              딴 뱃지는 끼워서 씁니다
             </h3>
             <p className="mt-1.5 text-[13.5px] leading-[1.6] text-p-secondary">
-              경험치가 쌓이면 레벨이 오르고, 레벨을 따라 칭호가 자랍니다.
+              효과가 <b className="font-semibold text-black/75">그 뱃지를 딴 행동</b>에 붙습니다.
+              아침에 따낸 뱃지는 아침에 공부할 때 힘을 냅니다.
             </p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {titles.map((t) => (
-                <span
-                  key={t.lv}
-                  className="rounded-full bg-black/[0.035] px-2.5 py-1 text-[12px] font-bold"
-                  style={{ color: t.color }}
-                >
-                  {t.name}
-                  <span className="ml-1 text-[10.5px] font-semibold text-p-muted tabular-nums">Lv.{t.lv}</span>
-                </span>
-              ))}
+            <div className="mt-4 flex flex-col gap-1.5">
+              {SHOWCASE_EQUIP.map((code) => {
+                const b = BADGE_BY_CODE.get(code);
+                const label = effectLabel(code);
+                if (!b || !label) return null;
+                return (
+                  <div key={code} className="flex items-center gap-2 rounded-lg bg-black/[0.03] px-2.5 py-1.5">
+                    <span className="text-[16px] leading-none" aria-hidden>{b.emoji}</span>
+                    <span className="text-[12px] font-bold text-black/75">{b.name}</span>
+                    <span className="ml-auto text-[11.5px] font-semibold text-[#1f7a33]">{label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
-import { DEFAULT_ITEMS, levelFromXp, titleOf, xpAtLevelStart, xpToNext } from "@/lib/rewards/catalog";
+import { DEFAULT_ITEMS, levelFromXp, xpAtLevelStart, xpToNext } from "@/lib/rewards/catalog";
 
 export type EarnedBadge = { code: string; earnedAt: Date | null; seen: boolean; date?: string };
 
@@ -12,7 +12,6 @@ export type RewardState = {
   ready: boolean;
   xpTotal: number;
   level: number;
-  title: { name: string; color: string };
   /** 현재 레벨 안에서의 진행도 0~1 */
   progress: number;
   xpInLevel: number;
@@ -35,7 +34,7 @@ export type RewardState = {
 };
 
 const EMPTY: RewardState = {
-  ready: false, xpTotal: 0, level: 1, title: { name: "씨앗", color: "#78716c" },
+  ready: false, xpTotal: 0, level: 1,
   progress: 0, xpInLevel: 0, xpNeeded: 500, points: 0, streak: 0, grade: "", name: "",
   feedOptOut: false, badges: [], unseen: [], owned: new Set(DEFAULT_ITEMS), equipped: {}, equippedBadges: [],
 };
@@ -102,7 +101,6 @@ export function useRewards(childId: string | null, enabled = true): RewardState 
     ready,
     xpTotal,
     level,
-    title: titleOf(level),
     progress: Math.max(0, Math.min(1, xpInLevel / xpNeeded)),
     xpInLevel,
     xpNeeded,

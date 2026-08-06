@@ -5,7 +5,7 @@ import { Flame } from "lucide-react";
 import { T } from "@/lib/design-tokens";
 import { SERVICES } from "@/data/site";
 import { ServiceIcon } from "@/components/ui/service-icon";
-import { SHOP_BY_ID } from "@/lib/rewards/catalog";
+import { BADGE_BY_CODE, SHOP_BY_ID } from "@/lib/rewards/catalog";
 import { useActiveServiceSlugs } from "@/lib/hooks/useActiveServiceSlugs";
 import { useMarkBadgesSeen, useRewards } from "@/lib/hooks/useRewards";
 import { AvatarView } from "./avatar-view";
@@ -81,10 +81,15 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
                 {note && <span className="shrink-0 text-[11px] text-p-secondary">{note}</span>}
               </div>
               {/* 스레드의 @핸들 자리 — 이 학생이 어디쯤 와 있는지 한 줄 */}
+              {/* 칭호(씨앗·새싹…)를 걷어낸 자리 — 장착한 뱃지가 그 사람을 말한다.
+                  칭호는 레벨과 같은 것을 두 이름으로 부르고 있어 자리값을 못 했다. */}
               <div className="mt-0.5 flex items-center gap-1.5 text-[13px]">
                 {state.grade && <span className="font-medium text-p-secondary">{state.grade}</span>}
                 {state.grade && <span className="text-black/15">·</span>}
-                <span className="font-bold" style={{ color: state.title.color }}>{state.title.name}</span>
+                {state.equippedBadges.map((code) => {
+                  const b = BADGE_BY_CODE.get(code);
+                  return b ? <span key={code} className="text-[15px] leading-none" title={b.name}>{b.emoji}</span> : null;
+                })}
                 <span className="font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
                 {state.streak >= 3 && (
                   <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
@@ -124,10 +129,11 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
 
           <div className="flex-1 min-w-0">
             {!showIdentity && (
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[14px] font-bold truncate" style={{ color: state.title.color }}>
-                  {state.title.name}
-                </span>
+              <div className="flex items-center gap-1.5">
+                {state.equippedBadges.map((code) => {
+                  const b = BADGE_BY_CODE.get(code);
+                  return b ? <span key={code} className="text-[15px] leading-none" title={b.name}>{b.emoji}</span> : null;
+                })}
                 <span className="text-[13px] font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
                 {state.streak >= 3 && (
                   <span className="ml-auto shrink-0 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
@@ -179,7 +185,6 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
           codes={queue}
           name={childName || "플랜토"}
           grade={state.grade}
-          title={state.title.name}
           level={state.level}
           onClose={() => { markSeen(queue); setDismissed((prev) => [...prev, ...queue]); }}
         />

@@ -2,7 +2,7 @@ import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/fire
 import * as functions from "firebase-functions";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { db } from "./config";
-import { BADGE_BY_CODE, SHOP_BY_ID, titleFromLevel } from "./rewards-config";
+import { BADGE_BY_CODE, SHOP_BY_ID } from "./rewards-config";
 
 // 리워드 자랑 피드(/community)의 이벤트 기록.
 //   학생이 쓰는 글은 없다. 뱃지·칭호·레벨·구매가 생길 때 서버가 카드를 남긴다.
@@ -93,7 +93,6 @@ type Author = {
   grade: string;
   equipped: Record<string, string | null>;
   level: number;
-  title: string;
 };
 
 /**
@@ -131,7 +130,6 @@ function authorFields(a: Author) {
     // 이름 스타일은 피드에서 바로 쓰도록 따로 꺼내 둔다(카탈로그 조회 없이 렌더)
     nameStyle: a.equipped?.nameStyle ?? null,
     level: a.level,
-    title: a.title,
   };
 }
 
@@ -145,14 +143,12 @@ export async function recordRewardFeed(input: FeedInput): Promise<void> {
 
   // 뱃지·레벨도 그날 학습의 결과이므로 같은 종료 시각을 쓴다
   const occurred = occurredTs(date, input.occurredAt);
-  const title = titleFromLevel(level);
   const author: Author = {
     childId,
     name: input.name,
     grade: input.grade,
     equipped: input.equipped ?? {},
     level,
-    title,
   };
 
   for (const code of newBadges) {
@@ -171,14 +167,11 @@ export async function recordRewardFeed(input: FeedInput): Promise<void> {
     }, occurred);
   }
 
+  // 레벨업은 레벨 카드 하나로 알린다.
+  // 칭호(씨앗·새싹…)는 걷어냈다 — 레벨과 같은 것을 두 이름으로 부르고 있었고,
+  // 이제 그 자리는 장착한 뱃지가 맡는다. 이미 쌓인 칭호 카드는 기록으로 남긴다(렌더는 유지).
   if (level > prevLevel) {
-    const prevTitle = titleFromLevel(prevLevel);
-    // 칭호가 바뀐 레벨업은 칭호 카드 하나로만 알린다(같은 사건을 두 장으로 쪼개지 않는다).
-    if (title !== prevTitle) {
-      await putOnce(`${childId}_title_${title}`, { ...authorFields(author), type: "title", prevTitle, date }, occurred);
-    } else {
-      await putOnce(`${childId}_level_${level}`, { ...authorFields(author), type: "level", date }, occurred);
-    }
+    await putOnce(`${childId}_level_${level}`, { ...authorFields(author), type: "level", date }, occurred);
   }
 
   // 과거 만회는 하루 요약을 만들지 않는다. 클래스5 과거 정정은 여러 날짜를 한꺼번에 처리하므로
@@ -221,7 +214,6 @@ export async function recordPurchaseFeed(params: {
     grade: params.grade,
     equipped: params.equipped ?? {},
     level: params.level,
-    title: titleFromLevel(params.level),
   };
 
   await putOnce(`${params.childId}_item_${item.id}`, {

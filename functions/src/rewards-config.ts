@@ -37,14 +37,6 @@ export function xpAtLevelStart(level: number): number {
   return acc;
 }
 
-const TITLES: Array<{ min: number; name: string }> = [
-  { min: 80, name: "큰나무" }, { min: 60, name: "열매" }, { min: 50, name: "개화" },
-  { min: 40, name: "꽃봉오리" }, { min: 30, name: "잎새" }, { min: 20, name: "줄기" },
-  { min: 10, name: "떡잎" }, { min: 5, name: "새싹" }, { min: 1, name: "씨앗" },
-];
-export function titleFromLevel(level: number): string {
-  return TITLES.find((t) => level >= t.min)?.name ?? "씨앗";
-}
 
 // ── XP 산식 상수 ──────────────────────────────────────────────────────────────
 export const XP = {

@@ -99,19 +99,6 @@ export function xpAtLevelStart(level: number): number {
   for (let l = 1; l < level; l++) acc += xpToNext(l);
   return acc;
 }
-// 칭호는 이름만 쓴다.
-// 식물 이모지는 전부 캐릭터(base 슬롯) 몫 — 칭호에도 🌱을 달면 "산 캐릭터"와 "레벨"이 뒤섞여
-// 피드에서 같은 그림이 두 가지 뜻으로 읽힌다. 단계 색으로 위계를 준다.
-const TITLES: Array<{ min: number; name: string; color: string }> = [
-  { min: 80, name: "큰나무", color: "#166534" }, { min: 60, name: "열매", color: "#b45309" },
-  { min: 50, name: "개화", color: "#be185d" }, { min: 40, name: "꽃봉오리", color: "#c2410c" },
-  { min: 30, name: "잎새", color: "#15803d" }, { min: 20, name: "줄기", color: "#2f7a4e" },
-  { min: 10, name: "떡잎", color: "#4d7c0f" }, { min: 5, name: "새싹", color: "#65a30d" },
-  { min: 1, name: "씨앗", color: "#78716c" },
-];
-export function titleOf(level: number) {
-  return TITLES.find((t) => level >= t.min) ?? TITLES[TITLES.length - 1];
-}
 
 // ── 상점 ──────────────────────────────────────────────────────────────────────
 /**
@@ -138,7 +125,6 @@ export type ShopItem = {
 
 export const SHOP_ITEMS: ShopItem[] = [
   // 캐릭터 — 플랜토의 정체성. 유니코드 식물 이모지를 통째로 끌어왔다.
-  // 여기가 최우선 사용처라, 레벨 칭호는 식물 이모지를 양보하고 이름만 쓴다(TITLES 주석 참고).
   { id: "base-sprout",   slot: "base", name: "새싹이",   cost: 0,    rarity: "common", emoji: "🌱" },
   { id: "base-herb",     slot: "base", name: "풀잎이",   cost: 200,  rarity: "common", emoji: "🌿" },
   { id: "base-shamrock", slot: "base", name: "세잎이",   cost: 200,  rarity: "common", emoji: "☘️" },
