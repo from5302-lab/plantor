@@ -104,16 +104,39 @@ export function Navbar() {
             )}
           </div>
 
-          {/* 모바일: 소개 + 로그인 버튼 + 햄버거.
-              첫 화면이 피드라 처음 온 사람에게는 소개가 유일한 맥락이다.
-              로그인과 같은 이유로 메뉴 안에 숨기지 않고 상단바에 고정한다. */}
-          <div className="flex min-[601px]:hidden items-center gap-2">
-            <Link
-              href="/about"
-              className="nav-link text-[13px] font-medium text-p-secondary no-underline"
-            >
-              소개
-            </Link>
+          {/* 모바일 상단바 — 갈 곳은 전부 여기 고정한다. 메뉴를 열어야 보이면 없는 것과 같다.
+              역할마다 실제로 오가는 곳만 올리고, 계정 동작(내 정보·로그아웃)은 메뉴에 남긴다.
+              소개는 아직 회원이 아닌 사람 몫이라 로그인하면 자리를 비운다. */}
+          <div className="flex min-[601px]:hidden items-center gap-2.5">
+            {!loading && !user && (
+              <Link href="/about" className="nav-link text-[13px] font-medium text-p-secondary no-underline">
+                소개
+              </Link>
+            )}
+
+            {!loading && user && role === "student" && (
+              <>
+                <Link href="/plan" className="nav-link text-[13px] font-medium text-p-secondary no-underline">계획</Link>
+                <Link href="/learn" className="nav-link text-[13px] font-semibold text-p-teal no-underline">학습 홈</Link>
+              </>
+            )}
+
+            {!loading && user && role === "parent" && (
+              <>
+                {hasAiPackage && (
+                  <Link href="/momsaipack" className="nav-link text-[13px] font-medium text-p-secondary no-underline">AI 패키지</Link>
+                )}
+                <Link href="/account" className="nav-link text-[13px] font-semibold text-p-teal no-underline">학습 홈</Link>
+              </>
+            )}
+
+            {!loading && user && role === "admin" && (
+              <>
+                <Link href="/momsaipack" className="nav-link text-[13px] font-medium text-p-secondary no-underline">AI 패키지</Link>
+                <Link href="/admin" className="nav-link text-[13px] font-semibold text-p-teal no-underline">관리</Link>
+              </>
+            )}
+
             {!loading && !user && (
               <button
                 onClick={() => setShowAuth(true)}
@@ -158,7 +181,6 @@ export function Navbar() {
             user={user}
             role={role}
             loading={loading}
-            hasAiPackage={hasAiPackage}
             displayId={displayId}
             signOut={signOut}
             onProfile={() => { setMenuOpen(false); setShowProfile(true); }}
@@ -239,12 +261,11 @@ function DesktopLinks({
 
 /* ── 모바일 메뉴 ──────────────────────────────────────────────────────── */
 function MobileMenu({
-  user, role, loading, hasAiPackage, displayId, signOut, onProfile, onClose,
+  user, role, loading, displayId, signOut, onProfile, onClose,
 }: {
   user: ReturnType<typeof useAuth>["user"];
   role: string | null;
   loading: boolean;
-  hasAiPackage: boolean;
   displayId: string;
   signOut: () => void;
   onProfile: () => void;
@@ -284,33 +305,10 @@ function MobileMenu({
 
         {/* 메뉴 항목 */}
         <div className="flex flex-col py-2">
-          {/* 피드는 로고, 소개·로그인은 상단바가 맡는다 — 메뉴를 열지 않아도 닿는다 */}
-
-          {!loading && user && role === "admin" && (
-            <>
-              <MobileLink href="/momsaipack" label="AI 패키지" onClick={onClose} />
-              <MobileLink href="/admin" label="관리" onClick={onClose} />
-            </>
-          )}
-
-          {!loading && user && role === "parent" && (
-            <>
-              {hasAiPackage && <MobileLink href="/momsaipack" label="AI 패키지" onClick={onClose} />}
-              <MobileLink href="/account" label="학습 홈" onClick={onClose} highlight />
-            </>
-          )}
-
-          {!loading && user && role === "student" && (
-            <>
-              <MobileLink href="/plan" label="계획" onClick={onClose} />
-              <MobileLink href="/learn" label="학습 홈" onClick={onClose} highlight />
-            </>
-          )}
-
-          {/* 구분선 + 하단 액션 */}
+          {/* 갈 곳(피드=로고, 역할별 링크·소개=상단바)은 전부 상단바에 고정했다.
+              메뉴에는 계정 동작만 남긴다 — 자주 누르지 않고, 잘못 누르면 곤란한 것들이다. */}
           {!loading && user && (
             <>
-              <div className="mx-4 my-2 border-t border-black/[0.07]" />
               <button
                 onClick={() => { onClose(); onProfile(); }}
                 className="mx-0 px-5 py-3 text-left text-[14px] font-medium text-black/75 bg-transparent border-none cursor-pointer"
@@ -335,18 +333,6 @@ function MobileMenu({
         }
       `}</style>
     </div>
-  );
-}
-
-function MobileLink({ href, label, onClick, highlight }: { href: string; label: string; onClick: () => void; highlight?: boolean }) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={`px-5 py-3 text-[15px] font-medium no-underline ${highlight ? "text-p-teal font-semibold" : "text-black/80"}`}
-    >
-      {label}
-    </Link>
   );
 }
 
