@@ -29,7 +29,10 @@ function priceLabel(it: ShopItem) {
 export function BadgeVault({ state }: { state: RewardState }) {
   const owned = new Set(state.badges.map((b) => b.code));
   const earned = BADGES.filter((b) => owned.has(b.code));
-  const openLocked = BADGES.filter((b) => !owned.has(b.code) && !b.hidden);
+  // 공개 뱃지는 연속 학습 4단계(3·7·30·100일)다. 미획득분을 전부 늘어놓으면
+  // 연속 2일인 학생에게 "100일의 기적 2/100일"까지 보여 목표가 아니라 벽으로 읽힌다.
+  // 손에 닿는 두 개만 남긴다.
+  const openLocked = BADGES.filter((b) => !owned.has(b.code) && !b.hidden).slice(0, 2);
   const hiddenLeft = BADGES.filter((b) => !owned.has(b.code) && b.hidden).length;
 
   return (
@@ -39,21 +42,28 @@ export function BadgeVault({ state }: { state: RewardState }) {
         <span className="text-p-muted font-semibold"> / {TOTAL_BADGES}</span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      {/* 4열에서는 "전 단계 클리어" 같은 이름이 잘렸다. 딴 뱃지는 이름까지 읽혀야 자랑이 된다 */}
+      <div className="grid grid-cols-3 gap-2">
         {earned.map((b) => {
           const r = RARITY[b.rarity];
           return (
             <div key={b.code} className="rounded-xl p-2 text-center" style={{ background: r.bg, border: `1.5px solid ${r.ring}` }} title={b.desc}>
-              <div className="text-[26px] leading-none">{b.emoji}</div>
-              <div className="mt-1 text-[10px] font-bold truncate" style={{ color: r.fg }}>{b.name}</div>
+              <div className="text-[28px] leading-none">{b.emoji}</div>
+              <div className="mt-1 text-[11px] font-bold truncate" style={{ color: r.fg }}>{b.name}</div>
             </div>
           );
         })}
-        {/* 미획득 히든은 조건을 끝까지 감춘다 — 개수만 알려준다 */}
-        {Array.from({ length: Math.min(hiddenLeft, 8) }).map((_, i) => (
-          <div key={`h-${i}`} className="rounded-xl p-2 text-center bg-black/[0.03] border border-black/[0.06]">
-            <div className="text-[26px] leading-none opacity-25">❓</div>
-            <div className="mt-1 text-[10px] font-bold text-p-muted">???</div>
+        {/*
+          미획득 히든은 조건을 끝까지 감춘다 — 개수만 알려준다.
+          자리표시를 8개나 깔았더니 뱃지 2개인 새 학생 화면이 물음표로 덮여
+          궁금증이 아니라 결핍으로 읽혔다. 3개(한 줄)면 "더 있다"는 신호로 충분하고,
+          정확한 개수는 바로 아래 문장이 말한다.
+          흐림은 opacity 대신 색으로 준다(DESIGN.md 규칙 10: UI 요소에 opacity 금지).
+        */}
+        {Array.from({ length: Math.min(hiddenLeft, (3 - (earned.length % 3)) % 3 || 3) }).map((_, i) => (
+          <div key={`h-${i}`} className="rounded-xl p-2 text-center bg-black/[0.02] border border-black/[0.05]">
+            <div className="text-[28px] leading-none text-[#d8d4cf]">?</div>
+            <div className="mt-1 text-[11px] font-bold text-p-muted">???</div>
           </div>
         ))}
       </div>
@@ -68,13 +78,31 @@ export function BadgeVault({ state }: { state: RewardState }) {
         <>
           <div className="mt-4 mb-1.5 text-[12px] font-bold text-p-secondary">도전 중</div>
           <div className="flex flex-col gap-1.5">
-            {openLocked.map((b) => (
-              <div key={b.code} className="flex items-center gap-2 rounded-lg bg-black/[0.02] px-2.5 py-2">
-                <span className="text-[18px] opacity-40">{b.emoji}</span>
-                <span className="text-[12px] font-semibold text-black/70">{b.name}</span>
-                <span className="ml-auto text-[11px] text-p-muted">{b.desc}</span>
-              </div>
-            ))}
+            {openLocked.map((b) => {
+              // 공개 뱃지는 전부 연속 학습(st-N)이라 지금 며칠째인지로 진행도를 낼 수 있다.
+              // 전에는 desc("7일 연속으로 학습했어요")를 그대로 붙였는데, 획득 알림용
+              // 과거형 문장이라 도전 중 목록에서는 이미 딴 것처럼 읽혔다.
+              const target = Number(b.code.startsWith("st-") ? b.code.slice(3) : NaN);
+              const pct = Number.isFinite(target) && target > 0
+                ? Math.max(0, Math.min(100, Math.round((state.streak / target) * 100)))
+                : null;
+              return (
+                <div key={b.code} className="flex items-center gap-2.5 rounded-lg bg-black/[0.02] px-2.5 py-2">
+                  <span className="text-[18px] shrink-0">{b.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-semibold text-black/70">{b.name}</div>
+                    {pct !== null && (
+                      <div className="mt-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                        <div className="h-full rounded-full bg-p-green" style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-semibold text-p-secondary shrink-0 tabular-nums">
+                    {pct !== null ? `${state.streak} / ${target}일` : b.desc}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </>
       )}
