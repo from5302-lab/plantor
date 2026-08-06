@@ -492,8 +492,10 @@ export function EditableTaskCard({
   return (
     <div
       className="bg-white rounded-xl px-4 py-3.5 mb-2 relative"
+      // 검토 중과 '오늘'이 똑같은 초록 테두리라 서로 구분되지 않았다.
+      // 테두리는 검토 중(선생님 확인 필요)에만 쓰고, 오늘은 배지로만 알린다.
       style={{
-        border: isDraft ? "1.5px solid #38a848" : isToday ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+        border: isDraft ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
       }}
     >
       {isToday && !isDraft && (
@@ -535,9 +537,16 @@ export function EditableTaskCard({
             {DAY_LABELS.map((label, i) => (
               <span key={i}
                 className="flex-1 text-center text-[11px] font-semibold py-1 rounded-md"
+                // 요일 칩을 진초록으로 채우면 카드 3장에 초록 덩어리가 12개 생겨
+                // 정작 이 화면의 액션(과제 추가)보다 강해진다.
+                // DESIGN.md: Plantor Green 은 CTA·링크에 아껴 쓰는 유일한 채도색.
+                // 여기서는 연한 배경 + 진한 글자로 낮춘다(대비 5.4:1, 선택 여부는 그대로 읽힌다).
+                // 진초록을 걷어내니 이번엔 선택/비선택 배경(#eafaf1 vs #f6f5f4)이 너무 비슷해
+                // 어느 요일에 하는지가 한눈에 안 들어왔다. 배경을 한 단계 진하게 + 얇은 링으로 잡는다.
                 style={{
-                  backgroundColor: task.scheduleDays.includes(i) ? "#38a848" : "#f6f5f4",
-                  color: task.scheduleDays.includes(i) ? "#fff" : "#a39e98",
+                  backgroundColor: task.scheduleDays.includes(i) ? "#d7f0e0" : "#f6f5f4",
+                  color: task.scheduleDays.includes(i) ? "#1a6b2c" : "#a39e98",
+                  boxShadow: task.scheduleDays.includes(i) ? "inset 0 0 0 1px rgba(26,107,44,0.22)" : "none",
                 }}>
                 {label}
               </span>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PlanShell } from "@/components/plan/plan-shell";
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function PlanPage() {
-  return <PlanShell />;
+  return (
+    <Suspense>
+      <PlanShell />
+    </Suspense>
+  );
 }
