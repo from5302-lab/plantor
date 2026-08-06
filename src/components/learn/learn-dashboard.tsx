@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { Flame } from "lucide-react";
 import {
   collection,
   addDoc, serverTimestamp,
@@ -462,13 +463,20 @@ export function LearnDashboard({
           <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
         )}
 
-        {/* 날짜 헤더 */}
-        <div className="mb-8">
-          <div className="text-[11px] font-semibold tracking-[0.12em] text-p-muted uppercase mb-1">{weekday}</div>
-          <div className="text-[38px] font-bold text-black/95 tracking-[-1.5px] leading-[1.05]">{month} {day}</div>
-          <div className="mt-2 text-[15px] font-medium text-p-secondary flex items-center gap-1.5">
-            안녕, {childName || userName}! <img src="/favicon.svg" alt="" width={16} height={16} />
+        {/* 날짜 헤더 — 날짜는 맥락이지 주인공이 아니다.
+            38px 대문자로 두면 화면에서 제일 큰 게 '오늘이 며칠인지'가 된다.
+            학생이 이 화면에 온 이유는 오늘 할 일이므로 그쪽에 크기를 넘긴다. */}
+        <div className="mb-5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[20px] font-bold text-black/95 tracking-[-0.6px] leading-none">{month} {day}</span>
+            <span className="text-[12px] font-semibold text-p-muted">{weekday}</span>
           </div>
+          {/* 프로필 탭 안에서는 바로 위 카드가 이미 이름·아바타를 보여준다 — 인사를 두 번 하지 않는다 */}
+          {!embedded && (
+            <div className="mt-2 text-[15px] font-medium text-p-secondary flex items-center gap-1.5">
+              안녕, {childName || userName}! <img src="/favicon.svg" alt="" width={16} height={16} />
+            </div>
+          )}
           {!isDemo && !readOnly && childId && (
             <div className="mt-3">
               <EditableStudentPhone childId={childId} phone={studentPhone} />
@@ -524,7 +532,11 @@ export function LearnDashboard({
 
         {/* 스트릭 stat */}
         <div className="flex items-center gap-2 px-1 py-2 mb-5">
-          <span className="text-[13px] font-semibold text-p-secondary">🔥 {streak}일 연속</span>
+          {/* 불꽃은 피드 카드와 같은 Lucide Flame 으로 — 같은 지표가 화면마다 다른 그림이면 안 된다 */}
+          <span className="text-[13px] font-semibold text-p-secondary inline-flex items-center gap-1">
+            <Flame size={14} strokeWidth={2.5} className="text-[#b45309]" aria-hidden />
+            {streak}일 연속
+          </span>
           <span className="text-black/15">·</span>
           <span className="text-[13px] font-semibold text-p-secondary">오늘 {todayDone}/{todayTotal} 완료</span>
         </div>
@@ -580,8 +592,8 @@ export function LearnDashboard({
           </Card>
         ) : (
           <>
-            {/* 오늘 할 일 (태스크 기반) */}
-            <div className="text-[10px] font-bold tracking-[0.1em] text-p-muted uppercase pl-1 mb-1.5">오늘 할 일</div>
+            {/* 오늘 할 일 (태스크 기반) — 이 화면의 주인공. 날짜에서 넘겨받은 크기를 여기 쓴다 */}
+            <div className="text-[16px] font-bold text-black/90 tracking-[-0.3px] pl-0.5 mb-2">오늘 할 일</div>
             <Card style={{ overflow: "hidden", padding: 0 }}>
               {childId && (
                 <TaskChecklist
@@ -610,10 +622,17 @@ export function LearnDashboard({
           <Card style={{ marginTop: 12, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 }}>
             <span className="text-[22px] shrink-0">{streak >= 30 ? "🏆" : streak >= 14 ? "🥇" : streak >= 7 ? "🥈" : "🥉"}</span>
             <div>
+              {/* 연속 일수는 위 stat 줄이 이미 말한다. 여기서는 '다음 목표'를 준다 —
+                  같은 숫자를 두 번 적으면 카드가 한 줄을 두 번 쓰는 셈이다.
+                  (전에는 3~6일이 전부 "3일 연속"으로 찍혀 위 숫자와 어긋나기까지 했다) */}
               <div className="text-sm font-semibold text-black/95 tracking-[-0.1px]">
-                {streak >= 30 ? "30일 연속 달성!" : streak >= 14 ? "2주 연속 공부 중" : streak >= 7 ? "일주일 연속 공부 중" : "3일 연속 공부 중"}
+                {streak >= 30
+                  ? "30일 연속 달성!"
+                  : `${streak >= 14 ? 30 : streak >= 7 ? 14 : 7}일 연속까지 ${(streak >= 14 ? 30 : streak >= 7 ? 14 : 7) - streak}일`}
               </div>
-              <div className="text-xs text-p-secondary mt-0.5">잘하고 있어, 계속 이어가자!</div>
+              <div className="text-xs text-p-secondary mt-0.5">
+                {streak >= 30 ? "대단해! 이 기세로 계속 가자." : "잘하고 있어, 계속 이어가자!"}
+              </div>
             </div>
           </Card>
         )}
