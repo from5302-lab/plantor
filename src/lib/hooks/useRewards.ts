@@ -30,17 +30,19 @@ export type RewardState = {
   unseen: EarnedBadge[];
   owned: Set<string>;
   equipped: Record<string, string | null>;
+  /** 장착한 뱃지 코드 — 효과 적용은 서버가 한다 */
+  equippedBadges: string[];
 };
 
 const EMPTY: RewardState = {
   ready: false, xpTotal: 0, level: 1, title: { name: "씨앗", color: "#78716c" },
   progress: 0, xpInLevel: 0, xpNeeded: 500, points: 0, streak: 0, grade: "", name: "",
-  feedOptOut: false, badges: [], unseen: [], owned: new Set(DEFAULT_ITEMS), equipped: {},
+  feedOptOut: false, badges: [], unseen: [], owned: new Set(DEFAULT_ITEMS), equipped: {}, equippedBadges: [],
 };
 
 /** 학생 본인의 XP·레벨·포인트·뱃지·인벤토리를 실시간 구독한다. */
 export function useRewards(childId: string | null, enabled = true): RewardState {
-  const [child, setChild] = useState<{ xpTotal: number; points: number; grade: string; name: string; feedOptOut: boolean; equipped: Record<string, string | null> } | null>(null);
+  const [child, setChild] = useState<{ xpTotal: number; points: number; grade: string; name: string; feedOptOut: boolean; equipped: Record<string, string | null>; equippedBadges: string[] } | null>(null);
   const [streak, setStreak] = useState(0);
   const [badges, setBadges] = useState<EarnedBadge[]>([]);
   const [owned, setOwned] = useState<Set<string>>(new Set(DEFAULT_ITEMS));
@@ -57,6 +59,7 @@ export function useRewards(childId: string | null, enabled = true): RewardState 
         name: String(d.name ?? ""),
         feedOptOut: d.feedOptOut === true,
         equipped: (d.equipped ?? {}) as Record<string, string | null>,
+        equippedBadges: Array.isArray(d.equippedBadges) ? (d.equippedBadges as string[]) : [],
       });
       setReady(true);
     });
@@ -112,6 +115,7 @@ export function useRewards(childId: string | null, enabled = true): RewardState 
     unseen: badges.filter((b) => !b.seen),
     owned,
     equipped: child?.equipped ?? {},
+    equippedBadges: child?.equippedBadges ?? [],
   };
 }
 

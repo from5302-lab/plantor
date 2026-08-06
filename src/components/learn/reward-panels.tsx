@@ -7,7 +7,8 @@ import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { T } from "@/lib/design-tokens";
 import { AvatarView } from "./avatar-view";
 import {
-  BADGES, RARITY, SHOP_BY_ID, SHOP_ITEMS, SLOT_LABEL, TOTAL_BADGES,
+  BADGES, BADGE_BY_CODE, RARITY, SHOP_BY_ID, SHOP_ITEMS, SLOT_LABEL, TOTAL_BADGES,
+  badgeSlots, effectLabel,
   type ShopItem, type ShopSlot,
 } from "@/lib/rewards/catalog";
 import type { RewardState } from "@/lib/hooks/useRewards";
@@ -26,9 +27,27 @@ function priceLabel(it: ShopItem) {
   return it.badgeCode ? "뱃지 보상 · 무료" : "무료";
 }
 
-export function BadgeVault({ state }: { state: RewardState }) {
+export function BadgeVault({ state, readOnly = false }: { state: RewardState; readOnly?: boolean }) {
   const owned = new Set(state.badges.map((b) => b.code));
   const earned = BADGES.filter((b) => owned.has(b.code));
+  const slots = badgeSlots(state.level);
+  // 장착은 서버가 검증한다. 여기서는 눌린 즉시 반응하도록 낙관적으로 그리고,
+  // 실패하면 되돌린다 — 뱃지판을 오가며 기다리게 하면 끼우는 재미가 죽는다.
+  const [equipped, setEquipped] = useState<string[] | null>(null);
+  const [msg, setMsg] = useState("");
+  const on = equipped ?? state.equippedBadges;
+
+  async function toggle(code: string) {
+    if (readOnly) return;
+    const next = on.includes(code) ? on.filter((c) => c !== code) : [...on, code].slice(-slots);
+    setEquipped(next); setMsg("");
+    try {
+      await httpsCallable(functions, "equipBadges")({ codes: next });
+    } catch (e) {
+      setEquipped(on);
+      setMsg((e as { message?: string })?.message ?? "장착에 실패했어요.");
+    }
+  }
   // 공개 뱃지는 연속 학습 4단계(3·7·30·100일)다. 미획득분을 전부 늘어놓으면
   // 연속 2일인 학생에게 "100일의 기적 2/100일"까지 보여 목표가 아니라 벽으로 읽힌다.
   // 손에 닿는 두 개만 남긴다.
@@ -42,31 +61,71 @@ export function BadgeVault({ state }: { state: RewardState }) {
         <span className="text-p-muted font-semibold"> / {TOTAL_BADGES}</span>
       </div>
 
-      {/* 4열에서는 "전 단계 클리어" 같은 이름이 잘렸다. 딴 뱃지는 이름까지 읽혀야 자랑이 된다 */}
-      <div className="grid grid-cols-3 gap-2">
+      {!readOnly && (
+        <div className="mb-2 text-[12px] text-p-secondary">
+          뱃지를 눌러 장착하세요. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요
+          {slots < 3 && <span className="text-p-muted"> · Lv.{slots === 1 ? 10 : 30}에 한 칸 더</span>}
+        </div>
+      )}
+
+      {/* 한 줄 가로 스크롤 — 상점과 같은 리듬. 격자로 깔면 뱃지가 늘수록 세로로만 길어진다.
+          카드는 정사각 고정폭이라 개수가 달라도 목록으로 읽힌다. */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-1">
         {earned.map((b) => {
           const r = RARITY[b.rarity];
+          const isOn = on.includes(b.code);
           return (
-            <div key={b.code} className="rounded-xl p-2 text-center" style={{ background: r.bg, border: `1.5px solid ${r.ring}` }} title={b.desc}>
-              <div className="text-[28px] leading-none">{b.emoji}</div>
-              <div className="mt-1 text-[11px] font-bold truncate" style={{ color: r.fg }}>{b.name}</div>
-            </div>
+            <button
+              key={b.code}
+              onClick={() => toggle(b.code)}
+              title={`${b.desc}${effectLabel(b.code) ? ` · ${effectLabel(b.code)}` : ""}`}
+              className="relative w-[92px] h-[92px] shrink-0 rounded-xl p-1.5 flex flex-col items-center justify-center cursor-pointer"
+              style={{
+                background: r.bg,
+                border: `1.5px solid ${isOn ? "#1f7a33" : r.ring}`,
+                boxShadow: isOn ? "inset 0 0 0 2px rgba(31,122,51,0.35)" : "none",
+              }}
+            >
+              {isOn && (
+                <span className="absolute top-1 right-1 rounded-full bg-p-green px-1.5 py-px text-[9px] font-bold text-white">장착</span>
+              )}
+              <div className="text-[30px] leading-none">{b.emoji}</div>
+              <div className="mt-1 w-full truncate text-center text-[11px] font-bold" style={{ color: r.fg }}>{b.name}</div>
+            </button>
           );
         })}
         {/*
           미획득 히든은 조건을 끝까지 감춘다 — 개수만 알려준다.
-          자리표시를 8개나 깔았더니 뱃지 2개인 새 학생 화면이 물음표로 덮여
-          궁금증이 아니라 결핍으로 읽혔다. 3개(한 줄)면 "더 있다"는 신호로 충분하고,
-          정확한 개수는 바로 아래 문장이 말한다.
-          흐림은 opacity 대신 색으로 준다(DESIGN.md 규칙 10: UI 요소에 opacity 금지).
+          자리표시는 줄을 채우는 만큼만. 정확한 개수는 바로 아래 문장이 말한다.
+          흐림은 opacity 대신 색으로 준다(DESIGN.md 규칙 10).
         */}
-        {Array.from({ length: Math.min(hiddenLeft, (3 - (earned.length % 3)) % 3 || 3) }).map((_, i) => (
-          <div key={`h-${i}`} className="rounded-xl p-2 text-center bg-black/[0.02] border border-black/[0.05]">
-            <div className="text-[28px] leading-none text-[#d8d4cf]">?</div>
+        {Array.from({ length: Math.min(hiddenLeft, 2) }).map((_, i) => (
+          <div key={`h-${i}`} className="w-[92px] h-[92px] shrink-0 rounded-xl bg-black/[0.02] border border-black/[0.05] flex flex-col items-center justify-center">
+            <div className="text-[30px] leading-none text-[#d8d4cf]">?</div>
             <div className="mt-1 text-[11px] font-bold text-p-muted">???</div>
           </div>
         ))}
       </div>
+
+      {msg && <p className="mt-2 text-[12px] text-[#c00000]">{msg}</p>}
+
+      {/* 장착한 뱃지가 실제로 무엇을 해주는지 — 끼운 이유가 보여야 다음에 또 고른다 */}
+      {on.length > 0 && (
+        <div className="mt-2.5 flex flex-col gap-1">
+          {on.map((code) => {
+            const label = effectLabel(code);
+            const b = BADGE_BY_CODE.get(code);
+            if (!label || !b) return null;
+            return (
+              <div key={code} className="flex items-center gap-1.5 rounded-lg bg-[#f0faf1] px-2.5 py-1.5 text-[11.5px]">
+                <span className="text-[14px] leading-none">{b.emoji}</span>
+                <span className="font-semibold text-black/70">{b.name}</span>
+                <span className="ml-auto font-bold text-[#1f7a33]">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {hiddenLeft > 0 && (
         <div className="mt-2.5 text-[12px] text-p-secondary">
@@ -163,7 +222,7 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
   const wide = WIDE_SLOTS.has(slot);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col">
       {/* ── 무대 ── 입어보는 결과가 여기 뜬다.
           프로필 화면에서는 바로 위에 프로필 카드가 있어 두 번 그리지 않는다(hideStage).
           그때는 입어보기 결과가 그 카드에 그대로 비친다. */}
@@ -232,8 +291,10 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
         ))}
       </div>
 
-      {/* ── 아이템 ── 여기만 스크롤한다 (패널 높이는 탭이 바뀌어도 그대로) */}
-      <div className={`flex-1 min-h-0 overflow-y-auto grid content-start gap-2 mt-2 -mx-0.5 px-0.5 pb-1 ${wide ? "grid-cols-2" : "grid-cols-3"}`}>
+      {/* ── 아이템 ── 한 줄 가로 스크롤.
+          격자로 깔면 슬롯 하나에 수십 개라 세로로 한참 내려가고, 화면 대부분이
+          카드 사이 여백이 된다. 한 줄이면 훑기가 빠르고 슬롯 탭과 리듬이 맞는다. */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mt-2 -mx-0.5 px-0.5 pb-1">
         {items.map((it) => {
           const owned = state.owned.has(it.id);
           const wearing = preview[it.slot] === it.id;
@@ -244,7 +305,7 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
             <button
               key={it.id}
               onClick={() => setTryOn((prev) => ({ ...prev, [it.slot]: it.id }))}
-              className="rounded-xl p-2.5 text-center cursor-pointer"
+              className={`shrink-0 rounded-xl p-2.5 text-center cursor-pointer ${wide ? "w-[132px]" : "w-[104px]"}`}
               style={{
                 // 희귀도를 카드에서 읽히게 한다. 전에는 이름 글자 색만 달라서
                 // 전설과 일반이 스크롤 중에 똑같아 보였다. 영웅·전설만 은은히 물들인다.

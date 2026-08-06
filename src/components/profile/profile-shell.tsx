@@ -175,12 +175,12 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
 
   if (!rewards.ready) return <CenterMsg>로딩 중…</CenterMsg>;
 
-  // 상점은 모달용으로 만들어져 안쪽 목록만 스크롤한다(h-full 전제). 페이지에서는 높이를 정해 준다.
+  // 상점 아이템이 한 줄 가로 스크롤이 되면서 세로 높이를 억지로 잡을 이유가 없어졌다.
   // 미리보기에서도 둘러보기·입어보기는 열어 둔다 — 막히는 건 구매 버튼뿐이다.
   return (
-    <div className={`px-4 sm:px-5 py-4 ${tab === "shop" ? "h-[calc(100vh-320px)] min-h-[440px]" : ""}`}>
+    <div className="px-4 sm:px-5 py-4">
       {tab === "badges"
-        ? <BadgeVault state={rewards} />
+        ? <BadgeVault state={rewards} readOnly={isPreview} />
         : <Shop state={rewards} readOnly={isPreview} hideStage tryOn={tryOn} onTryOn={onTryOn} />}
     </div>
   );

@@ -4,7 +4,7 @@ import { db } from "./config";
 import {
   BADGE_BY_CODE, QUALITY_ANCHOR, RARITY_BONUS, REWARD_SLUGS,
   SPEED_PENALTY_FACTOR, SPEED_PENALTY_MULTIPLE, XP,
-  levelFromXp, streakMultiplier,
+  levelFromXp, streakMultiplier, bundleEffects,
 } from "./rewards-config";
 import { recordRewardFeed, type FeedInput } from "./feed-events";
 
@@ -357,7 +357,7 @@ function studySummary(
 
 export type XpComputation = {
   xp: number; quality: number; qualityRaw: number | null; note?: string;
-  breakdown: { base: number; quality: number; volume: number; streakMult: number; lateFactor: number };
+  breakdown: { base: number; quality: number; volume: number; streakMult: number; lateFactor: number; badgeMult?: number; badgePct?: number };
 };
 
 /** 순수 계산 — 저장하지 않는다. 소급 스크립트/재계산 도구도 이걸 쓴다. */
@@ -365,14 +365,14 @@ export function computeXp(
   serviceSlug: string,
   autoStatus: string,
   scrapedData: Json | null,
-  opts: { streak: number; late: boolean },
+  opts: { streak: number; late: boolean; date?: string; equippedBadges?: string[] },
 ): XpComputation {
   const units: Json[] = Array.isArray(scrapedData?.units) ? scrapedData!.units : [];
   const detail: Json | null = (scrapedData?.detail as Json) ?? null;
 
   const base = autoStatus === "완료" ? XP.DONE : autoStatus === "진행중" ? XP.PARTIAL : 0;
   if (base === 0) {
-    return { xp: 0, quality: 0, qualityRaw: null, breakdown: { base: 0, quality: 0, volume: 0, streakMult: 1, lateFactor: 1 } };
+    return { xp: 0, quality: 0, qualityRaw: null, breakdown: { base: 0, quality: 0, volume: 0, streakMult: 1, lateFactor: 1, badgeMult: 1, badgePct: 0 } };
   }
 
   const qOut = serviceSlug === "autovoca" ? qualityAutovoca(units)
@@ -383,12 +383,31 @@ export function computeXp(
   const qualityPts = Math.round(qOut.q * XP.QUALITY_MAX);
   const volumePts = Math.min(XP.VOLUME_CAP, volumeExtra(serviceSlug, units, detail) * XP.VOLUME_UNIT);
   const mult = streakMultiplier(opts.streak);
-  const lateFactor = opts.late ? XP.LATE_FACTOR : 1;
 
-  const xp = Math.min(XP.SERVICE_CAP, Math.round((base + qualityPts) * mult * lateFactor) + volumePts);
+  // 장착 뱃지 효과 — 조건을 만족한 날에만 붙는다.
+  // 상한(SERVICE_CAP)보다 **먼저** 곱해야 한다. 뒤에 붙이면 상한을 우회한다.
+  const eff = bundleEffects(opts.equippedBadges ?? []);
+  const hours = units.map((u) => u?.startHour).filter((h: unknown) => typeof h === "number") as number[];
+  const minutes = units
+    .map((u) => Number(u?.studyMinutes))
+    .filter((n) => Number.isFinite(n))
+    .reduce((a, b) => a + b, 0);
+  const dow = opts.date ? (new Date(`${opts.date}T00:00:00Z`).getUTCDay() + 6) % 7 : -1;
+  const met: Record<string, boolean> = {
+    earlyBird: hours.some((h) => h < 7),
+    weekend: dow === 5 || dow === 6,
+    quality80: qOut.q >= 0.8,
+    long60: minutes >= 60,
+  };
+  const badgePct = (Object.entries(eff.xpWhen) as [string, number][])
+    .reduce((sum, [cond, pct]) => sum + (met[cond] ? pct : 0), 0);
+  const badgeMult = 1 + badgePct / 100;
+  const lateFactor = opts.late ? (eff.lateFactor ?? XP.LATE_FACTOR) : 1;
+
+  const xp = Math.min(XP.SERVICE_CAP, Math.round((base + qualityPts) * mult * badgeMult * lateFactor) + volumePts);
   return {
     xp, quality: qOut.q, qualityRaw: qOut.raw, note: qOut.note,
-    breakdown: { base, quality: qualityPts, volume: volumePts, streakMult: mult, lateFactor },
+    breakdown: { base, quality: qualityPts, volume: volumePts, streakMult: mult, lateFactor, badgeMult, badgePct },
   };
 }
 
@@ -683,7 +702,11 @@ export async function awardRewards(params: {
         .reduce((s, d) => s + Number(d.data().xp ?? 0), 0);
 
       // ── 계산 ──
-      const comp = computeXp(serviceSlug, autoStatus, scrapedData, { streak: stats.streak, late });
+      // 장착 뱃지 — 효과 판정에 쓴다. 보유 검증은 장착 시점(equipBadges)에 이미 했다.
+      const equippedBadges = (childSnap.data()?.equippedBadges ?? []) as string[];
+      const comp = computeXp(serviceSlug, autoStatus, scrapedData, {
+        streak: stats.streak, late, date, equippedBadges,
+      });
       const capped = Math.max(0, Math.min(comp.xp, XP.DAILY_CAP - otherXp));
       const deltaXp = capped - prevXp;
 
@@ -720,7 +743,10 @@ export async function awardRewards(params: {
       const newLevel = levelFromXp(newTotal);
       const levelUps = Math.max(0, newLevel - prevLevel);
 
-      const deltaPoints = Math.round(deltaXp * XP.POINT_RATE) + badgeBonus + levelUps * XP.LEVELUP_POINT;
+      // 포인트 보너스는 XP 로 번 몫에만 붙인다 — 뱃지·레벨업 보상까지 불리면 두 번 얹는 셈이 된다.
+      const pointPct = bundleEffects(equippedBadges).pointPct;
+      const basePoints = Math.round(deltaXp * XP.POINT_RATE);
+      const deltaPoints = basePoints + Math.round(basePoints * pointPct / 100) + badgeBonus + levelUps * XP.LEVELUP_POINT;
 
       // ── 쓰기 ──
       // 피드 카드에 쓸 학습 요약도 원장에 함께 남긴다 — 하루 요약은 이 원장을 모아 만든다.

@@ -244,3 +244,62 @@ export const BG_STYLE: Record<string, string> = {
   "bg-bloom":  "linear-gradient(135deg,#fde8f3,#f9c9e4)",
   "bg-tree":   "linear-gradient(135deg,#e7f0e2,#bcd9b6)",
 };
+
+// ── 뱃지 효과 ─────────────────────────────────────────────────────────────────
+// functions/src/rewards-config.ts 의 사본. 여기서는 **표시용**으로만 쓴다 —
+// 실제 적용은 전부 서버가 한다(클라이언트 값을 믿으면 조작된다).
+// 효과 정의가 서버와 어긋나면 학생이 본 설명과 실제 적립이 달라진다.
+
+export type BadgeCond = "earlyBird" | "weekend" | "quality80" | "long60";
+
+export type BadgeEffect =
+  | { kind: "xpWhen"; cond: BadgeCond; pct: number }
+  | { kind: "points"; pct: number }
+  | { kind: "shopDiscount"; pct: number }
+  | { kind: "lateFactor"; value: number };
+
+const BADGE_EFFECT: Record<string, BadgeEffect> = {
+  "x-early-bird":   { kind: "xpWhen", cond: "earlyBird", pct: 20 },
+  "x-weekend":      { kind: "xpWhen", cond: "weekend",   pct: 20 },
+  "dk-true-reader": { kind: "xpWhen", cond: "quality80", pct: 15 },
+  "av-grit":        { kind: "xpWhen", cond: "long60",    pct: 15 },
+  "cc-long-run":    { kind: "xpWhen", cond: "long60",    pct: 15 },
+  "x-catchup":      { kind: "lateFactor", value: 0.85 },
+  "x-night-owl":    { kind: "points", pct: 5 },
+};
+
+const RARITY_EFFECT: Record<Rarity, BadgeEffect> = {
+  common: { kind: "points", pct: 5 },
+  rare:   { kind: "points", pct: 10 },
+  epic:   { kind: "shopDiscount", pct: 10 },
+  legend: { kind: "points", pct: 15 },
+};
+
+export function effectOf(code: string): BadgeEffect | null {
+  const fixed = BADGE_EFFECT[code];
+  if (fixed) return fixed;
+  const b = BADGE_BY_CODE.get(code);
+  return b ? RARITY_EFFECT[b.rarity] : null;
+}
+
+const COND_LABEL: Record<BadgeCond, string> = {
+  earlyBird: "오전 7시 전에 시작한 날",
+  weekend: "토·일에 학습한 날",
+  quality80: "잘한 날(정확도 높은 날)",
+  long60: "60분 넘게 한 날",
+};
+
+/** 학생에게 보여줄 한 줄. 히든 뱃지의 획득 조건과는 별개다(그건 계속 감춘다). */
+export function effectLabel(code: string): string | null {
+  const e = effectOf(code);
+  if (!e) return null;
+  if (e.kind === "xpWhen") return `${COND_LABEL[e.cond]} 경험치 +${e.pct}%`;
+  if (e.kind === "points") return `포인트 +${e.pct}%`;
+  if (e.kind === "shopDiscount") return `상점 ${e.pct}% 할인`;
+  return "밀린 과제를 만회할 때 경험치를 더 받아요";
+}
+
+/** 장착 슬롯 수 — 레벨로 열린다 (서버 badgeSlots 와 같은 값). */
+export function badgeSlots(level: number): number {
+  return level >= 30 ? 3 : level >= 10 ? 2 : 1;
+}

@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./config";
-import { DEFAULT_ITEMS, SHOP_BY_ID, levelFromXp } from "./rewards-config";
+import { BADGE_BY_CODE, DEFAULT_ITEMS, SHOP_BY_ID, badgeSlots, bundleEffects, levelFromXp } from "./rewards-config";
 import { recordPurchaseFeed } from "./feed-events";
 
 // 학생이 직접 호출하는 리워드 API — 구매·착용·뱃지 확인·피드 공개 설정.
@@ -52,22 +52,25 @@ export const purchaseShopItem = onCall(async (request) => {
     if (item.minLevel && level < item.minLevel) {
       throw new HttpsError("failed-precondition", `레벨 ${item.minLevel}부터 열려요.`);
     }
-    if (item.cost > points) throw new HttpsError("failed-precondition", "포인트가 모자라요.");
+    // 장착 뱃지의 상점 할인. 가격 계산은 서버에서만 한다 — 클라이언트가 보낸 값을 믿으면 공짜로 산다.
+    const discountPct = bundleEffects((child.data()?.equippedBadges ?? []) as string[]).shopDiscountPct;
+    const price = Math.max(0, Math.round(item.cost * (100 - discountPct) / 100));
+    if (price > points) throw new HttpsError("failed-precondition", "포인트가 모자라요.");
 
     tx.set(invRef, {
       itemId: item.id, slot: item.slot,
       source: item.badgeCode ? "badge" : item.minLevel ? "level" : "point",
-      cost: item.cost, acquiredAt: FieldValue.serverTimestamp(),
+      cost: price, listPrice: item.cost, discountPct, acquiredAt: FieldValue.serverTimestamp(),
     });
-    if (item.cost > 0) {
+    if (price > 0) {
       tx.set(childRef, {
-        points: FieldValue.increment(-item.cost),
-        pointsSpent: FieldValue.increment(item.cost),
+        points: FieldValue.increment(-price),
+        pointsSpent: FieldValue.increment(price),
       }, { merge: true });
     }
     return {
       result: "ok",
-      points: points - item.cost,
+      points: points - price,
       feed: {
         name: String(child.data()?.name ?? ""),
         grade: String(child.data()?.grade ?? ""),
@@ -109,6 +112,32 @@ export const equipAvatarItem = onCall(async (request) => {
   }
   await childDoc.ref.set({ equipped: { [slot]: itemId ?? null } }, { merge: true });
   return { result: "ok" };
+});
+
+/**
+ * 뱃지 장착 — 보유한 뱃지만, 레벨로 열린 슬롯 수만큼.
+ *
+ * 효과는 서버 산식(computeXp)이 children.equippedBadges 를 읽어 적용한다.
+ * 그래서 검증은 반드시 여기서 끝내야 한다 — 클라이언트가 보낸 목록을 그대로 저장하면
+ * 안 딴 뱃지의 효과를 쓸 수 있다.
+ */
+export const equipBadges = onCall(async (request) => {
+  const { codes } = (request.data ?? {}) as { codes?: string[] };
+  const list = Array.isArray(codes) ? [...new Set(codes.map(String))] : [];
+
+  const childDoc = await resolveChild(request.auth as never);
+  const level = levelFromXp(Number(childDoc.data()?.xpTotal ?? 0));
+  const slots = badgeSlots(level);
+  if (list.length > slots) {
+    throw new HttpsError("failed-precondition", `지금은 ${slots}개까지 장착할 수 있어요.`);
+  }
+  for (const code of list) {
+    if (!BADGE_BY_CODE.has(code)) throw new HttpsError("invalid-argument", "없는 뱃지입니다.");
+    const owned = await childDoc.ref.collection("badges").doc(code).get();
+    if (!owned.exists) throw new HttpsError("failed-precondition", "아직 따지 않은 뱃지예요.");
+  }
+  await childDoc.ref.set({ equippedBadges: list }, { merge: true });
+  return { result: "ok", slots };
 });
 
 /** 뱃지 발견 연출을 보여준 뒤 호출 — 다음 접속 때 다시 뜨지 않게 한다. */

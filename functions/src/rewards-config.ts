@@ -267,3 +267,72 @@ export const SHOP_ITEMS: ShopItem[] = [
 export const SHOP_BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));
 /** 가입 시 기본 지급되는 무료 아이템. */
 export const DEFAULT_ITEMS = SHOP_ITEMS.filter((i) => i.cost === 0 && !i.minLevel && !i.badgeCode).map((i) => i.id);
+
+// ── 뱃지 효과 ─────────────────────────────────────────────────────────────────
+// 장착한 뱃지가 실제로 작동하는 부분. 효과는 **그 뱃지를 딴 행동**에 붙는다 —
+// 얼리버드를 장착하면 아침에 한 날만 오른다. 상시 증폭이 아니라서 레벨 곡선이 덜 왜곡되고,
+// 학생이 자기 생활 패턴에 맞춰 무엇을 낄지 고민하게 된다.
+//
+// 조건 판정은 전부 computeXp 가 이미 들고 있는 값(시작 시각·요일·품질·학습 시간)으로 한다.
+// '하루 두 과목 이상' 같은 조건은 그 시점에 알 수 없어 이번 판에서는 넣지 않았다.
+
+export type BadgeCond = "earlyBird" | "weekend" | "quality80" | "long60";
+
+export type BadgeEffect =
+  | { kind: "xpWhen"; cond: BadgeCond; pct: number }
+  | { kind: "points"; pct: number }
+  | { kind: "shopDiscount"; pct: number }
+  | { kind: "lateFactor"; value: number };
+
+/** 뱃지별 지정 효과. 여기 없는 뱃지는 희귀도 기본값을 받는다. */
+const BADGE_EFFECT: Record<string, BadgeEffect> = {
+  "x-early-bird":   { kind: "xpWhen", cond: "earlyBird", pct: 20 },
+  "x-weekend":      { kind: "xpWhen", cond: "weekend",   pct: 20 },
+  "dk-true-reader": { kind: "xpWhen", cond: "quality80", pct: 15 },
+  "av-grit":        { kind: "xpWhen", cond: "long60",    pct: 15 },
+  "cc-long-run":    { kind: "xpWhen", cond: "long60",    pct: 15 },
+  "x-catchup":      { kind: "lateFactor", value: 0.85 },
+  "x-night-owl":    { kind: "points", pct: 5 },
+};
+
+/** 지정 효과가 없으면 희귀도로 정한다. */
+const RARITY_EFFECT: Record<Rarity, BadgeEffect> = {
+  common: { kind: "points", pct: 5 },
+  rare:   { kind: "points", pct: 10 },
+  epic:   { kind: "shopDiscount", pct: 10 },
+  legend: { kind: "points", pct: 15 },
+};
+
+export function effectOf(code: string): BadgeEffect | null {
+  const fixed = BADGE_EFFECT[code];
+  if (fixed) return fixed;
+  const b = BADGE_BY_CODE.get(code);
+  return b ? RARITY_EFFECT[b.rarity] : null;
+}
+
+/** 장착 슬롯 수 — 레벨로 열린다. 레벨업 보상이 포인트 100 뿐이었다. */
+export function badgeSlots(level: number): number {
+  return level >= 30 ? 3 : level >= 10 ? 2 : 1;
+}
+
+/** 장착 뱃지들을 하나의 효과 묶음으로 (같은 종류는 합산). */
+export function bundleEffects(codes: string[]): {
+  xpWhen: Partial<Record<BadgeCond, number>>;
+  pointPct: number;
+  shopDiscountPct: number;
+  lateFactor: number | null;
+} {
+  const out = { xpWhen: {} as Partial<Record<BadgeCond, number>>, pointPct: 0, shopDiscountPct: 0, lateFactor: null as number | null };
+  for (const code of codes) {
+    const e = effectOf(code);
+    if (!e) continue;
+    if (e.kind === "xpWhen") out.xpWhen[e.cond] = (out.xpWhen[e.cond] ?? 0) + e.pct;
+    else if (e.kind === "points") out.pointPct += e.pct;
+    else if (e.kind === "shopDiscount") out.shopDiscountPct += e.pct;
+    else if (e.kind === "lateFactor") out.lateFactor = Math.max(out.lateFactor ?? 0, e.value);
+  }
+  // 폭주 방지 — 슬롯이 늘어도 무한히 쌓이지 않게
+  out.pointPct = Math.min(out.pointPct, 30);
+  out.shopDiscountPct = Math.min(out.shopDiscountPct, 20);
+  return out;
+}
