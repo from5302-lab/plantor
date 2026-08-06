@@ -57,6 +57,22 @@ function TodaySummary({ events }: { events: FeedEvent[] }) {
   );
 }
 
+/** 카드가 속한 날짜 "YYYY-MM-DD". date 필드가 없는 이벤트는 학습 종료 시각에서 뽑는다. */
+function dayKey(e: FeedEvent | undefined): string | null {
+  if (!e) return null;
+  return e.date ?? e.createdAt.toLocaleDateString("sv-SE");
+}
+
+function dayLabel(day: string | null): string {
+  if (!day) return "";
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (day === today.toLocaleDateString("sv-SE")) return "오늘";
+  if (day === yesterday.toLocaleDateString("sv-SE")) return "어제";
+  const [, m, d] = day.split("-");
+  return `${Number(m)}월 ${Number(d)}일`;
+}
+
 function SkeletonCard() {
   return (
     <div className="bg-white border-b border-black/[0.07] px-4 sm:px-5 py-4">
@@ -119,7 +135,22 @@ export function FeedList({ myUid, familyNames, header, childId, showSummary = tr
             </p>
           </div>
         ) : (
-          events.map((e) => <FeedEventCard key={e.id} event={e} myUid={myUid} familyNames={familyNames} />)
+          events.map((e, i) => {
+            // 내 기록은 한 사람의 시간순 스트림이다. 날짜가 바뀌는 곳에 구분을 두지 않으면
+            // 스크롤할수록 언제 한 건지 감각이 사라진다.
+            const day = dayKey(e);
+            const showDay = !!childId && day !== null && day !== dayKey(events[i - 1]);
+            return (
+              <div key={e.id}>
+                {showDay && (
+                  <div className="px-4 sm:px-5 pt-4 pb-1 text-[11px] font-bold text-p-secondary tracking-[0.06em]">
+                    {dayLabel(day)}
+                  </div>
+                )}
+                <FeedEventCard event={e} myUid={myUid} familyNames={familyNames} hideAuthor={!!childId} />
+              </div>
+            );
+          })
         )}
       </div>
     </div>

@@ -339,10 +339,16 @@ function Body({ e }: { e: FeedEvent }) {
   );
 }
 
-export function FeedEventCard({ event, myUid, familyNames }: {
+export function FeedEventCard({ event, myUid, familyNames, hideAuthor = false }: {
   event: FeedEvent;
   myUid: string | null;
   familyNames: Map<string, string>;
+  /**
+   * 내 기록 탭 — 카드가 전부 같은 사람이다.
+   * 아바타·학년·이름·레벨을 카드마다 반복하면 바로 위 프로필 카드까지 합쳐
+   * 같은 얼굴이 화면에 네 번 나온다. 여기서는 시각만 남긴다.
+   */
+  hideAuthor?: boolean;
 }) {
   // 본인·형제·자녀는 실명으로. 나머지는 가린 이름 그대로.
   const real = event.childId ? familyNames.get(event.childId) : undefined;
@@ -352,22 +358,26 @@ export function FeedEventCard({ event, myUid, familyNames }: {
   return (
     <article className="bg-white border-b border-black/[0.07] px-4 sm:px-5 py-4">
       <div className="flex gap-3">
-        <div className="shrink-0">
-          <span className="sm:hidden"><AvatarView equipped={event.equipped} size={38} /></span>
-          <span className="hidden sm:block"><AvatarView equipped={event.equipped} size={44} /></span>
-        </div>
+        {!hideAuthor && (
+          <div className="shrink-0">
+            <span className="sm:hidden"><AvatarView equipped={event.equipped} size={38} /></span>
+            <span className="hidden sm:block"><AvatarView equipped={event.equipped} size={44} /></span>
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {event.grade && (
-                <span className="text-[11px] font-bold text-p-teal bg-[#eafaf1] rounded px-1.5 py-0.5 shrink-0">
-                  {event.grade}
-                </span>
-              )}
-              <span className={`text-[13px] font-bold text-black/90 truncate ${nameCls}`}>{displayName}</span>
-              <span className="text-[12px] text-p-muted shrink-0">Lv.{event.level}</span>
-            </div>
+            {hideAuthor ? <span /> : (
+              <div className="flex items-center gap-1.5 min-w-0">
+                {event.grade && (
+                  <span className="text-[11px] font-bold text-p-teal bg-[#eafaf1] rounded px-1.5 py-0.5 shrink-0">
+                    {event.grade}
+                  </span>
+                )}
+                <span className={`text-[13px] font-bold text-black/90 truncate ${nameCls}`}>{displayName}</span>
+                <span className="text-[12px] text-p-muted shrink-0">Lv.{event.level}</span>
+              </div>
+            )}
             <span className="text-[11px] text-p-muted shrink-0">{timeAgo(event.createdAt)}</span>
           </div>
 
