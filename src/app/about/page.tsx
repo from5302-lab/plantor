@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     // 공유 카드는 33자쯤에서 잘린다 — 설명은 한 호흡으로 끝낸다.
     title: "플랜토 — 집에서 하는 공부, 오늘도 이어지게",
-    description: "오늘 뭘 했는지 묻지 않아도 알 수 있어요",
+    description: "플랜토 — 학원이 쓰는 프로그램을 집에서",
     url: "https://plantor.web.app/about",
     siteName: "Plantor",
     images: [{ url: "https://plantor.web.app/og.png", width: 1200, height: 630 }],
