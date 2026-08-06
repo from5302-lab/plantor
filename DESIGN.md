@@ -14,7 +14,7 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 - Near-black text via `rgba(0,0,0,0.95)` -- not pure black, creating micro-warmth
 - Ultra-thin borders: `1px solid rgba(0,0,0,0.1)` throughout -- whisper-weight division
 - Multi-layer shadow stacks with sub-0.05 opacity for barely-there depth
-- Plantor Green (`#38a848`) as the singular accent color for CTAs and interactive elements
+- Plantor Green (`#1f7a33`) as the singular accent color for CTAs and interactive elements
 - Pill badges (9999px radius) with tinted green backgrounds for status indicators
 - 8px base spacing unit with an organic, non-rigid scale
 
@@ -23,11 +23,11 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 ### Primary
 - **Notion Black** (`rgba(0,0,0,0.95)` / `#000000f2`): Primary text, headings, body copy. The 95% opacity softens pure black without sacrificing readability.
 - **Pure White** (`#ffffff`): Page background, card surfaces, button text on green.
-- **Plantor Green** (`#38a848`): Primary CTA, link color, interactive accent -- the only saturated color in the core UI chrome.
+- **Plantor Green** (`#1f7a33`): Primary CTA, link color, interactive accent -- the only saturated color in the core UI chrome.
 
 ### Brand Secondary
-- **Deep Green** (`#1e6b2a`): Secondary brand color, used sparingly for emphasis and dark feature sections.
-- **Active Green** (`#2a8438`): Button active/pressed state -- darker variant of Plantor Green.
+- **Deep Green** (`#1e6b2a`): 현재 코드에서 쓰이지 않는다. Plantor Green 이 `#1f7a33` 으로 내려오면서 거의 같은 색이 됐으므로, 되살릴 일이 있으면 값을 다시 잡을 것.
+- **Active Green** (`#17612a`): Button active/pressed state -- darker variant of Plantor Green.
 
 ### Warm Neutral Scale
 - **Warm White** (`#f6f5f4`): Background surface tint, section alternation, subtle card fill. The yellow undertone is key.
@@ -44,11 +44,11 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 - **Brown** (`#523410`): Earthy accent, warm feature sections.
 
 ### Interactive
-- **Link Green** (`#38a848`): Primary link color with underline-on-hover.
+- **Link Green** (`#1f7a33`): Primary link color with underline-on-hover.
 - **Link Light Green** (`#6fcf80`): Lighter link variant for dark backgrounds.
 - **Focus Green** (`#2da040`): Focus ring on interactive elements.
 - **Badge Green Bg** (`#f0faf1`): Pill badge background, tinted green surface.
-- **Badge Green Text** (`#2a8438`): Pill badge text, darker green for readability.
+- **Badge Green Text** (`#1f7a33`): Pill badge text -- same green as CTA. 코드에 초록은 이 하나만 둔다.
 
 ### Shadows & Depth
 - **Card Shadow** (`rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.84688px, rgba(0,0,0,0.02) 0px 0.8px 2.925px, rgba(0,0,0,0.01) 0px 0.175px 1.04062px`): Multi-layer card elevation.
@@ -93,12 +93,12 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 ### Buttons
 
 **Primary Green**
-- Background: `#38a848` (Plantor Green)
+- Background: `#1f7a33` (Plantor Green)
 - Text: `#ffffff`
 - Padding: 8px 16px
 - Radius: 4px (subtle)
 - Border: `1px solid transparent`
-- Hover: background darkens to `#2a8438`
+- Hover: background darkens to `#17612a`
 - Active: scale(0.9) transform
 - Focus: `2px solid` focus outline, `var(--shadow-level-200)` shadow
 - Use: Primary CTA ("Get Notion free", "Try it")
@@ -119,8 +119,8 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 - Use: Tertiary actions, inline links
 
 **Pill Badge Button**
-- Background: `#f0faf1` (tinted blue)
-- Text: `#2da040`
+- Background: `#f0faf1` (tinted green)
+- Text: `#1f7a33` (5.05:1 — `#2da040` 은 이 배경에서 3.16:1 로 미달이라 쓰지 않는다)
 - Padding: 4px 8px
 - Radius: 9999px (full pill)
 - Font: 12px weight 600
@@ -282,13 +282,18 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 ### Color Contrast
 - Primary text (rgba(0,0,0,0.95)) on white: ~18:1 ratio
 - Secondary text (#615d59) on white: ~5.5:1 ratio (WCAG AA)
-- Green CTA (#38a848) on white: ~4.6:1 ratio (WCAG AA for large text)
-- Badge text (#2da040) on badge bg (#f0faf1): ~4.5:1 ratio (WCAG AA for large text)
+- White text on Green CTA (#1f7a33): 5.40:1 (WCAG AA, all text sizes)
+- Green text (#1f7a33) on white: 5.40:1 (WCAG AA)
+- Badge text (#1f7a33) on badge bg (#f0faf1): 5.05:1 (WCAG AA)
+
+> 2026-08-06 정정. 이전 문서는 CTA 를 `#38a848` 로 두고 "~4.6:1" 이라고 적었으나
+> 실측은 **3.06:1** 로 AA 미달이었고, 뱃지 대비도 4.5 가 아니라 3.16 이었다.
+> 브랜드 그린을 `#1f7a33` 으로 내려 두 값을 모두 통과시켰다. 수치는 라이브에서 측정한 값이다.
 
 ## 9. Agent Prompt Guide
 
 ### Quick Color Reference
-- Primary CTA: Plantor Green (`#38a848`)
+- Primary CTA: Plantor Green (`#1f7a33`)
 - Background: Pure White (`#ffffff`)
 - Alt Background: Warm White (`#f6f5f4`)
 - Heading text: Near-Black (`rgba(0,0,0,0.95)`)
@@ -296,14 +301,14 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 - Secondary text: Warm Gray 500 (`#615d59`)
 - Muted text: Warm Gray 300 (`#a39e98`)
 - Border: `1px solid rgba(0,0,0,0.1)`
-- Link: Plantor Green (`#38a848`)
+- Link: Plantor Green (`#1f7a33`)
 - Focus ring: Focus Green (`#2da040`)
 
 ### Example Component Prompts
-- "Create a hero section on white background. Headline at 64px NotionInter weight 700, line-height 1.00, letter-spacing -2.125px, color rgba(0,0,0,0.95). Subtitle at 20px weight 600, line-height 1.40, color #615d59. Green CTA button (#38a848, 4px radius, 8px 16px padding, white text) and ghost button (transparent bg, near-black text, underline on hover)."
+- "Create a hero section on white background. Headline at 64px NotionInter weight 700, line-height 1.00, letter-spacing -2.125px, color rgba(0,0,0,0.95). Subtitle at 20px weight 600, line-height 1.40, color #615d59. Green CTA button (#1f7a33, 4px radius, 8px 16px padding, white text) and ghost button (transparent bg, near-black text, underline on hover)."
 - "Design a card: white background, 1px solid rgba(0,0,0,0.1) border, 12px radius. Use shadow stack: rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.85px, rgba(0,0,0,0.02) 0px 0.8px 2.93px, rgba(0,0,0,0.01) 0px 0.175px 1.04px. Title at 22px NotionInter weight 700, letter-spacing -0.25px. Body at 16px weight 400, color #615d59."
-- "Build a pill badge: #f0faf1 background, #2da040 text, 9999px radius, 4px 8px padding, 12px NotionInter weight 600, letter-spacing 0.125px."
-- "Create navigation: white header. NotionInter 15px weight 600 for links, near-black text. Blue pill CTA 'Get Notion free' right-aligned (#38a848 bg, white text, 4px radius)."
+- "Build a pill badge: #f0faf1 background, #1f7a33 text, 9999px radius, 4px 8px padding, 12px NotionInter weight 600, letter-spacing 0.125px."
+- "Create navigation: white header. NotionInter 15px weight 600 for links, near-black text. Blue pill CTA 'Get Notion free' right-aligned (#1f7a33 bg, white text, 4px radius)."
 - "Design an alternating section layout: white sections alternate with warm white (#f6f5f4) sections. Each section has 64-80px vertical padding, max-width 1200px centered. Section heading at 48px weight 700, line-height 1.00, letter-spacing -1.5px."
 
 ### Iteration Guide
@@ -314,7 +319,7 @@ What makes Notion's visual language distinctive is its border philosophy. Rather
 5. Shadows use 4-5 layers with individual opacity never exceeding 0.05
 6. The warm white (#f6f5f4) section background is essential for visual rhythm
 7. Pill badges (9999px) for status/tags, 4px radius for buttons and inputs
-8. Plantor Green (#38a848) is the only saturated color in core UI -- use it sparingly for CTAs and links
+8. Plantor Green (#1f7a33) is the only saturated color in core UI -- use it sparingly for CTAs and links
 9. **No placeholder text in inputs** -- Do NOT add placeholder/example text (e.g. "예: 수학 프로그램", "₩33,000/월") to input fields unless the user explicitly requests it. Labels are sufficient.
 10. **No opacity on elements** -- 카드, 리스트 아이템 등 UI 요소에 `opacity` 값을 적용하지 마라. 비활성/사용됨/만료 등 상태 구분은 뱃지 색상, 텍스트 색상, 배경색으로 표현한다. `opacity`로 흐리게 만들면 가독성이 떨어진다.
 11. **Select dropdown 좌우 여백 통일** -- select에는 `appearance: none` + 커스텀 SVG 화살표(#a39e98, right 10px center)를 쓰고, padding-left 10px / padding-right 32px로 좌우 안쪽 여백을 통일한다. 같은 줄의 필터 드롭다운들은 동일한 스타일을 공유한다. (§4 Select Dropdowns 참고)
