@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { T } from "@/lib/design-tokens";
+import { SHOP_BY_ID } from "@/lib/rewards/catalog";
 import { useMarkBadgesSeen, useRewards } from "@/lib/hooks/useRewards";
 import { AvatarView } from "./avatar-view";
 import { BadgeDiscoveryModal } from "./badge-discovery-modal";
@@ -30,11 +31,14 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
   if (isDemo || !childId || !state.ready) return null;
 
   const pct = Math.round(state.progress * 100);
+  // 카드 테마·경험치 바 — 아바타 밖에서 파는 꾸미기. 없으면 기본 모습 그대로다.
+  const themeCls = SHOP_BY_ID.get(String(state.equipped.cardTheme ?? ""))?.cssClass ?? "";
+  const xpCls = SHOP_BY_ID.get(String(state.equipped.xpBar ?? ""))?.cssClass ?? "";
 
   return (
     <>
       <div
-        className="mb-5 rounded-2xl px-4 py-3.5"
+        className={`mb-5 rounded-2xl px-4 py-3.5 ${themeCls}`}
         style={{ background: T.white, border: T.borderSubtle, boxShadow: T.shadow }}
       >
         <div className="flex items-center gap-3">
@@ -62,7 +66,7 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
             {/* XP 진행바 */}
             <div className="mt-1.5 h-2 rounded-full bg-black/[0.06] overflow-hidden">
               <div
-                className="h-full rounded-full transition-[width] duration-500"
+                className={`h-full rounded-full transition-[width] duration-500 ${xpCls}`}
                 style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${T.teal}, #7bd18a)` }}
               />
             </div>

@@ -164,7 +164,7 @@ export const BADGE_BY_CODE = new Map(BADGES.map((b) => [b.code, b]));
 // ── 상점 (아바타 꾸미기) ──────────────────────────────────────────────────────
 // 실물 보상 없음 · 전액 자동 지급. 아트는 전부 이모지 + CSS라 이미지 파일이 없다.
 // 헤어·의상·모자·소품 슬롯은 폐기 — 캐릭터가 식물이라 입힐 몸이 없다 (catalog.ts 주석 참고).
-export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle";
+export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle" | "cardTheme" | "xpBar";
 
 export type ShopItem = {
   id: string;
@@ -212,7 +212,9 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "frame-basic",   slot: "frame", name: "기본 테두리",   cost: 0,    rarity: "common" },
   { id: "frame-dash",    slot: "frame", name: "점선 테두리",   cost: 250,  rarity: "common" },
   { id: "frame-gold",    slot: "frame", name: "황금 테두리",   cost: 400,  rarity: "rare" },
+  { id: "frame-double",  slot: "frame", name: "이중 링",      cost: 350,  rarity: "common" },
   { id: "frame-glow",    slot: "frame", name: "발광 테두리",   cost: 700,  rarity: "rare" },
+  { id: "frame-sunset",  slot: "frame", name: "노을 테두리",   cost: 900,  rarity: "rare" },
   { id: "frame-rainbow", slot: "frame", name: "회전 무지개",   cost: 1200, rarity: "epic" },
   { id: "frame-holo",    slot: "frame", name: "홀로그램",      cost: 0,    rarity: "legend", badgeCode: "dk-true-reader" },
   
@@ -229,6 +231,8 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "effect-none",    slot: "effect", name: "없음",     cost: 0,    rarity: "common" },
   { id: "effect-sparkle", slot: "effect", name: "반짝임",   cost: 700,  rarity: "rare" },
   { id: "effect-aura",    slot: "effect", name: "맥동 오라", cost: 900,  rarity: "rare" },
+  { id: "effect-firefly", slot: "effect", name: "반딧불",   cost: 500,  rarity: "common" },
+  { id: "effect-petal",   slot: "effect", name: "꽃잎",     cost: 800,  rarity: "rare" },
   { id: "effect-leaf",    slot: "effect", name: "떨어지는 잎", cost: 1100, rarity: "epic" },
   { id: "bg-plain",   slot: "background", name: "기본",      cost: 0,   rarity: "common" },
   { id: "bg-forest",  slot: "background", name: "숲속",      cost: 300, rarity: "common" },
@@ -240,6 +244,24 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "bg-sprout",  slot: "background", name: "떡잎의 방", cost: 0,   rarity: "rare", minLevel: 10 },
   { id: "bg-bloom",   slot: "background", name: "개화의 방", cost: 0,   rarity: "epic", minLevel: 40 },
   { id: "bg-tree",    slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", minLevel: 80 },
+  // 카드 테마 — 프로필 카드 배경 (아트는 globals.css 의 .ctm-* )
+  { id: "theme-plain",  slot: "cardTheme", name: "기본",     cost: 0,    rarity: "common" },
+  { id: "theme-paper",  slot: "cardTheme", name: "종이결",   cost: 300,  rarity: "common" },
+  { id: "theme-mint",   slot: "cardTheme", name: "민트",     cost: 400,  rarity: "common" },
+  { id: "theme-sand",   slot: "cardTheme", name: "모래",     cost: 400,  rarity: "common" },
+  { id: "theme-dusk",   slot: "cardTheme", name: "해질녘",   cost: 600,  rarity: "rare" },
+  { id: "theme-sakura", slot: "cardTheme", name: "벚꽃",     cost: 800,  rarity: "rare" },
+  { id: "theme-forest", slot: "cardTheme", name: "숲",       cost: 1000, rarity: "epic" },
+  { id: "theme-aurora", slot: "cardTheme", name: "오로라",   cost: 1400, rarity: "epic" },
+  { id: "theme-holo",   slot: "cardTheme", name: "홀로그램 카드", cost: 0, rarity: "legend", badgeCode: "st-30" },
+  // 경험치 바 — 채워지는 쪽 색 (.xpb-* )
+  { id: "xp-default", slot: "xpBar", name: "기본",   cost: 0,    rarity: "common" },
+  { id: "xp-ocean",   slot: "xpBar", name: "바다",   cost: 300,  rarity: "common" },
+  { id: "xp-sunset",  slot: "xpBar", name: "노을",   cost: 400,  rarity: "common" },
+  { id: "xp-grape",   slot: "xpBar", name: "포도",   cost: 500,  rarity: "rare" },
+  { id: "xp-candy",   slot: "xpBar", name: "캔디",   cost: 600,  rarity: "rare" },
+  { id: "xp-rainbow", slot: "xpBar", name: "흐르는 무지개", cost: 1000, rarity: "epic" },
+  { id: "xp-gold",    slot: "xpBar", name: "황금",   cost: 0,    rarity: "legend", badgeCode: "x-perfect-week" },
 ];
 
 export const SHOP_BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));

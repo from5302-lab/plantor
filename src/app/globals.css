@@ -324,6 +324,39 @@ h1, h2, h3, h4, h5, h6 {
 .fx-leaf::after  { background-position: 70% 0%; animation-delay: 1.3s; }
 .fx-aura { animation: fx-pulse 1.8s cubic-bezier(.4,0,.2,1) infinite; }
 
+/* 꽃잎 — 떨어지는 잎과 같은 궤적, 색만 벚꽃. 잎 하나뿐이던 '떨어지는' 계열을 둘로 나눈다 */
+.fx-petal::before, .fx-petal::after {
+  content: ""; position: absolute; inset: -3px; pointer-events: none;
+  background-repeat: no-repeat;
+  background-image: radial-gradient(ellipse 5px 5px at center, #f9a8d4 62%, transparent 63%);
+  background-size: 10px 12px;
+  animation: fx-fall 3s linear infinite;
+}
+.fx-petal::before { background-position: 26% 0%; }
+.fx-petal::after  { background-position: 74% 0%; animation-delay: 1.5s; }
+
+/* 반딧불 — 반짝임보다 느리고 성기게. 밤 배경(우주·오로라)과 붙었을 때 값이 산다 */
+.fx-firefly::before, .fx-firefly::after {
+  content: ""; position: absolute; inset: -4px; pointer-events: none;
+  background-repeat: no-repeat;
+  background-image: radial-gradient(circle, #fde68a 45%, transparent 46%);
+  filter: drop-shadow(0 0 3px rgba(253, 224, 71, .95));
+  animation: fx-twinkle 2.4s ease-in-out infinite;
+}
+.fx-firefly::before { background-size: 5px 5px; background-position: 10% 62%; }
+.fx-firefly::after  { background-size: 4px 4px; background-position: 88% 34%; animation-delay: 1.2s; }
+
+/* 이중 링 — 애니메이션 없이도 티가 나는 저가 옵션. 정지 화면에서 가장 잘 읽힌다 */
+.frm-double { border-color: #38a848 !important;
+              box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(56,168,72,.35); }
+/* 노을 링 — 회전하지 않는 고정 그라데이션. 무지개(1,200P)의 아랫급 */
+.frm-sunset {
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(135deg, #f59e0b, #db2777) border-box !important;
+}
+
 /* ── 이름 스타일 ────────────────────────────────────────────────────────── */
 /* 단색은 대비 4.5:1 이상만 카탈로그에 넣는다 */
 .nm-teal   { color: #1f7a33 !important; }
@@ -347,9 +380,46 @@ h1, h2, h3, h4, h5, h6 {
   animation: name-flow 2.6s linear infinite;
 }
 
+/* ── 카드 테마 (프로필 카드 배경) ────────────────────────────────────────── */
+/* 아바타 밖에서 처음 팔리는 슬롯. 면적이 커서 값이 확실히 보이는 대신,
+   글자 대비를 해치면 안 되므로 전부 밝은 톤에서 끝낸다. */
+.ctm-paper  { background: repeating-linear-gradient(0deg, #fcfbf7 0 3px, #f1efe7 3px 4px) !important; }
+.ctm-mint   { background: linear-gradient(140deg, #eaf8ef, #d3eedd) !important; }
+.ctm-sand   { background: linear-gradient(140deg, #fbf3e5, #f0e0c4) !important; }
+.ctm-dusk   { background: linear-gradient(140deg, #eeecfb, #ddd8f5) !important; }
+.ctm-sakura { background: linear-gradient(140deg, #fce9f1, #f7d2e2) !important; }
+.ctm-forest { background: linear-gradient(140deg, #e7f2e3, #cfe5c9) !important; }
+.ctm-aurora { background: conic-gradient(from 210deg, #eafaf1, #e7f1ff, #fdf0f6, #fdf8e6, #eafaf1) !important; }
+/* 뱃지 전용 — 각도에 따라 색이 흐른다. 카드 전체가 포일이 된다 */
+.ctm-holo {
+  background: linear-gradient(115deg, #fdeef8, #e8f3ff, #e9fbef, #fdf6e3, #fdeef8) !important;
+  background-size: 300% 300% !important;
+  animation: name-flow 9s linear infinite;
+}
+
+/* ── 경험치 바 ──────────────────────────────────────────────────────────── */
+/* 채워지는 쪽에만 입힌다. 매일 조금씩 차오르는 곳이라 작아도 눈에 남는다. */
+.xpb-ocean   { background: linear-gradient(90deg, #0e7490, #38bdf8) !important; }
+.xpb-sunset  { background: linear-gradient(90deg, #c2410c, #fb923c) !important; }
+.xpb-grape   { background: linear-gradient(90deg, #6d28d9, #c084fc) !important; }
+.xpb-candy   { background: linear-gradient(90deg, #be185d, #fb7185) !important; }
+.xpb-rainbow {
+  background: linear-gradient(90deg, #0f7a4e, #2fbf71, #ffd166, #2fbf71, #0f7a4e) !important;
+  background-size: 200% auto !important;
+  animation: name-flow 3.5s linear infinite;
+}
+.xpb-gold {
+  background: linear-gradient(90deg, #b45309, #f0c274, #b45309) !important;
+  background-size: 200% auto !important;
+  animation: name-flow 2.8s linear infinite;
+}
+
 /* 움직임에 민감한 사용자는 정적으로 — 색은 유지하고 애니메이션만 끈다 */
 @media (prefers-reduced-motion: reduce) {
   .frm-rainbow, .frm-holo, .frm-glow, .fx-aura, .nm-flow, .nm-holo,
+  .ctm-holo, .xpb-rainbow, .xpb-gold,
   .fx-sparkle::before, .fx-sparkle::after,
+  .fx-petal::before, .fx-petal::after,
+  .fx-firefly::before, .fx-firefly::after,
   .fx-leaf::before, .fx-leaf::after { animation: none !important; opacity: 1; }
 }

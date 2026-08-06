@@ -15,7 +15,10 @@ import type { RewardState } from "@/lib/hooks/useRewards";
 // 뱃지함 · 상점을 한 모달에서 탭으로 오간다 (정적 export라 별도 라우트를 만들지 않는다).
 
 // 꾸미기 슬롯 노출 순서 — 티가 많이 나는 것부터
-const SLOTS: ShopSlot[] = ["base", "frame", "nameStyle", "background", "effect"];
+const SLOTS: ShopSlot[] = ["base", "frame", "nameStyle", "cardTheme", "xpBar", "background", "effect"];
+
+/** 미리보기를 크게(2열) 띄울 슬롯 — 작게 그리면 무늬·움직임이 안 읽혀 팔리지 않는다. */
+const WIDE_SLOTS = new Set<ShopSlot>(["frame", "nameStyle", "effect", "cardTheme", "xpBar", "background"]);
 
 /** 뱃지로만 열리는 아이템은 값이 0이라 "0P"로 보이면 고장 난 것처럼 읽힌다. */
 function priceLabel(it: ShopItem) {
@@ -119,8 +122,7 @@ export function Shop({ state }: { state: RewardState }) {
   }
 
   const items = SHOP_ITEMS.filter((i) => i.slot === slot);
-  // 효과가 큰 슬롯은 2열로 크게 — 작으면 회전·그라데가 안 읽힌다
-  const wide = slot === "frame" || slot === "nameStyle" || slot === "effect";
+  const wide = WIDE_SLOTS.has(slot);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -196,8 +198,10 @@ export function Shop({ state }: { state: RewardState }) {
               onClick={() => setTryOn((prev) => ({ ...prev, [it.slot]: it.id }))}
               className="rounded-xl p-2.5 text-center cursor-pointer"
               style={{
-                background: wearing ? r.bg : "#fff",
-                border: `1.5px solid ${wearing ? r.ring : "rgba(0,0,0,0.08)"}`,
+                // 희귀도를 카드에서 읽히게 한다. 전에는 이름 글자 색만 달라서
+                // 전설과 일반이 스크롤 중에 똑같아 보였다. 영웅·전설만 은은히 물들인다.
+                background: wearing ? r.bg : (it.rarity === "epic" || it.rarity === "legend" ? r.bg : "#fff"),
+                border: `1.5px solid ${wearing || it.rarity === "legend" ? r.ring : "rgba(0,0,0,0.08)"}`,
                 // 잠긴 것도 흐리게만 — 안 보이면 갖고 싶지도 않다
                 opacity: lock ? 0.72 : 1,
               }}
@@ -238,6 +242,36 @@ function ItemPreview({ item, big, base, name }: {
         style={{ fontSize: big ? 22 : 16, lineHeight: 1.4 }}
       >
         {name}
+      </div>
+    );
+  }
+
+  // 카드 테마 — 프로필 카드를 줄여서 그대로 보여준다. 색 견본만 두면 어디에 쓰이는지 모른다.
+  if (item.slot === "cardTheme") {
+    return (
+      <div
+        className={`rounded-lg px-2 py-2 flex items-center gap-2 ${item.cssClass ?? ""}`}
+        style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)" }}
+      >
+        <AvatarView equipped={base} size={22} />
+        <span className="flex-1 min-w-0">
+          <span className="block h-1.5 rounded-full bg-black/[0.10]" />
+          <span className="mt-1 block h-1.5 w-2/3 rounded-full bg-black/[0.07]" />
+        </span>
+      </div>
+    );
+  }
+
+  // 경험치 바 — 반쯤 찬 상태로 보여준다. 빈 바는 색이 안 보이고, 꽉 찬 바는 늘 저럴 것처럼 읽힌다.
+  if (item.slot === "xpBar") {
+    return (
+      <div className="py-2">
+        <div className="h-2 rounded-full bg-black/[0.06] overflow-hidden">
+          <div
+            className={`h-full w-3/5 rounded-full ${item.cssClass ?? ""}`}
+            style={{ background: "linear-gradient(90deg, #38a848, #7bd18a)" }}
+          />
+        </div>
       </div>
     );
   }

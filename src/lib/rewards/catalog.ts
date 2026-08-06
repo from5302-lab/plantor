@@ -121,11 +121,12 @@ export function titleOf(level: number) {
  * 무관한 이모지를 원 귀퉁이에 붙여봐야 "꾸몄다"가 성립하지 않는다.
  * 남는 건 정체성(식물 캐릭터)과 CSS 치장(테두리·이름·배경·이펙트)뿐이고, 그걸로 충분하다.
  */
-export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle";
+export type ShopSlot = "base" | "background" | "frame" | "effect" | "nameStyle" | "cardTheme" | "xpBar";
 
 export const SLOT_LABEL: Record<ShopSlot, string> = {
   base: "캐릭터", background: "배경",
   frame: "테두리", effect: "이펙트", nameStyle: "이름",
+  cardTheme: "카드", xpBar: "경험치 바",
 };
 
 export type ShopItem = {
@@ -171,7 +172,9 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "frame-basic",   slot: "frame", name: "기본 테두리",   cost: 0,    rarity: "common", emoji: "⭕", cssClass: "" },
   { id: "frame-dash",    slot: "frame", name: "점선 테두리",   cost: 250,  rarity: "common", emoji: "⭕", cssClass: "frm-dash" },
   { id: "frame-gold",    slot: "frame", name: "황금 테두리",   cost: 400,  rarity: "rare",   emoji: "🟡", cssClass: "frm-gold" },
+  { id: "frame-double",  slot: "frame", name: "이중 링",      cost: 350,  rarity: "common", emoji: "⭕", cssClass: "frm-double" },
   { id: "frame-glow",    slot: "frame", name: "발광 테두리",   cost: 700,  rarity: "rare",   emoji: "💡", cssClass: "frm-glow" },
+  { id: "frame-sunset",  slot: "frame", name: "노을 테두리",   cost: 900,  rarity: "rare",   emoji: "🌇", cssClass: "frm-sunset" },
   { id: "frame-rainbow", slot: "frame", name: "회전 무지개",   cost: 1200, rarity: "epic",   emoji: "🌈", cssClass: "frm-rainbow" },
   { id: "frame-holo",    slot: "frame", name: "홀로그램",      cost: 0,    rarity: "legend", emoji: "✨", cssClass: "frm-holo", badgeCode: "dk-true-reader" },
   
@@ -186,7 +189,9 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "name-holo",         slot: "nameStyle", name: "홀로그램 이름", cost: 0,  rarity: "legend", emoji: "💎", cssClass: "nm-holo", badgeCode: "st-100" },
   
   { id: "effect-none",    slot: "effect", name: "없음",     cost: 0,    rarity: "common", emoji: "🚫", cssClass: "" },
+  { id: "effect-firefly", slot: "effect", name: "반딧불",   cost: 500,  rarity: "common", emoji: "🪰", cssClass: "fx-firefly" },
   { id: "effect-sparkle", slot: "effect", name: "반짝임",   cost: 700,  rarity: "rare",   emoji: "✨", cssClass: "fx-sparkle" },
+  { id: "effect-petal",   slot: "effect", name: "꽃잎",     cost: 800,  rarity: "rare",   emoji: "🌸", cssClass: "fx-petal" },
   { id: "effect-aura",    slot: "effect", name: "맥동 오라", cost: 900,  rarity: "rare",   emoji: "🫧", cssClass: "fx-aura" },
   { id: "effect-leaf",    slot: "effect", name: "떨어지는 잎", cost: 1100, rarity: "epic", emoji: "🍃", cssClass: "fx-leaf" },
   { id: "bg-plain",   slot: "background", name: "기본",      cost: 0,   rarity: "common", emoji: "⬜" },
@@ -199,6 +204,28 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "bg-sprout",  slot: "background", name: "떡잎의 방", cost: 0,   rarity: "rare",   emoji: "☘️", minLevel: 10 },
   { id: "bg-bloom",   slot: "background", name: "개화의 방", cost: 0,   rarity: "epic",   emoji: "🌸", minLevel: 40 },
   { id: "bg-tree",    slot: "background", name: "큰나무의 방", cost: 0, rarity: "legend", emoji: "🌳", minLevel: 80 },
+
+  // ── 카드 테마 ── 프로필 카드 전체의 배경.
+  // 아바타 밖에서 처음 파는 슬롯이다. 면적이 커서 값이 확실히 보이는 대신,
+  // 카드 위의 글자를 이겨서는 안 되므로 전부 밝은 톤에서 끝낸다.
+  { id: "theme-plain",  slot: "cardTheme", name: "기본",     cost: 0,    rarity: "common", emoji: "⬜", cssClass: "" },
+  { id: "theme-paper",  slot: "cardTheme", name: "종이결",   cost: 300,  rarity: "common", emoji: "📄", cssClass: "ctm-paper" },
+  { id: "theme-mint",   slot: "cardTheme", name: "민트",     cost: 400,  rarity: "common", emoji: "🌿", cssClass: "ctm-mint" },
+  { id: "theme-sand",   slot: "cardTheme", name: "모래",     cost: 400,  rarity: "common", emoji: "🏜️", cssClass: "ctm-sand" },
+  { id: "theme-dusk",   slot: "cardTheme", name: "해질녘",   cost: 600,  rarity: "rare",   emoji: "🌆", cssClass: "ctm-dusk" },
+  { id: "theme-sakura", slot: "cardTheme", name: "벚꽃",     cost: 800,  rarity: "rare",   emoji: "🌸", cssClass: "ctm-sakura" },
+  { id: "theme-forest", slot: "cardTheme", name: "숲",       cost: 1000, rarity: "epic",   emoji: "🌲", cssClass: "ctm-forest" },
+  { id: "theme-aurora", slot: "cardTheme", name: "오로라",   cost: 1400, rarity: "epic",   emoji: "🌠", cssClass: "ctm-aurora" },
+  { id: "theme-holo",   slot: "cardTheme", name: "홀로그램 카드", cost: 0, rarity: "legend", emoji: "💠", cssClass: "ctm-holo", badgeCode: "st-30" },
+
+  // ── 경험치 바 ── 매일 조금씩 차오르는 곳이라 작아도 눈에 남는다.
+  { id: "xp-default", slot: "xpBar", name: "기본",   cost: 0,    rarity: "common", emoji: "🟩", cssClass: "" },
+  { id: "xp-ocean",   slot: "xpBar", name: "바다",   cost: 300,  rarity: "common", emoji: "🌊", cssClass: "xpb-ocean" },
+  { id: "xp-sunset",  slot: "xpBar", name: "노을",   cost: 400,  rarity: "common", emoji: "🌅", cssClass: "xpb-sunset" },
+  { id: "xp-grape",   slot: "xpBar", name: "포도",   cost: 500,  rarity: "rare",   emoji: "🍇", cssClass: "xpb-grape" },
+  { id: "xp-candy",   slot: "xpBar", name: "캔디",   cost: 600,  rarity: "rare",   emoji: "🍬", cssClass: "xpb-candy" },
+  { id: "xp-rainbow", slot: "xpBar", name: "흐르는 무지개", cost: 1000, rarity: "epic", emoji: "🌈", cssClass: "xpb-rainbow" },
+  { id: "xp-gold",    slot: "xpBar", name: "황금",   cost: 0,    rarity: "legend", emoji: "🏅", cssClass: "xpb-gold", badgeCode: "x-perfect-week" },
 ];
 
 export const SHOP_BY_ID = new Map(SHOP_ITEMS.map((i) => [i.id, i]));
