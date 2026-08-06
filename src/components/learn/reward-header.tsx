@@ -42,13 +42,9 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
         style={{ background: T.white, border: T.borderSubtle, boxShadow: T.shadow }}
       >
         <div className="flex items-center gap-3">
-          {readOnly ? (
+          <button onClick={() => setPanel("shop")} aria-label="아바타 꾸미기">
             <AvatarView equipped={state.equipped} size={54} />
-          ) : (
-            <button onClick={() => setPanel("shop")} aria-label="아바타 꾸미기">
-              <AvatarView equipped={state.equipped} size={54} />
-            </button>
-          )}
+          </button>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-1.5">
@@ -85,24 +81,15 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
           >
             🎖️ 뱃지 {state.badges.length}개
           </button>
-          {/* 상점은 본인만 — 구매·착용 콜러블이 호출자 본인의 학생을 찾기 때문에
-              남의 카드에서 누르면 실패한다. 포인트는 보여주되 진입은 막는다. */}
-          {readOnly ? (
-            <div
-              className="flex-1 py-2 rounded-xl text-[12px] font-bold text-center"
-              style={{ background: "rgba(0,0,0,0.04)", color: "#3d3a37" }}
-            >
-              ⭐ {state.points.toLocaleString("ko-KR")}P
-            </div>
-          ) : (
-            <button
-              onClick={() => setPanel("shop")}
-              className="flex-1 py-2 rounded-xl text-[12px] font-bold"
-              style={{ background: "rgba(0,0,0,0.04)", color: "#3d3a37" }}
-            >
-              ⭐ {state.points.toLocaleString("ko-KR")}P 상점
-            </button>
-          )}
+          {/* 남의 카드에서도 상점을 열 수 있다 — 둘러보기는 데이터를 바꾸지 않는다.
+              막히는 건 패널 안의 구매 버튼뿐이다. */}
+          <button
+            onClick={() => setPanel("shop")}
+            className="flex-1 py-2 rounded-xl text-[12px] font-bold"
+            style={{ background: "rgba(0,0,0,0.04)", color: "#3d3a37" }}
+          >
+            ⭐ {state.points.toLocaleString("ko-KR")}P 상점
+          </button>
         </div>
       </div>
 

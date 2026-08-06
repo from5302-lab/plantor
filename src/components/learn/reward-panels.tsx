@@ -89,7 +89,7 @@ export function BadgeVault({ state }: { state: RewardState }) {
  * 그래서 (1) 큰 무대 미리보기 (2) 눌러서 내 아바타에 바로 입혀보기(구매 전) 를 둔다.
  * 못 사는 아이템도 계속 움직이게 둔다. 갖고 싶어야 모은다.
  */
-export function Shop({ state }: { state: RewardState }) {
+export function Shop({ state, readOnly = false }: { state: RewardState; readOnly?: boolean }) {
   const [slot, setSlot] = useState<ShopSlot>("frame");
   const [tryOn, setTryOn] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -155,18 +155,24 @@ export function Shop({ state }: { state: RewardState }) {
             {trying.item.name}
           </span>
           <span className="text-[11px] text-p-secondary">입어보는 중</span>
-          <button
-            onClick={() => buyAndWear(trying.item!)}
-            disabled={!!lockOf(trying.item) || trying.item.cost > state.points || busy === trying.item.id}
-            className="ml-auto rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
-            style={{ background: T.teal }}
-          >
-            {lockOf(trying.item) ?? (trying.item.cost > state.points
-              ? "포인트 부족"
-              : trying.item.cost === 0
-                ? "무료로 받기"
-                : `${trying.item.cost.toLocaleString("ko-KR")}P 구매`)}
-          </button>
+          {/* 남의 카드(학부모·미리보기)에서는 입어보기까지만. 구매·착용 콜러블은 호출자 본인의
+              학생을 찾으므로(rewards-api.ts resolveChild) 눌러도 실패한다. */}
+          {readOnly ? (
+            <span className="ml-auto text-[11px] font-semibold text-p-secondary">구매는 학생 본인만</span>
+          ) : (
+            <button
+              onClick={() => buyAndWear(trying.item!)}
+              disabled={!!lockOf(trying.item) || trying.item.cost > state.points || busy === trying.item.id}
+              className="ml-auto rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
+              style={{ background: T.teal }}
+            >
+              {lockOf(trying.item) ?? (trying.item.cost > state.points
+                ? "포인트 부족"
+                : trying.item.cost === 0
+                  ? "무료로 받기"
+                  : `${trying.item.cost.toLocaleString("ko-KR")}P 구매`)}
+            </button>
+          )}
         </div>
       )}
 
@@ -217,7 +223,9 @@ export function Shop({ state }: { state: RewardState }) {
       </div>
 
       {msg && <p className="mt-2 text-[12px] text-[#c00000] shrink-0">{msg}</p>}
-      <p className="mt-2 text-[11px] text-p-muted text-center shrink-0">눌러서 입어보고, 마음에 들면 구매하세요.</p>
+      <p className="mt-2 text-[11px] text-p-muted text-center shrink-0">
+        {readOnly ? "눌러서 입어볼 수 있어요. 구매는 학생 본인 계정에서만 됩니다." : "눌러서 입어보고, 마음에 들면 구매하세요."}
+      </p>
     </div>
   );
 }
@@ -339,7 +347,6 @@ export function RewardPanels({ state, tab, onTab, onClose, readOnly = false }: {
    */
   readOnly?: boolean;
 }) {
-  const tabs = readOnly ? (["badges"] as const) : (["badges", "shop"] as const);
   return (
     <ModalOverlay onClose={onClose} align="top" padding="12px" zIndex={1100}>
       {/*
@@ -352,7 +359,9 @@ export function RewardPanels({ state, tab, onTab, onClose, readOnly = false }: {
         style={{ background: T.white, boxShadow: T.shadowFloat, height: "min(82dvh, 640px)" }}
       >
         <div className="flex items-center gap-1.5 mb-3 shrink-0">
-          {tabs.map((t) => (
+          {/* 상점은 읽기 전용에서도 연다 — 둘러보기·입어보기는 데이터를 바꾸지 않는다.
+              막는 것은 구매 버튼 하나면 충분하다. */}
+          {(["badges", "shop"] as const).map((t) => (
             <button
               key={t}
               onClick={() => onTab(t)}
@@ -366,13 +375,13 @@ export function RewardPanels({ state, tab, onTab, onClose, readOnly = false }: {
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col">
-          {tab === "badges" || readOnly ? (
+          {tab === "badges" ? (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <BadgeVault state={state} />
               {/* 피드 공개설정도 본인만 바꾼다 */}
               {!readOnly && <FeedPrivacy state={state} />}
             </div>
-          ) : <Shop state={state} />}
+          ) : <Shop state={state} readOnly={readOnly} />}
         </div>
       </div>
     </ModalOverlay>
