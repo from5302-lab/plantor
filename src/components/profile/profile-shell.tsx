@@ -35,7 +35,8 @@ export function ProfileShell({ previewChildId, previewName }: {
 } = {}) {
   const { user, role, loading } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("mine");
+  // 기본은 학습하기 — 학생이 여는 이유는 대부분 공부하러 오는 것이다
+  const [tab, setTab] = useState<Tab>("learn");
 
   const isPreview = !!previewChildId;
   const family = useMyFamilyNames(user?.uid ?? null, isPreview, user?.email ?? null);
