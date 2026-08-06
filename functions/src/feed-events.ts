@@ -13,16 +13,46 @@ import { BADGE_BY_CODE, SHOP_BY_ID, titleFromLevel } from "./rewards-config";
 // 뱃지 설계의 전제이고(plan-reward-system.md §5.0), 피드는 그걸 무너뜨리기 가장 쉬운 곳이다.
 
 /**
+ * 괄호 표기는 버리고 부르는 이름만 남긴다.
+ *   사랑이(박수현) → 사랑이
+ * 괄호까지 글자로 세면 "사○○○○○○)"처럼 닫는 괄호만 살아남아 이름으로 읽히지 않는다.
+ */
+function callName(name: string): string {
+  const raw = (name ?? "").trim();
+  const stripped = raw.replace(/\s*[(（][^)）]*[)）]\s*/g, " ").trim();
+  return stripped || raw;
+}
+
+/**
  * 이름 가운데를 ○로 가린다. 피드는 공개 페이지라 **공개 문서에 실명을 두지 않는다**
  * (화면에서만 가리면 Firestore를 직접 읽어 실명을 볼 수 있다).
  * 같은 가족은 클라이언트가 childId로 실명을 되살린다.
- *   임효주 → 임○주 / 김민 → 김○ / 남궁민수 → 남○○수
+ *   임효주 → 임○주 / 김민 → 김○ / 남궁민수 → 남○○수 / 사랑이(박수현) → 사○이
  */
 function maskName(name: string): string {
-  const n = (name ?? "").trim();
+  const n = callName(name);
   if (n.length <= 1) return n;
   if (n.length === 2) return `${n[0]}○`;
   return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;
+}
+
+/**
+ * 이름이 바뀐 학생의 기존 피드 카드를 새 이름으로 맞춘다.
+ *
+ * 피드 문서는 기록 시점의 가린 이름을 박아 두므로, 이름을 고쳐도 저절로 따라오지 않는다.
+ * daily 카드는 다음 적립 때 갱신되지만 뱃지·레벨·아이템 카드는 create 전용(putOnce)이라
+ * 손대지 않으면 **영영 옛 이름으로 남는다**. 그래서 이름 변경 경로에서 직접 맞춰 준다.
+ */
+export async function syncFeedName(childId: string, name: string): Promise<void> {
+  const masked = maskName(name);
+  const snap = await db.collection("feedEvents").where("childId", "==", childId).get();
+  const stale = snap.docs.filter((d) => d.data().name !== masked);
+  if (!stale.length) return;
+
+  const batch = db.batch();
+  for (const d of stale) batch.update(d.ref, { name: masked });
+  await batch.commit();
+  functions.logger.info("[feed] 이름 동기화", { childId, masked, count: stale.length });
 }
 
 /** 성장형 뱃지 — 잘하는 학생이 아니라 나아진 학생이 눈에 띄게 한다. */

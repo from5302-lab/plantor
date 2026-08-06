@@ -19,9 +19,11 @@ const db = admin.firestore();
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
-/** 이름 가운데를 ○로 (functions/src/feed-events.ts의 maskName과 같은 규칙). */
+/** 이름 가운데를 ○로 (functions/src/feed-events.ts의 maskName·callName과 같은 규칙). */
 function maskName(name) {
-  const n = String(name ?? "").trim();
+  const raw = String(name ?? "").trim();
+  // 괄호 표기는 버리고 부르는 이름만 남긴다: 사랑이(박수현) → 사랑이 → 사○이
+  const n = raw.replace(/\s*[(（][^)）]*[)）]\s*/g, " ").trim() || raw;
   if (n.length <= 1) return n;
   if (n.length === 2) return `${n[0]}○`;
   return `${n[0]}${"○".repeat(n.length - 2)}${n[n.length - 1]}`;

@@ -3,6 +3,7 @@ import * as functions from "firebase-functions/v2";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { solapiApiKey, solapiApiSecret, SITE_URL, KAKAO_TEMPLATES, ADMIN_EMAILS } from "./config";
 import { assertAdmin, idToEmail, sendAlimtalk, sendSms, db, auth } from "./utils";
+import { syncFeedName } from "./feed-events";
 
 // ─────────────────────────────────────────────────────────
 // claimAdminRole — 부트스트랩용 self-bootstrap claim 부여.
@@ -677,6 +678,10 @@ export const updateChildName = onCall(async (request) => {
   const loginId = (childSnap.data()!.loginId as string | undefined)?.toLowerCase();
 
   await db.collection("children").doc(childId).update({ name: newName.trim() });
+
+  // 이미 쌓인 피드 카드의 가린 이름도 함께 맞춘다 (실패해도 이름 변경은 되돌리지 않는다)
+  await syncFeedName(childId, newName.trim())
+    .catch((e) => functions.logger.warn("[auth] 피드 이름 동기화 실패", { childId, error: String(e) }));
 
   const uidToUpdate = authUid ?? (loginId ? await auth.getUserByEmail(idToEmail(loginId)).then((u) => u.uid).catch(() => null) : null);
   if (uidToUpdate) {
