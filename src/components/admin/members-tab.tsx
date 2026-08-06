@@ -1934,7 +1934,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                 {/* 학생 이름/학년/아이디 행 */}
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: studentSlugs.length > 0 ? 6 : 0 }}>
                   <strong
-                    onClick={student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? () => window.open(`/admin/preview?type=learn&loginId=${encodeURIComponent(student.studentLoginId!)}&name=${encodeURIComponent(student.name || "")}`, "_blank") : undefined}
+                    onClick={student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? () => window.open(`/admin/preview?type=feed&childId=${childIdMap[student.studentLoginId!.toLowerCase()]}&name=${encodeURIComponent(student.name || "")}`, "_blank") : undefined}
                     title={student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? "학생 화면 미리보기 (새창)" : undefined}
                     style={{ color: "rgba(0,0,0,0.95)", cursor: student.studentLoginId && childIdMap[student.studentLoginId.toLowerCase()] ? "pointer" : "default" }}
                   >{student.name || cls.name}</strong>
@@ -2247,17 +2247,12 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                       {/* 자녀 헤더 */}
                       <div className="px-[14px] py-3">
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: subs.length > 0 ? 10 : 0 }}>
+                          {/* 학생이 로그인하면 보는 화면 그대로 — 예전 학습 화면은 그 안의 '학습하기' 탭이다 */}
                           <span
-                            onClick={() => window.open(`/admin/preview?type=learn&childId=${child.id}&name=${encodeURIComponent(child.name)}`, "_blank")}
+                            onClick={() => window.open(`/admin/preview?type=feed&childId=${child.id}&name=${encodeURIComponent(child.name)}`, "_blank")}
                             title="학생 화면 미리보기 (새창) · 이름 수정은 ⚙"
                             style={{ fontSize: 13, fontWeight: 700, color: "rgba(0,0,0,0.95)", cursor: "pointer" }}
                           >{child.name}</span>
-                          {/* 이 학생이 보는 피드(프로필 카드 포함) 미리보기 */}
-                          <span
-                            onClick={() => window.open(`/admin/preview?type=feed&childId=${child.id}&name=${encodeURIComponent(child.name)}`, "_blank")}
-                            title="이 학생이 로그인하면 보는 프로필 화면 미리보기 (새창)"
-                            style={{ fontSize: 11, color: "#a39e98", cursor: "pointer" }}
-                          >프로필</span>
                           <EditableGrade childId={child.id} grade={child.grade} />
                           <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 4, padding: "2px 6px" }}>
                             {child.loginId || "-"}
