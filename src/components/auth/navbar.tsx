@@ -20,6 +20,11 @@ export function Navbar() {
 
   const displayId = role === "admin" ? "" : (user?.displayName || user?.email?.replace("@plantor.app", "") || "");
 
+  // 피드로 가는 주소.
+  // "/" 에는 LoginRedirect 가 걸려 있어 학생·학부모가 열면 곧바로 학습 홈으로 되돌아간다.
+  // 그들에게는 리다이렉트가 없는 /community 를 준다 — 내용은 같은 피드다.
+  const feedHref = role === "student" || role === "parent" ? "/community" : "/";
+
   // 메뉴 열릴 때 body 스크롤 잠금
   useEffect(() => {
     if (menuOpen) {
@@ -61,14 +66,9 @@ export function Navbar() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/planote-icon.svg" alt="" width={20} height={20} className="mr-1.5 align-middle inline-block" />Planote
             </Link>
-          ) : role === "student" || role === "parent" ? (
-            <span className="text-base font-bold text-black/95 cursor-default select-none" style={{ letterSpacing: "-0.3px" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/favicon.svg" alt="" width={20} height={20} className="mr-1.5 align-middle inline-block" />Plantor
-            </span>
           ) : (
             <Link
-              href="/"
+              href={feedHref}
               className="nav-link text-base font-bold text-black/95 no-underline"
               style={{ letterSpacing: "-0.3px" }}
             >
@@ -93,6 +93,7 @@ export function Navbar() {
               <DesktopLinks
                 user={user}
                 role={role}
+                feedHref={feedHref}
                 loading={loading}
                 hasAiPackage={hasAiPackage}
                 displayId={displayId}
@@ -122,15 +123,19 @@ export function Navbar() {
               </button>
             )}
             {loading && <div className="h-7 w-14 rounded bg-black/[0.06]" />}
-          <button
-            className="flex items-center justify-center w-10 h-10 rounded-lg bg-transparent border-none cursor-pointer"
-            onClick={() => setMenuOpen(true)}
-            aria-label="메뉴 열기"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M3 5h14M3 10h14M3 15h14" stroke="rgba(0,0,0,0.75)" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          </button>
+            {/* 로그아웃 상태에서는 메뉴에 남는 항목이 없다(피드=로고, 소개·로그인=상단바).
+                빈 서랍을 열게 하느니 버튼을 감춘다. */}
+            {(loading || user) && (
+              <button
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-transparent border-none cursor-pointer"
+                onClick={() => setMenuOpen(true)}
+                aria-label="메뉴 열기"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M3 5h14M3 10h14M3 15h14" stroke="rgba(0,0,0,0.75)" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -172,10 +177,11 @@ export function Navbar() {
 
 /* ── 데스크톱 링크 (기존 로직 그대로) ─────────────────────────────────── */
 function DesktopLinks({
-  user, role, loading, hasAiPackage, displayId, signOut, onLogin, onProfile,
+  user, role, feedHref, loading, hasAiPackage, displayId, signOut, onLogin, onProfile,
 }: {
   user: ReturnType<typeof useAuth>["user"];
   role: string | null;
+  feedHref: string;
   loading: boolean;
   hasAiPackage: boolean;
   displayId: string;
@@ -186,7 +192,7 @@ function DesktopLinks({
   return (
     <>
       {/* 피드가 첫 화면이라 "/" 가 곧 피드다. 소개는 /about 이 맡는다. */}
-      <Link href="/" className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
+      <Link href={feedHref} className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
       <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
 
       {!loading && !user && (
@@ -278,8 +284,7 @@ function MobileMenu({
 
         {/* 메뉴 항목 */}
         <div className="flex flex-col py-2">
-          <MobileLink href="/" label="피드" onClick={onClose} />
-          {/* 소개·로그인은 상단바로 옮겼다 — 메뉴를 열지 않아도 보이게 */}
+          {/* 피드는 로고, 소개·로그인은 상단바가 맡는다 — 메뉴를 열지 않아도 닿는다 */}
 
           {!loading && user && role === "admin" && (
             <>
