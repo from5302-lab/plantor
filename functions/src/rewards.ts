@@ -409,6 +409,8 @@ type BadgeCtx = {
   todayDoneSlugs: string[];
   /** 학생이 듣는 자동인증 서비스 수 */
   subscribedCount: number;
+  /** 확정 과제가 잡힌 요일(0=월 … 6=일). 연속 학습 판정에서 쉬는 날을 건너뛰는 데 쓴다 */
+  plannedDows: Set<number>;
   badgeTotal: number;
 };
 
@@ -516,13 +518,46 @@ function detectBadges(ctx: BadgeCtx): string[] {
 
 // ── 누적 상태(stats) 갱신 ─────────────────────────────────────────────────────
 
+/** 날짜 문자열의 요일 (0=월 … 6=일). tasks.scheduleDays 와 같은 기준. */
+function dowOf(date: string): number {
+  return (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
+
+/**
+ * 연속 학습이 이어졌는가.
+ *
+ * 바로 어제 적립했으면 당연히 이어진다. 하루 이상 비었을 때는 **사이에 낀 날이
+ * 전부 계획 없는 요일**이면 이어진 것으로 본다(주말에 계획이 없으면 금→월도 연속).
+ *
+ * 계획 요일을 하나도 모를 때(확정 과제가 없는 학생)는 예전 규칙 그대로 어제만 인정한다.
+ * 모르는 상태에서 전부 봐주면 몇 주를 쉬어도 연속이 이어져 지표가 뜻을 잃는다.
+ * 빈 구간이 지나치게 길면(14일 초과) 계획과 무관하게 끊는다 — 장기 휴식은 새로 시작하는 게 맞다.
+ */
+export function continuesStreak(lastEarnDate: string, date: string, plannedDows: Set<number>): boolean {
+  if (!lastEarnDate) return false;
+  if (lastEarnDate === prevDate(date)) return true;
+  if (lastEarnDate >= date) return false;
+  if (plannedDows.size === 0) return false;
+
+  let cursor = prevDate(date);
+  let gap = 0;
+  while (cursor > lastEarnDate) {
+    if (++gap > 14) return false;
+    if (plannedDows.has(dowOf(cursor))) return false; // 계획이 있던 날을 건너뛰었다
+    cursor = prevDate(cursor);
+  }
+  return cursor === lastEarnDate;
+}
+
 function updateStats(stats: Stats, ctx: Omit<BadgeCtx, "stats" | "badgeTotal">): Stats {
   const s: Stats = { ...stats, gameHigh: { ...stats.gameHigh }, weekly: { ...stats.weekly } };
   const { units, detail, date, serviceSlug } = ctx;
 
-  // 연속 학습일 — 그날 XP를 얻은 날 기준
+  // 연속 학습일 — 그날 XP를 얻은 날 기준.
+  // 사이에 낀 날이 전부 '계획 없는 날'이면 이어진 것으로 본다 — 주말에 계획이 없는 학생이
+  // 금요일에 하고 월요일에 이어서 해도 끊기지 않아야 한다(사용자 확정).
   if (s.lastEarnDate !== date) {
-    s.streak = s.lastEarnDate === prevDate(date) ? s.streak + 1 : 1;
+    s.streak = continuesStreak(s.lastEarnDate, date, ctx.plannedDows) ? s.streak + 1 : 1;
     s.lastEarnDate = date;
   }
 
@@ -616,6 +651,18 @@ export async function awardRewards(params: {
       .filter((slug) => REWARD_SLUGS.includes(slug)),
   ).size;
 
+  // 계획이 있는 요일(0=월 … 6=일). 연속 학습 판정에서 '쉬는 날'을 건너뛰기 위해 쓴다.
+  // 주말에 계획이 없는 학생이 금요일에 하고 월요일에 이어서 해도 연속이 끊기지 않아야 한다.
+  const tasksSnap = await db.collection("tasks")
+    .where("childId", "==", childId)
+    .where("status", "==", "confirmed")
+    .get();
+  const plannedDows = new Set<number>();
+  tasksSnap.docs.forEach((d) => {
+    const days = d.data().scheduleDays;
+    if (Array.isArray(days)) days.forEach((n: unknown) => { if (typeof n === "number") plannedDows.add(n); });
+  });
+
   try {
     const out = await db.runTransaction(async (tx) => {
       // ── 읽기 (쓰기 전에 전부) ──
@@ -652,7 +699,7 @@ export async function awardRewards(params: {
       const ctxBase = {
         serviceSlug, date, autoStatus, units, detail: (scrapedData?.detail as Json) ?? null, voca,
         scraped: scrapedData, quality: comp.quality, qualityRaw: comp.qualityRaw,
-        todayDoneSlugs, subscribedCount,
+        todayDoneSlugs, subscribedCount, plannedDows,
       };
 
       // 이 날짜·서비스를 처음 적립할 때만 누적 상태를 갱신한다(재계산 시 연속 카운트 중복 방지)

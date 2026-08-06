@@ -17,7 +17,8 @@ import { useChildData } from "@/lib/hooks/useChildData";
 import { EditableStudentPhone } from "./editable-student-phone";
 import { useAttendanceSession } from "@/lib/hooks/useAttendanceSession";
 import { useWindowTracking } from "@/lib/hooks/useWindowTracking";
-import { todayStr, getWeekDates, formatDateHeader, calcStreak } from "@/lib/learn-utils";
+import { todayStr, getWeekDates, formatDateHeader } from "@/lib/learn-utils";
+import { useRewards } from "@/lib/hooks/useRewards";
 import { PageWrap } from "@/components/ui/page-wrap";
 import { Card } from "@/components/ui/card";
 import { CenterMsg } from "@/components/ui/center-msg";
@@ -183,6 +184,11 @@ export function LearnDashboard({
     return unsub;
   }, [childId, isDemo]);
 
+  // 연속 학습일은 서버가 계산한 값을 쓴다(children/{id}/stats/summary.streak).
+  // 예전에는 여기서 learningLogs 로 따로 셌는데, 프로필 카드는 서버 값을 쓰고 있어
+  // 같은 지표가 두 화면에서 다르게 보였다. 게다가 그 계산은 오늘 학습 전이면 늘 0을 냈다.
+  const { streak } = useRewards(childId, !isDemo);
+
   const todayTaskChecks = allTaskChecks.filter((c) => c.date === todayStr());
 
   const [, setSubmitting] = useState<string | null>(null);
@@ -338,7 +344,6 @@ export function LearnDashboard({
     );
   }
 
-  const streak = calcStreak(allLogs);
   const todayDone = todayTasks.filter(t => todayTaskChecks.find(c => c.taskId === t.id && c.status === "done")).length;
   const todayTotal = todayTasks.length;
   const allDone = todayTotal > 0 && todayDone === todayTotal;
@@ -360,7 +365,6 @@ export function LearnDashboard({
   const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
   if (attendanceState === "done") {
-    const newStreak = calcStreak([...allLogs, { id: "new", serviceSlug: subscriptions[0]?.serviceSlug ?? "", date: todayStr() }]);
     const weekDoneCount = weekDates.filter((d) => d <= today && logDates.has(d)).length;
     const weekPastCount = weekDates.filter((d) => d <= today).length;
 
@@ -397,7 +401,7 @@ export function LearnDashboard({
 
             <div className="flex gap-2.5 mb-6">
               <div className="flex-1 bg-p-bg rounded-[10px] py-3 text-center">
-                <div className="text-xl font-extrabold text-black/95">🔥 {newStreak}일</div>
+                <div className="text-xl font-extrabold text-black/95">🔥 {streak}일</div>
                 <div className="text-[11px] text-p-muted mt-0.5">연속 학습</div>
               </div>
               <div className="flex-1 bg-p-bg rounded-[10px] py-3 text-center">
