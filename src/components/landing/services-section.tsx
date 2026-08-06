@@ -671,7 +671,6 @@ export function ServicesSection() {
 
       <div className="mx-auto max-w-[1000px]">
         <div className="mb-6 text-center">
-          <p className="mb-2 text-[11px] font-semibold tracking-[0.12em] uppercase text-p-muted">Lineup</p>
           <FitText as="h2" style={{ fontWeight: 700, letterSpacing: "-0.75px", color: "rgba(0,0,0,0.95)" }}>
             우리 아이와 나를 위한 딱 맞는 학습 프로그램
           </FitText>

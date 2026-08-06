@@ -17,7 +17,7 @@ export function Hero() {
   return (
     <section className="bg-white px-5 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
       <div className="mx-auto max-w-[760px] text-center">
-        <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-p-muted">
+        <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-p-secondary">
           Plan + Mentor
         </p>
 
@@ -51,7 +51,7 @@ export function Hero() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <span className="text-[12px] font-medium text-p-muted">자동으로 기록되는 학습사이트</span>
+          <span className="text-[12px] font-medium text-p-secondary">자동으로 기록되는 학습사이트</span>
           {autoServices.map((s) => (
             <span key={s.slug} className="inline-flex items-center gap-1.5">
               <ServiceIcon service={s} size={18} />

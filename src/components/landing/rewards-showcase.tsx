@@ -25,7 +25,6 @@ export function RewardsShowcase() {
     <section className="bg-p-bg px-5 py-16 sm:px-6 sm:py-20">
       <div className="mx-auto max-w-[900px]">
         <div className="text-center">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-p-muted">Rewards</p>
           <h2
             className="text-[24px] font-bold text-black/95 sm:text-[32px]"
             style={{ letterSpacing: "-0.03em" }}
@@ -114,7 +113,7 @@ export function RewardsShowcase() {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[13px] leading-[1.6] text-p-muted">
+        <p className="mt-6 text-center text-[13px] leading-[1.6] text-p-secondary">
           피드는 순위표가 아니라 시간순 기록입니다. 잘하는 몇 명이 화면을 독점하면 나머지가 위축되니까요.
         </p>
       </div>

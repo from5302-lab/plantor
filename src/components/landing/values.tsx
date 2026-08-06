@@ -6,7 +6,6 @@ export function Values() {
     <section className="bg-p-bg px-5 py-16 sm:px-6 sm:py-20">
       <div className="mx-auto max-w-[900px]">
         <div className="text-center">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-p-muted">For parents</p>
           <h2
             className="text-[24px] font-bold text-black/95 sm:text-[32px]"
             style={{ letterSpacing: "-0.03em" }}
