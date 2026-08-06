@@ -103,9 +103,16 @@ export function Navbar() {
             )}
           </div>
 
-          {/* 모바일: 로그인 버튼 + 햄버거.
-              로그인은 첫 방문자의 유일한 진입점이라 메뉴 안에 숨기지 않는다. */}
+          {/* 모바일: 소개 + 로그인 버튼 + 햄버거.
+              첫 화면이 피드라 처음 온 사람에게는 소개가 유일한 맥락이다.
+              로그인과 같은 이유로 메뉴 안에 숨기지 않고 상단바에 고정한다. */}
           <div className="flex min-[601px]:hidden items-center gap-2">
+            <Link
+              href="/about"
+              className="nav-link text-[13px] font-medium text-p-secondary no-underline"
+            >
+              소개
+            </Link>
             {!loading && !user && (
               <button
                 onClick={() => setShowAuth(true)}
@@ -272,8 +279,7 @@ function MobileMenu({
         {/* 메뉴 항목 */}
         <div className="flex flex-col py-2">
           <MobileLink href="/" label="피드" onClick={onClose} />
-          <MobileLink href="/about" label="소개" onClick={onClose} />
-          {/* 로그인 버튼은 상단바로 옮겼다 — 메뉴를 열지 않아도 보이게 */}
+          {/* 소개·로그인은 상단바로 옮겼다 — 메뉴를 열지 않아도 보이게 */}
 
           {!loading && user && role === "admin" && (
             <>

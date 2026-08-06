@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { collection, doc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { FeedEventCard, toFeedEvent, type FeedEvent } from "./feed-event-card";
@@ -72,11 +71,7 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid, familyNames, showIntroLink = false }: {
-  myUid: string | null;
-  familyNames: Map<string, string>;
-  showIntroLink?: boolean;
-}) {
+export function FeedList({ myUid, familyNames }: { myUid: string | null; familyNames: Map<string, string> }) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -94,17 +89,6 @@ export function FeedList({ myUid, familyNames, showIntroLink = false }: {
     <div className="min-h-screen bg-p-bg">
       <div className="max-w-[600px] mx-auto bg-white min-h-[calc(100vh-113px)]">
         <div className="px-4 sm:px-5 py-4 border-b border-black/[0.07]">
-          {showIntroLink && (
-            <Link
-              href="/about"
-              className="flex items-center justify-between gap-2 rounded-xl border border-black/[0.08] px-3.5 py-2.5 no-underline"
-            >
-              <span className="text-[13px] text-p-secondary">
-                <b className="font-semibold text-black/80">플랜토</b>는 어떤 곳인가요?
-              </span>
-              <span className="text-[13px] font-semibold text-p-green shrink-0">소개 보기 →</span>
-            </Link>
-          )}
           <TodaySummary events={events} />
         </div>
 
