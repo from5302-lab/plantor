@@ -12,22 +12,26 @@ import { RewardHeader } from "@/components/learn/reward-header";
  * readOnly = 학부모가 보는 자녀 카드. 상점·피드 공개설정은 콜러블이 호출자 본인의
  * 학생을 찾으므로(rewards-api.ts resolveChild) 학부모가 누르면 실패한다 → 잠근다.
  */
-export function FeedProfileCard({ childId, name, readOnly = false, note }: {
+export function FeedProfileCard({ childId, name, readOnly = false, note, previewEquipped, nameClass = "" }: {
   childId: string;
   name: string;
   readOnly?: boolean;
   /** 이름 옆 꼬리표 (학부모 화면의 "자녀" 등). 읽기전용 여부와 별개다 */
   note?: string;
+  /** 상점에서 입어보는 중인 조합 — 카드가 그대로 비춘다 */
+  previewEquipped?: Record<string, string | null | undefined>;
+  /** 이름 스타일 아이템의 CSS 클래스. 이름을 사는 슬롯이라 여기서 보여야 한다 */
+  nameClass?: string;
 }) {
   return (
     <div>
       {name && (
         <div className="mb-2 flex items-baseline gap-1.5">
-          <span className="text-[13px] font-bold text-black/85">{name}</span>
+          <span className={`text-[13px] font-bold text-black/85 ${nameClass}`}>{name}</span>
           {note && <span className="text-[11px] text-p-muted">{note}</span>}
         </div>
       )}
-      <RewardHeader childId={childId} childName={name} readOnly={readOnly} />
+      <RewardHeader childId={childId} childName={name} readOnly={readOnly} previewEquipped={previewEquipped} />
     </div>
   );
 }

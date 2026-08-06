@@ -33,8 +33,8 @@ export function AdminPreviewShell() {
     return () => { cancelled = true; };
   }, [type, uid, loginId]);
 
-  if (loading) return <Frame name={name}><CenterMsg>로딩 중…</CenterMsg></Frame>;
-  if (!user || role !== "admin") return <Frame name={name}><CenterMsg>어드민만 접근할 수 있습니다.</CenterMsg></Frame>;
+  if (loading) return <CenterMsg>로딩 중…</CenterMsg>;
+  if (!user || role !== "admin") return <CenterMsg>어드민만 접근할 수 있습니다.</CenterMsg>;
 
   let content: ReactNode;
   if (type === "parent") {
@@ -59,24 +59,6 @@ export function AdminPreviewShell() {
     content = <CenterMsg>잘못된 미리보기 주소입니다.</CenterMsg>;
   }
 
-  return <Frame name={name}>{content}</Frame>;
+  return content;
 }
 
-function Frame({ name, children }: { name: string; children: ReactNode }) {
-  return (
-    <>
-      <div
-        style={{
-          position: "sticky", top: 0, zIndex: 1000,
-          background: "#1f2937", color: "#fff",
-          padding: "8px 16px", fontSize: 13, fontWeight: 600,
-          display: "flex", alignItems: "center", gap: 8,
-        }}
-      >
-        🔍 미리보기 — 읽기전용{name ? ` · ${name}` : ""}
-        <span style={{ opacity: 0.7, fontWeight: 400 }}>(어드민 전용 · 데이터 변경 불가)</span>
-      </div>
-      {children}
-    </>
-  );
-}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
@@ -89,9 +89,19 @@ export function BadgeVault({ state }: { state: RewardState }) {
  * 그래서 (1) 큰 무대 미리보기 (2) 눌러서 내 아바타에 바로 입혀보기(구매 전) 를 둔다.
  * 못 사는 아이템도 계속 움직이게 둔다. 갖고 싶어야 모은다.
  */
-export function Shop({ state, readOnly = false }: { state: RewardState; readOnly?: boolean }) {
+export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnProp, onTryOn }: {
+  state: RewardState;
+  readOnly?: boolean;
+  /** 프로필 화면처럼 위에 이미 카드가 있을 때 — 무대를 두 번 그리지 않는다 */
+  hideStage?: boolean;
+  /** 입어보기 상태를 바깥이 들고 있을 때(위 카드에 그대로 비춘다) */
+  tryOn?: Record<string, string>;
+  onTryOn?: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
   const [slot, setSlot] = useState<ShopSlot>("frame");
-  const [tryOn, setTryOn] = useState<Record<string, string>>({});
+  const [tryOnLocal, setTryOnLocal] = useState<Record<string, string>>({});
+  const tryOn = tryOnProp ?? tryOnLocal;
+  const setTryOn = onTryOn ?? setTryOnLocal;
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
 
@@ -126,24 +136,28 @@ export function Shop({ state, readOnly = false }: { state: RewardState; readOnly
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* ── 무대 ── 스크롤해도 늘 보여야 한다. 입어보는 결과가 여기 뜨기 때문 */}
-      <div
-        className="rounded-2xl px-3 sm:px-4 py-3 sm:py-4 mb-3 flex items-center gap-3 sm:gap-4 shrink-0"
-        style={{ background: "linear-gradient(160deg,#fbfbfa,#f2f1ef)", border: "1px solid rgba(0,0,0,0.06)" }}
-      >
-        <AvatarView equipped={preview} size={72} />
-        <div className="min-w-0 flex-1">
-          <div className={`text-[19px] font-bold text-black/90 truncate ${previewName}`}>
-            {state.name || "내 이름"}
-          </div>
-          <div className="text-[12px] mt-0.5" style={{ color: state.title.color }}>
-            {state.title.name} Lv.{state.level}
-          </div>
-          <div className="text-[13px] font-bold mt-1" style={{ color: T.teal }}>
-            ⭐ {state.points.toLocaleString("ko-KR")}P
+      {/* ── 무대 ── 입어보는 결과가 여기 뜬다.
+          프로필 화면에서는 바로 위에 프로필 카드가 있어 두 번 그리지 않는다(hideStage).
+          그때는 입어보기 결과가 그 카드에 그대로 비친다. */}
+      {!hideStage && (
+        <div
+          className="rounded-2xl px-3 sm:px-4 py-3 sm:py-4 mb-3 flex items-center gap-3 sm:gap-4 shrink-0"
+          style={{ background: "linear-gradient(160deg,#fbfbfa,#f2f1ef)", border: "1px solid rgba(0,0,0,0.06)" }}
+        >
+          <AvatarView equipped={preview} size={72} />
+          <div className="min-w-0 flex-1">
+            <div className={`text-[19px] font-bold text-black/90 truncate ${previewName}`}>
+              {state.name || "내 이름"}
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: state.title.color }}>
+              {state.title.name} Lv.{state.level}
+            </div>
+            <div className="text-[13px] font-bold mt-1" style={{ color: T.teal }}>
+              ⭐ {state.points.toLocaleString("ko-KR")}P
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── 입어본 것 구매 바 ── */}
       {trying?.item && (

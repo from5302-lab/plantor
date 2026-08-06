@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useMyFamilyNames } from "@/lib/hooks/useMyFamilyNames";
 import { useRewards } from "@/lib/hooks/useRewards";
+import { SHOP_BY_ID } from "@/lib/rewards/catalog";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { LoginPrompt } from "@/components/ui/login-prompt";
 import { LearnDashboard } from "@/components/learn/learn-dashboard";
@@ -45,6 +46,11 @@ export function ProfileShell({ previewChildId, previewName }: {
   // 뱃지·상점 탭은 리워드 상태를 직접 쓴다 (카드와 같은 구독이라 값이 어긋나지 않는다)
   const rewards = useRewards(childId, !!childId);
 
+  // 상점에서 입어보는 중인 조합. 무대를 따로 그리는 대신 위 프로필 카드가 그대로 비춘다.
+  const [tryOn, setTryOn] = useState<Record<string, string>>({});
+  const previewEquipped = { ...rewards.equipped, ...tryOn };
+  const nameClass = SHOP_BY_ID.get(String(previewEquipped.nameStyle ?? ""))?.cssClass ?? "";
+
   useEffect(() => {
     if (isPreview || loading || !user || !role) return;
     if (role === "admin") router.replace("/admin");
@@ -63,7 +69,13 @@ export function ProfileShell({ previewChildId, previewName }: {
         {/* 프로필 카드 — 탭을 오가도 그대로 */}
         {childId && (
           <div className="px-4 sm:px-5 pt-4">
-            <FeedProfileCard childId={childId} name={name} readOnly={isPreview} />
+            <FeedProfileCard
+              childId={childId}
+              name={name}
+              readOnly={isPreview}
+              previewEquipped={tab === "shop" ? previewEquipped : undefined}
+              nameClass={nameClass}
+            />
           </div>
         )}
 
@@ -74,7 +86,8 @@ export function ProfileShell({ previewChildId, previewName }: {
             {TABS.map((t) => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                // 상점을 떠나면 입어보기는 벗는다 — 안 사고 나갔는데 카드가 그대로면 산 줄 안다
+                onClick={() => { setTab(t.key); if (t.key !== "shop") setTryOn({}); }}
                 className={`shrink-0 px-3 py-3 text-[13.5px] font-semibold bg-transparent border-none cursor-pointer ${
                   tab === t.key ? "text-black/90" : "text-p-muted"
                 }`}
@@ -95,13 +108,15 @@ export function ProfileShell({ previewChildId, previewName }: {
           familyNames={family.names}
           rewards={rewards}
           isPreview={isPreview}
+          tryOn={tryOn}
+          onTryOn={setTryOn}
         />
       </div>
     </div>
   );
 }
 
-function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards, isPreview }: {
+function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards, isPreview, tryOn, onTryOn }: {
   tab: Tab;
   childId: string | null;
   uid: string;
@@ -110,6 +125,8 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
   familyNames: Map<string, string>;
   rewards: ReturnType<typeof useRewards>;
   isPreview: boolean;
+  tryOn: Record<string, string>;
+  onTryOn: Dispatch<SetStateAction<Record<string, string>>>;
 }) {
   // 피드 두 탭은 FeedList 를 그대로 쓴다. 카드·탭은 이 화면이 이미 그렸으므로
   // 목록만 받아 쓰고, 바깥 여백은 FeedList 쪽 컨테이너를 걷어낸 형태로 감싼다.
@@ -157,7 +174,9 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
   // 미리보기에서도 둘러보기·입어보기는 열어 둔다 — 막히는 건 구매 버튼뿐이다.
   return (
     <div className={`px-4 sm:px-5 py-4 ${tab === "shop" ? "h-[calc(100vh-320px)] min-h-[440px]" : ""}`}>
-      {tab === "badges" ? <BadgeVault state={rewards} /> : <Shop state={rewards} readOnly={isPreview} />}
+      {tab === "badges"
+        ? <BadgeVault state={rewards} />
+        : <Shop state={rewards} readOnly={isPreview} hideStage tryOn={tryOn} onTryOn={onTryOn} />}
     </div>
   );
 }

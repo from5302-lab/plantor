@@ -11,11 +11,13 @@ import { RewardPanels } from "./reward-panels";
 // /learn 첫 화면 최상단 위젯 — 레벨·XP 진행바·포인트·뱃지.
 // 배치(09·13·17·21시)로 뒤늦게 발견된 뱃지는 여기서 큐로 연출된다.
 
-export function RewardHeader({ childId, childName, isDemo = false, readOnly = false }: {
+export function RewardHeader({ childId, childName, isDemo = false, readOnly = false, previewEquipped }: {
   childId: string | null;
   childName: string;
   isDemo?: boolean;
   readOnly?: boolean;
+  /** 상점에서 입어보는 중인 조합. 주면 실제 착용 대신 이걸 그린다(구매 전 미리보기). */
+  previewEquipped?: Record<string, string | null | undefined>;
 }) {
   const state = useRewards(childId, !isDemo);
   const markSeen = useMarkBadgesSeen();
@@ -32,8 +34,9 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
 
   const pct = Math.round(state.progress * 100);
   // 카드 테마·경험치 바 — 아바타 밖에서 파는 꾸미기. 없으면 기본 모습 그대로다.
-  const themeCls = SHOP_BY_ID.get(String(state.equipped.cardTheme ?? ""))?.cssClass ?? "";
-  const xpCls = SHOP_BY_ID.get(String(state.equipped.xpBar ?? ""))?.cssClass ?? "";
+  const eq = previewEquipped ?? state.equipped;
+  const themeCls = SHOP_BY_ID.get(String(eq.cardTheme ?? ""))?.cssClass ?? "";
+  const xpCls = SHOP_BY_ID.get(String(eq.xpBar ?? ""))?.cssClass ?? "";
 
   return (
     <>
@@ -43,7 +46,7 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
       >
         <div className="flex items-center gap-3">
           <button onClick={() => setPanel("shop")} aria-label="아바타 꾸미기">
-            <AvatarView equipped={state.equipped} size={54} />
+            <AvatarView equipped={eq} size={54} />
           </button>
 
           <div className="flex-1 min-w-0">
