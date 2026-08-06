@@ -28,16 +28,18 @@ export function getWeekDates(weekOffset = 0): string[] {
   });
 }
 
-export function formatDateHeader(): { month: string; day: string; weekday: string } {
+/**
+ * 오늘 날짜 표시값.
+ *
+ * 월 이름을 영문 대문자(AUGUST)로 두었더니 한글 요일과 한 줄에서 부딪혔다 —
+ * 두 문자 체계는 baseline·자폭·밀도가 달라 나란히 두면 읽기 리듬이 끊긴다.
+ * 한국어 서비스이므로 한국어로 통일한다.
+ */
+export function formatDateHeader(): { date: string; weekday: string } {
   const now = new Date();
-  const MONTHS = [
-    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
-  ];
   const WEEKDAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
   return {
-    month: MONTHS[now.getMonth()],
-    day: String(now.getDate()),
+    date: `${now.getMonth() + 1}월 ${now.getDate()}일`,
     weekday: WEEKDAYS[now.getDay()],
   };
 }

@@ -356,7 +356,7 @@ export function LearnDashboard({
   const logDates = new Set(allLogs.map((l) => l.date));
   const today = todayStr();
   const weekDates = getWeekDates();
-  const { month, day, weekday } = formatDateHeader();
+  const { date, weekday } = formatDateHeader();
   const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
   if (attendanceState === "done") {
@@ -467,9 +467,11 @@ export function LearnDashboard({
             38px 대문자로 두면 화면에서 제일 큰 게 '오늘이 며칠인지'가 된다.
             학생이 이 화면에 온 이유는 오늘 할 일이므로 그쪽에 크기를 넘긴다. */}
         <div className="mb-5">
+          {/* 자간은 DESIGN.md 스케일(26px에서 -0.625px, 16px에서 0)을 따라 20px에 -0.3px.
+              요일은 p-muted(#a39e98)로 두면 배경 대비 2.3:1 로 AA 미달이라 textSecondary 를 쓴다. */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-black/95 tracking-[-0.6px] leading-none">{month} {day}</span>
-            <span className="text-[12px] font-semibold text-p-muted">{weekday}</span>
+            <span className="text-[20px] font-bold text-black/95 tracking-[-0.3px] leading-[1.2]">{date}</span>
+            <span className="text-[13px] font-medium text-p-secondary leading-[1.2]">{weekday}</span>
           </div>
           {/* 프로필 탭 안에서는 바로 위 카드가 이미 이름·아바타를 보여준다 — 인사를 두 번 하지 않는다 */}
           {!embedded && (
