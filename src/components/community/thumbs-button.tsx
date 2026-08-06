@@ -71,13 +71,13 @@ export function ThumbsButton({ eventId, myUid, likeCount }: {
       style={{
         border: liked ? "1px solid rgba(56,168,72,0.35)" : "1px solid rgba(0,0,0,0.1)",
         background: liked ? "#f0faf1" : "#fff",
-        color: liked ? "#2a8438" : "#615d59",
+        color: liked ? "#1f7a33" : "#615d59",
         opacity: pending ? 0.6 : 1,
         minHeight: 36,
         transition: "background-color 150ms cubic-bezier(.4,0,.2,1), border-color 150ms cubic-bezier(.4,0,.2,1)",
       }}
     >
-      <ThumbsUp size={14} strokeWidth={2.25} fill={liked ? "#2a8438" : "none"} aria-hidden />
+      <ThumbsUp size={14} strokeWidth={2.25} fill={liked ? "#1f7a33" : "none"} aria-hidden />
       <span className="tabular-nums">{count}</span>
     </button>
   );

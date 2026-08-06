@@ -80,7 +80,7 @@ export const PREMIUM_CLASSES: PremiumClass[] = [
       "암기 현황 직접 점검",
       "수업일지로 진행 공유",
     ],
-    accent: "#38a848",
+    accent: "#1f7a33",
     priceLabel: "가격 문의",
   },
 ];

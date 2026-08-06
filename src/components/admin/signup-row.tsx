@@ -120,7 +120,7 @@ function SmsPreviewModal({ signup, displayMonthly, onClose }: { signup: Signup; 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={onClose} className={btnCls}>취소</button>
           <button onClick={handleSend} style={{
-            borderRadius: 6, border: "none", backgroundColor: "#38a848", color: "#fff",
+            borderRadius: 6, border: "none", backgroundColor: "#1f7a33", color: "#fff",
             padding: "7px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}>
             발송

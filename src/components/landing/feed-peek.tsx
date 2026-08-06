@@ -65,7 +65,7 @@ export function FeedPeek() {
               {todayXp > 0 && (
                 <div className="border-b border-black/[0.07] bg-[#f0faf1] px-4 py-2.5 text-[12px] text-p-secondary sm:px-5">
                   오늘 모인 경험치{" "}
-                  <b className="text-[15px] font-bold text-[#2a8438] tabular-nums">{todayXp.toLocaleString()}</b>
+                  <b className="text-[15px] font-bold text-[#1f7a33] tabular-nums">{todayXp.toLocaleString()}</b>
                 </div>
               )}
               {events.map((e) => (

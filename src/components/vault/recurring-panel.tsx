@@ -277,7 +277,7 @@ export function RecurringPanel({ recurringItems, entries, categories, month }: P
                   style={{
                     fontSize: "13px",
                     fontWeight: 600,
-                    color: item.type === "income" ? "#38a848" : "#dd5b00",
+                    color: item.type === "income" ? "#1f7a33" : "#dd5b00",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -297,7 +297,7 @@ export function RecurringPanel({ recurringItems, entries, categories, month }: P
                     onClick={() => handleMoveToDebt(item)}
                     disabled={busy}
                     title="채무로 전환"
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#38a848", background: "#f1faf3", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "6px", padding: "5px 6px", cursor: "pointer", flexShrink: 0 }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#1f7a33", background: "#f1faf3", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "6px", padding: "5px 6px", cursor: "pointer", flexShrink: 0 }}
                   >
                     <ArrowDownToLine size={14} strokeWidth={2.2} />
                   </button>
@@ -430,9 +430,9 @@ function RecurringEditForm({
               onClick={() => setType(t)}
               style={{
                 flex: 1, padding: "10px", borderRadius: "4px", border: "1px solid",
-                borderColor: type === t ? (t === "income" ? "#38a848" : "#dd5b00") : "rgba(0,0,0,0.1)",
+                borderColor: type === t ? (t === "income" ? "#1f7a33" : "#dd5b00") : "rgba(0,0,0,0.1)",
                 background: type === t ? (t === "income" ? "#f0faf1" : "#fff5f0") : "#ffffff",
-                color: type === t ? (t === "income" ? "#38a848" : "#dd5b00") : "#a39e98",
+                color: type === t ? (t === "income" ? "#1f7a33" : "#dd5b00") : "#a39e98",
                 fontWeight: type === t ? 600 : 400, fontSize: "15px", cursor: "pointer",
               }}
             >
@@ -509,7 +509,7 @@ function RecurringEditForm({
           )}
           <button
             type="button" onClick={handleSubmit} disabled={!canSave}
-            style={{ flex: 1, padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#ffffff", background: canSave ? "#38a848" : "#a39e98", border: "none", borderRadius: "4px", cursor: canSave ? "pointer" : "default" }}
+            style={{ flex: 1, padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#ffffff", background: canSave ? "#1f7a33" : "#a39e98", border: "none", borderRadius: "4px", cursor: canSave ? "pointer" : "default" }}
           >
             {saving ? "저장 중..." : item ? "수정" : "추가"}
           </button>
@@ -521,7 +521,7 @@ function RecurringEditForm({
 
 const STATUS_OPTS: { key: Status; label: string; bg: string }[] = [
   { key: "unpaid", label: "미납", bg: "#dd5b00" },
-  { key: "paid", label: "완료", bg: "#2a8438" },
+  { key: "paid", label: "완료", bg: "#1f7a33" },
 ];
 
 function StatusSegment({ value, disabled, onChange, only }: { value: Status; disabled?: boolean; onChange: (s: Status) => void; only?: Status[] }) {

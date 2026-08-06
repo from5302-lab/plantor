@@ -5,7 +5,7 @@ import { T } from "@/lib/design-tokens";
 /** 6축 각각 고유 색상 */
 const CATEGORY_COLORS: Record<string, string> = {
   "Grammar & Mechanics": "#5B8DEF",
-  "Vocabulary Range": "#38a848",
+  "Vocabulary Range": "#1f7a33",
   "Sentence Complexity": "#9B59B6",
   "Organization": "#E67E22",
   "Argument & Evidence": "#E84393",

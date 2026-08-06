@@ -575,7 +575,7 @@ function ServiceAddSection({ familyId, childList, allSubs, hasAiPackage, userId 
         )}
         {/* 추가 버튼 */}
         <button onClick={handleAdd} disabled={!slug || !target || !oneOnOneReady || saving}
-          style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: "#38a848", color: "white", cursor: slug && target && oneOnOneReady && !saving ? "pointer" : "default", opacity: !slug || !target || !oneOnOneReady || saving ? 0.4 : 1, fontWeight: 600 }}>
+          style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: "#1f7a33", color: "white", cursor: slug && target && oneOnOneReady && !saving ? "pointer" : "default", opacity: !slug || !target || !oneOnOneReady || saving ? 0.4 : 1, fontWeight: 600 }}>
           {saving ? "추가 중…" : "추가"}
         </button>
       </div>
@@ -950,7 +950,7 @@ export function MembersTab({
             <div style={{ display: "inline-flex", gap: 14, alignItems: "flex-end", whiteSpace: "nowrap", padding: "4px" }}>
               {/* 전체 아이콘: 플랜토 + 직강 + 서비스 + AI패키지 — 인원수 내림차순 */}
               {[
-                { key: "__plantor__", icon: <img src="/favicon.svg" width={22} height={22} alt="" style={{ display: "block" }} />, count: activeFamilies.length, color: "#38a848" },
+                { key: "__plantor__", icon: <img src="/favicon.svg" width={22} height={22} alt="" style={{ display: "block" }} />, count: activeFamilies.length, color: "#1f7a33" },
                 { key: "__direct__", icon: <span style={{ fontSize: 22, lineHeight: 1, display: "flex", width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>🎓</span>, count: activeDirectClasses.length + realActiveSubs.filter(is1on1Sub).length, color: "#7a7a7a" },
                 ...sortedServices.filter((s) => (svcCounts[s.slug] ?? 0) > 0).map((svc) => {
                   const iconUrl = svc.iconUrl || SERVICES.find((s) => s.slug === svc.slug)?.iconUrl;
@@ -984,10 +984,10 @@ export function MembersTab({
                         else { setSvcFilter(active ? null : item.key); if (!active) setStatusFilter("active"); }
                       }}
                       title={(item as { title?: string }).title}
-                      style={{ background: "none", border: "none", padding: "2px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, borderRadius: 6, boxShadow: active ? "0 0 0 2px #38a848" : "none", flexShrink: 0 }}
+                      style={{ background: "none", border: "none", padding: "2px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, borderRadius: 6, boxShadow: active ? "0 0 0 2px #1f7a33" : "none", flexShrink: 0 }}
                     >
                       {item.icon}
-                      <span style={{ fontSize: 11, fontWeight: 600, color: active ? "#38a848" : (isSpecial ? item.color : "#a39e98"), lineHeight: 1 }}>{item.count}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: active ? "#1f7a33" : (isSpecial ? item.color : "#a39e98"), lineHeight: 1 }}>{item.count}</span>
                     </button>
                   );
                 })}
@@ -1191,7 +1191,7 @@ function ScheduleEditor({
           </select>
           <input type="time" value={s.time} onChange={(e) => updateEntry(idx, "time", e.target.value)} style={scheduleTimeStyle} />
           <button onClick={() => copyEntry(idx)} title="복사" style={scheduleIconBtn()}>📋</button>
-          <button onClick={() => addEntry(s.day)} title="이 요일에 추가" style={{ ...scheduleIconBtn("#38a848"), border: "1px solid #38a848", borderRadius: 4, fontSize: 12, fontWeight: 700, padding: "2px 6px" }}>+</button>
+          <button onClick={() => addEntry(s.day)} title="이 요일에 추가" style={{ ...scheduleIconBtn("#1f7a33"), border: "1px solid #1f7a33", borderRadius: 4, fontSize: 12, fontWeight: 700, padding: "2px 6px" }}>+</button>
           <button onClick={() => removeEntry(idx)} title="삭제" style={{ ...scheduleIconBtn(), fontSize: 16 }}>×</button>
         </div>
       ))}
@@ -1313,7 +1313,7 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <label className={LABEL_CLS + " mb-0"}>상태</label>
             {(["active", "inactive"] as const).map((s) => (
-              <button key={s} onClick={() => setForm((p) => ({ ...p, status: s }))} style={{ padding: "6px 14px", borderRadius: 4, fontSize: 13, fontWeight: 600, border: form.status === s ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: form.status === s ? (s === "active" ? "#38a848" : "#e0e0e0") : "transparent", color: form.status === s ? (s === "active" ? "#ffffff" : "#615d59") : "#a39e98", cursor: "pointer" }}>
+              <button key={s} onClick={() => setForm((p) => ({ ...p, status: s }))} style={{ padding: "6px 14px", borderRadius: 4, fontSize: 13, fontWeight: 600, border: form.status === s ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: form.status === s ? (s === "active" ? "#1f7a33" : "#e0e0e0") : "transparent", color: form.status === s ? (s === "active" ? "#ffffff" : "#615d59") : "#a39e98", cursor: "pointer" }}>
                 {s === "active" ? "운영 중" : "정지"}
               </button>
             ))}
@@ -1333,20 +1333,20 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
                 const raw = e.target.value.replace(/,/g, "");
                 if (raw === "" || /^\d+$/.test(raw)) setForm((p) => ({ ...p, tuition: raw }));
               }} />
-            {totalAgencyFee > 0 && form.tuition && <div style={{ marginTop: 6, fontSize: 12, color: "#615d59" }}>순수익 <strong style={{ color: "#38a848" }}>{formatWon(Number(form.tuition) - totalAgencyFee)}/월</strong></div>}
+            {totalAgencyFee > 0 && form.tuition && <div style={{ marginTop: 6, fontSize: 12, color: "#615d59" }}>순수익 <strong style={{ color: "#1f7a33" }}>{formatWon(Number(form.tuition) - totalAgencyFee)}/월</strong></div>}
           </div>
           <div>
             <label className={LABEL_CLS}>대상 학년</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {DIRECT_GRADE_OPTIONS.map((g) => (
-                <button key={g} onClick={() => toggleGrade(g)} style={{ padding: "5px 10px", borderRadius: 9999, fontSize: 12, fontWeight: 600, border: form.grades.includes(g) ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: form.grades.includes(g) ? "#f0faf1" : "transparent", color: form.grades.includes(g) ? "#38a848" : "#a39e98", cursor: "pointer" }}>{g}</button>
+                <button key={g} onClick={() => toggleGrade(g)} style={{ padding: "5px 10px", borderRadius: 9999, fontSize: 12, fontWeight: 600, border: form.grades.includes(g) ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: form.grades.includes(g) ? "#f0faf1" : "transparent", color: form.grades.includes(g) ? "#1f7a33" : "#a39e98", cursor: "pointer" }}>{g}</button>
               ))}
             </div>
           </div>
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <label className={LABEL_CLS + " mb-0"}>학생</label>
-              <button onClick={addStudent} style={{ fontSize: 12, fontWeight: 600, color: "#38a848", background: "none", border: "none", cursor: "pointer" }}>+ 학생 추가</button>
+              <button onClick={addStudent} style={{ fontSize: 12, fontWeight: 600, color: "#1f7a33", background: "none", border: "none", cursor: "pointer" }}>+ 학생 추가</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {form.students.map((s, idx) => (
@@ -1369,10 +1369,10 @@ function DirectClassEditModal({ cls, onClose }: { cls: DirectClass; onClose: () 
                           const sel = (s.serviceSlugs ?? []).includes(svc.slug);
                           return (
                             <button key={svc.slug} type="button" onClick={() => toggleStudentService(idx, svc.slug)}
-                              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: sel ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: sel ? "#eff6ff" : "transparent", outline: sel ? "1.5px solid #38a848" : "none" }}>
+                              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 7, cursor: "pointer", border: sel ? "none" : "1px solid rgba(0,0,0,0.1)", backgroundColor: sel ? "#eff6ff" : "transparent", outline: sel ? "1.5px solid #1f7a33" : "none" }}>
                               {svc.iconUrl ? <img src={svc.iconUrl} width={14} height={14} style={{ objectFit: "contain", borderRadius: 2, display: "block" }} alt={svc.name} /> : <span style={{ fontSize: 13 }}>{svc.emoji}</span>}
-                              <span style={{ fontSize: 11, fontWeight: 600, color: sel ? "#38a848" : "#615d59" }}>{svc.name}</span>
-                              {sel && <span style={{ fontSize: 10, color: "#38a848" }}>✓</span>}
+                              <span style={{ fontSize: 11, fontWeight: 600, color: sel ? "#1f7a33" : "#615d59" }}>{svc.name}</span>
+                              {sel && <span style={{ fontSize: 10, color: "#1f7a33" }}>✓</span>}
                             </button>
                           );
                         })}
@@ -1479,7 +1479,7 @@ function EditableText({
         onBlur={save}
         onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setEditing(false); setVal(value); } }}
         disabled={saving}
-        style={{ ...base, border: "1px solid #38a848", outline: "none", width: bold ? 110 : 140, backgroundColor: "#ffffff" }}
+        style={{ ...base, border: "1px solid #1f7a33", outline: "none", width: bold ? 110 : 140, backgroundColor: "#ffffff" }}
       />
     );
   }
@@ -1980,7 +1980,7 @@ function DirectStudentCard({ cls, onReset, serviceSlug }: { cls: DirectClass; on
                       onClick={() => setExpandedLearningLoginId(expandedLearningLoginId === student.studentLoginId ? null : (student.studentLoginId ?? null))}
                       className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer"
                       style={{
-                        border: expandedLearningLoginId === student.studentLoginId ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+                        border: expandedLearningLoginId === student.studentLoginId ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)",
                         backgroundColor: expandedLearningLoginId === student.studentLoginId ? "#f0faf1" : "#fff",
                         color: expandedLearningLoginId === student.studentLoginId ? "#2da040" : "#a39e98",
                       }}>
@@ -2148,7 +2148,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                     title={family.userId ? "학부모 화면 미리보기 (새창)" : undefined}
                     style={{ fontSize: 15, fontWeight: 700, color: "rgba(0,0,0,0.95)", cursor: family.userId ? "pointer" : "default" }}
                   >{family.parentName}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", backgroundColor: "rgba(56,168,72,0.08)", color: "#38a848", border: "1px solid rgba(56,168,72,0.2)" }}>플랜토</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", backgroundColor: "rgba(56,168,72,0.08)", color: "#1f7a33", border: "1px solid rgba(56,168,72,0.2)" }}>플랜토</span>
                   <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "#f6f5f4", borderRadius: 4, padding: "2px 6px" }}>{parentId}</span>
                   <CopyBtn text={parentId} />
                   <KeyBtn onClick={() => onResetByFamily(family.id, parentId)} />
@@ -2264,7 +2264,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                             onClick={() => setExpandedLearningChildId(expandedLearningChildId === child.id ? null : child.id)}
                             className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer"
                             style={{
-                              border: expandedLearningChildId === child.id ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+                              border: expandedLearningChildId === child.id ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)",
                               backgroundColor: expandedLearningChildId === child.id ? "#f0faf1" : "#fff",
                               color: expandedLearningChildId === child.id ? "#2da040" : "#a39e98",
                             }}>

@@ -279,7 +279,7 @@ export function MomsAiPackContent() {
               "로그인이 안 될 경우 아래 오픈채팅으로 문의해 주세요",
             ].map((item, i) => (
               <li key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: "#615d59", lineHeight: 1.6 }}>
-                <span style={{ flexShrink: 0, color: "#38a848", fontWeight: 700 }}>✓</span>
+                <span style={{ flexShrink: 0, color: "#1f7a33", fontWeight: 700 }}>✓</span>
                 {item}
               </li>
             ))}

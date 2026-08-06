@@ -81,7 +81,7 @@ export function MonthCalendar({ year, month, selectedDate, today, dailyTotals, o
                       : dayOfWeek === 6
                         ? "#2a9d99"
                         : "rgba(0,0,0,0.95)",
-                  background: isToday ? "#38a848" : "transparent",
+                  background: isToday ? "#1f7a33" : "transparent",
                   borderRadius: "50%",
                   width: "24px",
                   height: "24px",
@@ -95,7 +95,7 @@ export function MonthCalendar({ year, month, selectedDate, today, dailyTotals, o
               {dt && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                   {dt.income > 0 && (
-                    <span style={{ fontSize: "9px", color: "#38a848", fontWeight: 500, lineHeight: 1.2 }}>
+                    <span style={{ fontSize: "9px", color: "#1f7a33", fontWeight: 500, lineHeight: 1.2 }}>
                       +{formatCompact(dt.income)}
                     </span>
                   )}

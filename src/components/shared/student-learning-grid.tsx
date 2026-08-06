@@ -69,14 +69,14 @@ function DraftTaskRow({ task, onConfirm, onReject, onDelete }: {
   const isStudentDraft = task.status === "draft" && task.createdBy === "student";
   return (
     <div className="bg-white rounded-[10px] mb-1.5 p-[12px_14px]"
-      style={{ border: isStudentDraft ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)" }}>
+      style={{ border: isStudentDraft ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)" }}>
       <div className="flex items-center gap-2 mb-2">
         {svc && <ServiceIcon service={svc} size={14} />}
         <span className="text-[12px] font-semibold text-black/95">{task.title}</span>
         <div className="flex gap-[3px] ml-auto shrink-0">
           {DAY_LABELS.map((l, i) => (
             <span key={i} className="text-[9px] font-semibold px-[4px] py-px rounded-[3px]"
-              style={{ backgroundColor: task.scheduleDays.includes(i) ? "#38a848" : "#f6f5f4", color: task.scheduleDays.includes(i) ? "#fff" : "#a39e98" }}>{l}</span>
+              style={{ backgroundColor: task.scheduleDays.includes(i) ? "#1f7a33" : "#f6f5f4", color: task.scheduleDays.includes(i) ? "#fff" : "#a39e98" }}>{l}</span>
           ))}
         </div>
       </div>
@@ -360,14 +360,14 @@ export function StudentLearningGrid({
                     title={isDone ? `완료${readOnly ? "" : " (클릭→취소)"}` : isMadeUp ? madeUpLabel : isMissed ? `미완료${reasonInfo ? ` (${reasonInfo.name}${check?.reasonNote ? `: ${check.reasonNote}` : ""})` : ""}${check?.makeupDate && check.makeupDate > today ? ` · 만회 예정 ${check.makeupDate.slice(5).replace("-", "/")}` : ""}` : isFuture || readOnly ? "" : "클릭→완료"}
                     className="w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-md flex items-center justify-center"
                     style={{
-                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#38a848" : isMadeUp ? "#f0faf1" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
-                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMadeUp ? "1.5px solid #38a848" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
+                      backgroundColor: isThis ? "rgba(0,0,0,0.08)" : isDone ? "#1f7a33" : isMadeUp ? "#f0faf1" : isMissed ? "#fff5f5" : isFuture ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.07)",
+                      border: isToday ? "2px solid rgba(0,0,0,0.95)" : isMadeUp ? "1.5px solid #1f7a33" : isMissed ? "1.5px solid #c00000" : "1.5px solid transparent",
                       cursor: isFuture || readOnly ? "default" : toggling ? "wait" : "pointer",
                       transition: "background-color 0.12s",
                     }}>
                     {isDone && !isThis && <Check size={12} className="text-white" strokeWidth={3} />}
                     {/* 만회 완료: 초록 아웃라인 박스 + 초록 ✓ (제 날짜 완료의 채움 초록과 구분) */}
-                    {isMadeUp && !isThis && <Check size={12} className="text-[#2a8438]" strokeWidth={3} />}
+                    {isMadeUp && !isThis && <Check size={12} className="text-[#1f7a33]" strokeWidth={3} />}
                     {/* 미완료: 6hdl 사유 있으면 박스 안에 사유 이모지, 없으면 X */}
                     {isMissed && !isThis && (reasonInfo
                       ? <span className="text-[12px] leading-none">{reasonInfo.icon}</span>

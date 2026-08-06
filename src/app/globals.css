@@ -17,9 +17,9 @@ html, body { overflow-x: clip; overscroll-behavior: none; }
   --notion-dark: #31302e;
   --notion-secondary: #615d59;
   --notion-muted: #a39e98;
-  --notion-blue: #38a848;
-  --notion-blue-active: #2a8438;
-  --notion-teal: #38a848;
+  --notion-blue: #1f7a33;
+  --notion-blue-active: #17612a;
+  --notion-teal: #1f7a33;
   --notion-border: rgba(0, 0, 0, 0.1);
   --notion-focus: #2da040;
 
@@ -39,9 +39,9 @@ html, body { overflow-x: clip; overscroll-behavior: none; }
 
   /* Plantor brand */
   --color-p-bg: #f6f5f4;
-  --color-p-green: #38a848;
-  --color-p-green-active: #2a8438;
-  --color-p-teal: #38a848;
+  --color-p-green: #1f7a33;
+  --color-p-green-active: #17612a;
+  --color-p-teal: #1f7a33;
   --color-p-secondary: #615d59;
   --color-p-muted: #a39e98;
 }
@@ -98,7 +98,7 @@ h1, h2, h3, h4, h5, h6 {
   outline: none;
   box-sizing: border-box;
 }
-.input-base:focus { border-color: #38a848; }
+.input-base:focus { border-color: #1f7a33; }
 
 /* ── Button utilities ───────────────────────────────────────────────────── */
 .btn-primary {
@@ -242,7 +242,7 @@ h1, h2, h3, h4, h5, h6 {
 .thumbs-btn:hover:not(:disabled) {
   background-color: #f0faf1 !important;
   border-color: rgba(56, 168, 72, 0.35) !important;
-  color: #2a8438 !important;
+  color: #1f7a33 !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .thumbs-btn { transition: none !important; }
@@ -276,14 +276,14 @@ h1, h2, h3, h4, h5, h6 {
 .frm-dash   { border: 2.5px dashed #b45309 !important; }
 .frm-gold   { border-color: transparent !important;
               box-shadow: 0 0 0 2px #fff, 0 0 0 5px #d4a017; }
-.frm-glow   { border-color: #38a848 !important;
+.frm-glow   { border-color: #1f7a33 !important;
               animation: fx-pulse 2.2s cubic-bezier(.4,0,.2,1) infinite; }
 /* 회전 무지개 — padding-box/border-box 두 겹으로 그라데이션 테두리를 만든다 */
 .frm-rainbow {
   border: 3px solid transparent !important;
   background:
     linear-gradient(#fff, #fff) padding-box,
-    conic-gradient(from var(--ring-a), #38a848, #7ce38f, #ffd166, #7ce38f, #38a848) border-box !important;
+    conic-gradient(from var(--ring-a), #1f7a33, #7ce38f, #ffd166, #7ce38f, #1f7a33) border-box !important;
   animation: ring-spin 3.2s linear infinite;
 }
 /* 홀로그램 — 각도에 따라 색이 흐르는 포일. 뱃지 전용 */
@@ -347,7 +347,7 @@ h1, h2, h3, h4, h5, h6 {
 .fx-firefly::after  { background-size: 4px 4px; background-position: 88% 34%; animation-delay: 1.2s; }
 
 /* 이중 링 — 애니메이션 없이도 티가 나는 저가 옵션. 정지 화면에서 가장 잘 읽힌다 */
-.frm-double { border-color: #38a848 !important;
+.frm-double { border-color: #1f7a33 !important;
               box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(56,168,72,.35); }
 /* 노을 링 — 회전하지 않는 고정 그라데이션. 무지개(1,200P)의 아랫급 */
 .frm-sunset {

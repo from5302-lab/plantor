@@ -27,9 +27,9 @@ export function MonthsPicker({
             onClick={(e) => { e.stopPropagation(); onChange(months); }}
             className="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer"
             style={{
-              border: active ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+              border: active ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)",
               backgroundColor: active ? "#f0fff4" : "#fff",
-              color: active ? "#38a848" : "#a39e98",
+              color: active ? "#1f7a33" : "#a39e98",
             }}
           >
             {label}

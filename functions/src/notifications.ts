@@ -166,7 +166,7 @@ export const notifyAdminOnSignup = onDocumentCreated(
       <p style="margin:0 0 6px"><b>학부모:</b> ${parentName}</p>
       <p style="margin:0 0 16px"><b>연락처:</b> ${phone}</p>
       <div style="margin-bottom:20px">${childRows}${parentRow}</div>
-      <a href="${SITE_URL}/admin" style="color:#38a848">👉 관리자 페이지 바로가기</a>
+      <a href="${SITE_URL}/admin" style="color:#1f7a33">👉 관리자 페이지 바로가기</a>
     `;
 
     try {
@@ -214,7 +214,7 @@ export const notifyAdminOnPlanDraft = onDocumentCreated(
       <p style="margin:0 0 6px"><b>학생:</b> ${childName} <span style="color:#888;font-size:13px">${grade}</span></p>
       <p style="margin:0 0 16px"><b>검토 대기:</b> ${count}건</p>
       <p style="margin:0 0 16px;color:#555">관리자 페이지 <b>플랜 관리</b> 탭에서 확인 후 확정해 주세요.</p>
-      <a href="${SITE_URL}/admin" style="color:#38a848">👉 관리자 페이지 바로가기</a>
+      <a href="${SITE_URL}/admin" style="color:#1f7a33">👉 관리자 페이지 바로가기</a>
     `;
     try {
       await sendAdminEmail(`[플랜토] 학습 계획 등록 — ${childName}`, html, gmailUser.value(), gmailAppPassword.value());
@@ -327,7 +327,7 @@ export const notifyAdminOnRenewal = onDocumentCreated(
       // serviceOverrides 기반 동적 이름 우선, 그 다음 doc에 저장된 snapshot (rename 전 보호), 마지막 slug
       const name = info?.name || item.serviceName || item.serviceSlug;
       const endStr = item.endDate ? fmtDate(item.endDate) : "";
-      const newEndStr = item.newEndDate ? `<span style="color:#38a848;font-weight:600">${fmtDate(item.newEndDate)}</span>` : "";
+      const newEndStr = item.newEndDate ? `<span style="color:#1f7a33;font-weight:600">${fmtDate(item.newEndDate)}</span>` : "";
       const dateRow = endStr ? `<div style="font-size:12px;color:#888;margin-top:4px">${endStr} → ${newEndStr}</div>` : "";
       const discountParts: string[] = [];
       if (item.couponCode && item.couponDiscount) {
@@ -363,7 +363,7 @@ export const notifyAdminOnRenewal = onDocumentCreated(
         </div>
         ${rows}
       </div>
-      <a href="${SITE_URL}/admin" style="color:#38a848;font-weight:600">👉 관리자 페이지 바로가기</a>
+      <a href="${SITE_URL}/admin" style="color:#1f7a33;font-weight:600">👉 관리자 페이지 바로가기</a>
     `;
 
     try {

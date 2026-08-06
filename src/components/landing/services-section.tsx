@@ -419,13 +419,13 @@ function ServiceFormModal({
             <div className="flex gap-2 items-center">
               <input
                 type="color"
-                value={form.brandColor ?? "#38a848"}
+                value={form.brandColor ?? "#1f7a33"}
                 onChange={(e) => setForm((p) => ({ ...p, brandColor: e.target.value }))}
                 className="w-10 h-9 p-0.5 border border-black/10 rounded cursor-pointer bg-transparent"
               />
               <div
                 className="flex-1 h-9 rounded flex items-center justify-center"
-                style={{ backgroundColor: form.brandColor ?? "#38a848" }}
+                style={{ backgroundColor: form.brandColor ?? "#1f7a33" }}
               >
                 <span className="text-xs font-semibold text-white" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}>
                   신청하기 →

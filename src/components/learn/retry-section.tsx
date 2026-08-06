@@ -162,7 +162,7 @@ export function RetrySection({ items, childId, today, readOnly = false }: {
             ) : (
               <button onClick={() => handleComplete(item)} disabled={busy === key}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer border-none text-white shrink-0"
-                style={{ backgroundColor: "#38a848", opacity: busy === key ? 0.5 : 1 }}>
+                style={{ backgroundColor: "#1f7a33", opacity: busy === key ? 0.5 : 1 }}>
                 {busy === key ? "인증 중…" : "했어요!"}
               </button>
             )
@@ -178,7 +178,7 @@ export function RetrySection({ items, childId, today, readOnly = false }: {
                 {REASONS_6HDL.map((r) => (
                   <button key={r.slug} onClick={() => setReasonSlug(r.slug)}
                     className="flex flex-col items-center gap-1 py-2.5 rounded-lg bg-white cursor-pointer"
-                    style={{ border: reasonSlug === r.slug ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)" }}>
+                    style={{ border: reasonSlug === r.slug ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)" }}>
                     <span className="text-lg">{r.icon}</span>
                     <span className="text-[11px] font-semibold text-p-secondary">{r.name}</span>
                   </button>

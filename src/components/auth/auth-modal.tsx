@@ -108,7 +108,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             disabled={busy}
             style={{
               borderRadius: 4,
-              backgroundColor: "#38a848",
+              backgroundColor: "#1f7a33",
               padding: "10px 0",
               fontSize: 14,
               fontWeight: 700,
@@ -127,7 +127,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
           아직 계정이 없으신가요?{" "}
           <button
             onClick={() => { onClose(); router.push("/signup"); }}
-            style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600, color: "#38a848", textDecoration: "underline", textUnderlineOffset: 2, fontSize: 12, padding: 0 }}
+            style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600, color: "#1f7a33", textDecoration: "underline", textUnderlineOffset: 2, fontSize: 12, padding: 0 }}
           >
             수강신청하기
           </button>

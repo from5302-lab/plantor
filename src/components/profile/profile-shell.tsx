@@ -96,7 +96,7 @@ export function ProfileShell({ previewChildId, previewName }: {
                 className={`shrink-0 px-3 py-3 text-[13.5px] font-semibold bg-transparent border-none cursor-pointer ${
                   tab === t.key ? "text-black/90" : "text-p-muted"
                 }`}
-                style={{ borderBottom: tab === t.key ? "2px solid #38a848" : "2px solid transparent" }}
+                style={{ borderBottom: tab === t.key ? "2px solid #1f7a33" : "2px solid transparent" }}
               >
                 {t.label}
               </button>

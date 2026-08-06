@@ -210,7 +210,7 @@ export function TaskChecklist({
               {/* 버튼 2종: 미완료 [학습하러 가기] / 완료 [완료 ✓]. 완료 확인은 탭 복귀 시 자동 */}
               <div className="flex items-center gap-1.5 shrink-0">
                 {isDone ? (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#2a8438]">완료 ✓</span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#f0faf1] text-[#1f7a33]">완료 ✓</span>
                 ) : isNotDone ? (
                   /* 6hdl 입력된 과거 방식 데이터 호환 — 만회는 다시 도전 섹션에서 */
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-p-bg text-p-muted">만회 대기</span>
@@ -220,7 +220,7 @@ export function TaskChecklist({
                     {studyUrl && (
                       <button onClick={(e) => { e.stopPropagation(); handleGoStudy(task, studyUrl); }}
                         className="h-[30px] inline-flex items-center rounded-lg border-none px-3 text-[12px] font-bold text-white cursor-pointer"
-                        style={{ backgroundColor: "#38a848" }}>
+                        style={{ backgroundColor: "#1f7a33" }}>
                         학습하러 가기
                       </button>
                     )}
@@ -228,7 +228,7 @@ export function TaskChecklist({
                     {!isAuto && !readOnly && (
                       <button onClick={(e) => { e.stopPropagation(); if (!isLoading) handleMarkDone(task); }} disabled={isLoading}
                         className="h-[30px] inline-flex items-center rounded-lg px-3 text-[12px] font-bold cursor-pointer bg-white"
-                        style={{ border: "1.5px solid #38a848", color: "#2a8438", opacity: isLoading ? 0.6 : 1 }}>
+                        style={{ border: "1.5px solid #1f7a33", color: "#1f7a33", opacity: isLoading ? 0.6 : 1 }}>
                         {isLoading ? "저장 중…" : "완료했어요"}
                       </button>
                     )}

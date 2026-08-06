@@ -12,11 +12,11 @@ import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVo
 // 등급 이름은 경험치 옆에 한 번만 표기하므로 뱃지는 색으로만 수준을 나타낸다.
 const GRADE_COLORS: Record<string, { bg: string; fg: string }> = {
   최우수: { bg: "#f0f7ff", fg: "#097fe8" },  // 파랑
-  양호:   { bg: "#f0faf1", fg: "#2a8438" },  // 초록
+  양호:   { bg: "#f0faf1", fg: "#1f7a33" },  // 초록
   보통:   { bg: "#fff8e6", fg: "#a86a00" },  // 노랑
   미흡:   { bg: "#fff5f5", fg: "#c00000" },  // 빨강
 };
-const DONE_GREEN = { bg: "#f0faf1", fg: "#2a8438" };
+const DONE_GREEN = { bg: "#f0faf1", fg: "#1f7a33" };
 const SPEED_DANGER = { bg: "#fff5f5", fg: "#c00000" };
 function gradeColor(grade?: string) {
   return (grade && GRADE_COLORS[grade]) || DONE_GREEN;
@@ -149,7 +149,7 @@ function AutovocaTable({ units }: { units: AutoUnit[] }) {
               </td>
               <td className={td}>{u.testScore != null ? `${u.testScore}점` : "-"}</td>
               <td className={td}>{u.wrongReviewCount != null ? `${u.wrongReviewCount}개` : "-"}</td>
-              <td className={td} style={{ fontWeight: 700, color: "#2a8438" }}>{u.points != null ? `+${u.points}P` : "-"}</td>
+              <td className={td} style={{ fontWeight: 700, color: "#1f7a33" }}>{u.points != null ? `+${u.points}P` : "-"}</td>
             </tr>
           ))}
         </tbody>

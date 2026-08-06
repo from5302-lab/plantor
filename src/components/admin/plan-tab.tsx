@@ -32,7 +32,7 @@ const RANK: Record<TodayStatus, number> = { pending: 0, done: 1, none: 2 };
 
 function TodayLabel({ status, done, total }: { status: TodayStatus; done: number; total: number }) {
   if (status === "done") {
-    return <span className="text-[11px] rounded-md px-2 py-0.5 font-bold" style={{ backgroundColor: "#f0faf1", color: "#2a8438" }}>오늘 완료 ✓ {done}/{total}</span>;
+    return <span className="text-[11px] rounded-md px-2 py-0.5 font-bold" style={{ backgroundColor: "#f0faf1", color: "#1f7a33" }}>오늘 완료 ✓ {done}/{total}</span>;
   }
   if (status === "pending") {
     return <span className="text-[11px] rounded-md px-2 py-0.5 font-bold" style={{ backgroundColor: "#fff5f5", color: "#c00000" }}>안 한 사람 · {done}/{total}</span>;
@@ -131,7 +131,7 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
       {/* 오늘 현황 요약 (클릭 시 상태 필터) */}
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
         <span className="font-bold text-black/95">오늘 학습 현황</span>
-        {([["pending", "안 한 사람", notDoneCnt, "#fff5f5", "#c00000"], ["done", "완료", doneCnt, "#f0faf1", "#2a8438"], ["none", "과제 없음", noneCnt, "#f6f5f4", "#a39e98"]] as const).map(([st, label, cnt, bg, fg]) => (
+        {([["pending", "안 한 사람", notDoneCnt, "#fff5f5", "#c00000"], ["done", "완료", doneCnt, "#f0faf1", "#1f7a33"], ["none", "과제 없음", noneCnt, "#f6f5f4", "#a39e98"]] as const).map(([st, label, cnt, bg, fg]) => (
           <button key={st} onClick={() => setStatusFilter((prev) => (prev === st ? "" : st))}
             className="rounded-md px-2 py-0.5 font-semibold cursor-pointer border"
             style={{ backgroundColor: bg, color: fg, borderColor: statusFilter === st ? fg : "transparent" }}>
@@ -203,7 +203,7 @@ export function PlanTab({ allChildren, allSubs, draftByChild, todayByChild }: {
                 <span className="text-[11px] text-p-muted">{s.grade}</span>
                 <TodayLabel status={s.status} done={s.today.done} total={s.today.total} />
                 {s.drafts > 0 && (
-                  <span className="text-[11px] rounded-md px-2 py-0.5 font-semibold ml-auto" style={{ backgroundColor: "#eff6ff", color: "#38a848" }}>
+                  <span className="text-[11px] rounded-md px-2 py-0.5 font-semibold ml-auto" style={{ backgroundColor: "#eff6ff", color: "#1f7a33" }}>
                     확정 대기 {s.drafts}
                   </span>
                 )}

@@ -319,7 +319,7 @@ export function RenewalModal({
                                   </span>
                                   <div
                                     className="flex items-center justify-center shrink-0"
-                                    style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                    style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#1f7a33" : "transparent" }}
                                   >
                                     {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                                   </div>
@@ -345,7 +345,7 @@ export function RenewalModal({
                                   <span className="text-[12px] text-p-secondary text-right">{formatWon(netPrice)}/월</span>
                                   <div
                                     className="flex items-center justify-center shrink-0"
-                                    style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                    style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#1f7a33" : "transparent" }}
                                   >
                                     {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                                   </div>
@@ -423,7 +423,7 @@ export function RenewalModal({
                                 >
                                   <div
                                     className="flex items-center justify-center shrink-0"
-                                    style={{ width: 16, height: 16, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                    style={{ width: 16, height: 16, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#1f7a33" : "transparent" }}
                                   >
                                     {isChecked && <span className="text-white text-[9px] font-extrabold">✓</span>}
                                   </div>
@@ -486,7 +486,7 @@ export function RenewalModal({
                               <span className="text-[12px] text-p-secondary">{formatWon(svc.pricePerMonth ?? 0)}/월</span>
                               <div
                                 className="flex items-center justify-center shrink-0"
-                                style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#1f7a33" : "transparent" }}
                               >
                                 {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                               </div>
@@ -511,7 +511,7 @@ export function RenewalModal({
                               <span className="text-[12px] text-p-secondary">{formatWon(netPrice)}/월</span>
                               <div
                                 className="flex items-center justify-center shrink-0"
-                                style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#38a848" : "transparent" }}
+                                style={{ width: 18, height: 18, borderRadius: 4, border: isChecked ? "none" : "2px solid #a39e98", backgroundColor: isChecked ? "#1f7a33" : "transparent" }}
                               >
                                 {isChecked && <span className="text-white text-[10px] font-extrabold">✓</span>}
                               </div>
@@ -552,7 +552,7 @@ export function RenewalModal({
                 onClick={handleSubmit}
                 disabled={!canSubmit}
                 className="w-full h-12 rounded-lg text-[15px] font-bold border-0"
-                style={{ backgroundColor: canSubmit ? "#38a848" : "rgba(0,0,0,0.08)", color: canSubmit ? "#ffffff" : "#a39e98", cursor: canSubmit ? "pointer" : "default" }}
+                style={{ backgroundColor: canSubmit ? "#1f7a33" : "rgba(0,0,0,0.08)", color: canSubmit ? "#ffffff" : "#a39e98", cursor: canSubmit ? "pointer" : "default" }}
               >
                 {submitting ? "신청 중…"
                   : allMonthsSelected ? `연장 신청 · ${formatWon(finalAmount)}`

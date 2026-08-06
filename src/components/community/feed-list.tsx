@@ -38,10 +38,10 @@ function TodaySummary({ events }: { events: FeedEvent[] }) {
   return (
     <div className="mt-3 flex flex-wrap items-baseline gap-x-3.5 gap-y-1 rounded-xl bg-[#f0faf1] px-3.5 py-2.5">
       <span className="text-[12px] text-p-secondary">
-        오늘 <b className="text-[15px] font-bold text-[#2a8438] tabular-nums">{students}</b>명이 공부했어요
+        오늘 <b className="text-[15px] font-bold text-[#1f7a33] tabular-nums">{students}</b>명이 공부했어요
       </span>
       <span className="text-[12px] text-p-secondary">
-        모은 경험치 <b className="text-[15px] font-bold text-[#2a8438] tabular-nums">{xp.toLocaleString()}</b>
+        모은 경험치 <b className="text-[15px] font-bold text-[#1f7a33] tabular-nums">{xp.toLocaleString()}</b>
       </span>
       {streak >= 2 && (
         <span className="text-[12px] text-p-secondary">

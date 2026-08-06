@@ -319,7 +319,7 @@ function ItemPreview({ item, big, base, name }: {
         <div className="h-2 rounded-full bg-black/[0.06] overflow-hidden">
           <div
             className={`h-full w-3/5 rounded-full ${item.cssClass ?? ""}`}
-            style={{ background: "linear-gradient(90deg, #38a848, #7bd18a)" }}
+            style={{ background: "linear-gradient(90deg, #1f7a33, #7bd18a)" }}
           />
         </div>
       </div>

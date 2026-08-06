@@ -12,7 +12,7 @@ type Props = {
   balance: number; // 현재 잔액 (오늘까지 누적, 상단 칩과 동일)
 };
 
-const GREEN = "#38a848";
+const GREEN = "#1f7a33";
 const ORANGE = "#dd5b00";
 
 export function DashboardSummaryPanel({ entries, recurringItems, month, balance }: Props) {

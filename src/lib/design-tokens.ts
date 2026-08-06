@@ -13,8 +13,8 @@ export const T = {
     "rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.85px, rgba(0,0,0,0.02) 0px 0.8px 2.93px, rgba(0,0,0,0.01) 0px 0.175px 1.04px",
   /** floating widget / modal shadow */
   shadowFloat: "rgba(0,0,0,0.12) 0px 8px 32px, rgba(0,0,0,0.08) 0px 2px 8px",
-  teal: "#38a848",
-  blue: "#38a848",
+  teal: "#1f7a33",
+  blue: "#1f7a33",
   radius: { sm: "4px", md: "12px", lg: "16px" },
 } as const;
 

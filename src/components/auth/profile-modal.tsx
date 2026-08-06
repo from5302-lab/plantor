@@ -158,7 +158,7 @@ export function ProfileModal({ user, role, onClose }: { user: User; role: string
                       disabled={phoneSaving || newPhone === phone}
                       className="px-4 rounded-lg border-none text-[13px] font-semibold whitespace-nowrap cursor-pointer"
                       style={{
-                        backgroundColor: phoneDone ? "#1a7f4b" : newPhone === phone ? "rgba(0,0,0,0.07)" : "#38a848",
+                        backgroundColor: phoneDone ? "#1a7f4b" : newPhone === phone ? "rgba(0,0,0,0.07)" : "#1f7a33",
                         color: newPhone === phone ? "#a39e98" : "#ffffff",
                         cursor: newPhone === phone ? "default" : "pointer",
                       }}
@@ -216,7 +216,7 @@ export function ProfileModal({ user, role, onClose }: { user: User; role: string
                     disabled={pwSaving || !currentPw || !newPw || !confirmPw}
                     className="mt-1 w-full h-11 rounded border-none text-sm font-semibold cursor-pointer"
                     style={{
-                      backgroundColor: (!currentPw || !newPw || !confirmPw) ? "rgba(0,0,0,0.08)" : "#38a848",
+                      backgroundColor: (!currentPw || !newPw || !confirmPw) ? "rgba(0,0,0,0.08)" : "#1f7a33",
                       color: (!currentPw || !newPw || !confirmPw) ? "#a39e98" : "#ffffff",
                       cursor: (!currentPw || !newPw || !confirmPw) ? "default" : "pointer",
                     }}

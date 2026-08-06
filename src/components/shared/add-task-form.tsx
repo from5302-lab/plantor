@@ -77,8 +77,8 @@ function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[
         <button key={i} onClick={() => onChange(value.includes(i) ? value.filter(x => x !== i) : [...value, i].sort())} type="button"
           className="flex-1 h-8 rounded-md text-xs font-semibold cursor-pointer"
           style={{
-            border: value.includes(i) ? "2px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
-            backgroundColor: value.includes(i) ? "#38a848" : "transparent",
+            border: value.includes(i) ? "2px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)",
+            backgroundColor: value.includes(i) ? "#1f7a33" : "transparent",
             color: value.includes(i) ? "#fff" : "#a39e98",
           }}>
           {label}
@@ -495,7 +495,7 @@ export function EditableTaskCard({
       // 검토 중과 '오늘'이 똑같은 초록 테두리라 서로 구분되지 않았다.
       // 테두리는 검토 중(선생님 확인 필요)에만 쓰고, 오늘은 배지로만 알린다.
       style={{
-        border: isDraft ? "1.5px solid #38a848" : "1px solid rgba(0,0,0,0.1)",
+        border: isDraft ? "1.5px solid #1f7a33" : "1px solid rgba(0,0,0,0.1)",
       }}
     >
       {isToday && !isDraft && (
@@ -519,7 +519,7 @@ export function EditableTaskCard({
             )}
             {isDraft && (
               <span className="text-[11px] rounded-full px-2 py-0.5 font-semibold"
-                style={{ backgroundColor: "#eff6ff", color: "#38a848" }}>
+                style={{ backgroundColor: "#eff6ff", color: "#1f7a33" }}>
                 검토 중
               </span>
             )}

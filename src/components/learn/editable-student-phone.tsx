@@ -37,7 +37,7 @@ export function EditableStudentPhone({ childId, phone }: { childId: string; phon
       onClick={() => { setVal(phone); setEditing(true); }}
       title="내 연락처 (미완료 알림 문자 발송용)"
       className="rounded-full px-2.5 py-[3px] text-[11px] font-semibold whitespace-nowrap cursor-pointer border-none"
-      style={{ backgroundColor: phone ? "#f0faf1" : "#fff6e5", color: phone ? "#2a8438" : "#92660a" }}
+      style={{ backgroundColor: phone ? "#f0faf1" : "#fff6e5", color: phone ? "#1f7a33" : "#92660a" }}
     >
       {phone ? `📱 ${phone}` : "📱 내 연락처 입력"}
     </button>

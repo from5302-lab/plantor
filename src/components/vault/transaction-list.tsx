@@ -69,7 +69,7 @@ export function TransactionList({ entries, categories }: Props) {
                 style={{
                   fontSize: "15px",
                   fontWeight: 600,
-                  color: entry.type === "income" ? "#38a848" : "#dd5b00",
+                  color: entry.type === "income" ? "#1f7a33" : "#dd5b00",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -80,7 +80,7 @@ export function TransactionList({ entries, categories }: Props) {
                   e.stopPropagation();
                   navigator.clipboard.writeText(String(entry.amount));
                   const el = e.currentTarget;
-                  el.style.color = "#38a848";
+                  el.style.color = "#1f7a33";
                   setTimeout(() => { el.style.color = "#a39e98"; }, 600);
                 }}
                 style={{ cursor: "pointer", color: "#a39e98", display: "flex", padding: "2px" }}

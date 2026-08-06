@@ -507,7 +507,7 @@ export function LearnDashboard({
                 let bgColor = "transparent";
                 let borderStyle = "1.5px solid rgba(0,0,0,0.1)";
                 let textColor: string = "#a39e98";
-                if (isDone) { bgColor = "#38a848"; borderStyle = "2px solid #38a848"; textColor = "#ffffff"; }
+                if (isDone) { bgColor = "#1f7a33"; borderStyle = "2px solid #1f7a33"; textColor = "#ffffff"; }
                 else if (isToday) { borderStyle = "2px solid rgba(0,0,0,0.95)"; textColor = "rgba(0,0,0,0.95)"; }
                 else if (!isPast) { borderStyle = "1.5px solid rgba(0,0,0,0.08)"; }
                 return (

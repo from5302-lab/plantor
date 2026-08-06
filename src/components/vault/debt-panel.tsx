@@ -7,7 +7,7 @@ import { formatAmount, formatInputAmount, parseAmount } from "@/lib/vault-utils"
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import type { DebtItem } from "./vault-shell";
 
-const GREEN = "#38a848";
+const GREEN = "#1f7a33";
 
 export function DebtPanel() {
   const [open, setOpen] = useState(false);
@@ -112,7 +112,7 @@ export function DebtPanel() {
               </span>
               <button
                 onClick={() => handleRepay(debt)}
-                style={{ fontSize: "11px", fontWeight: 600, color: "#38a848", background: "#f1faf3", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "6px", padding: "5px 9px", cursor: "pointer", flexShrink: 0 }}
+                style={{ fontSize: "11px", fontWeight: 600, color: "#1f7a33", background: "#f1faf3", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "6px", padding: "5px 9px", cursor: "pointer", flexShrink: 0 }}
               >
                 상환
               </button>
@@ -200,14 +200,14 @@ function DebtEditForm({
           {onDelete && (
             <button
               type="button" onClick={onDelete}
-              style={{ padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#38a848", background: "#fff", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "4px", cursor: "pointer" }}
+              style={{ padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#1f7a33", background: "#fff", border: "1px solid rgba(56,168,72,0.35)", borderRadius: "4px", cursor: "pointer" }}
             >
               삭제
             </button>
           )}
           <button
             type="button" onClick={handleSubmit} disabled={!canSave}
-            style={{ flex: 1, padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#ffffff", background: canSave ? "#38a848" : "#a39e98", border: "none", borderRadius: "4px", cursor: canSave ? "pointer" : "default" }}
+            style={{ flex: 1, padding: "12px 16px", fontSize: "15px", fontWeight: 600, color: "#ffffff", background: canSave ? "#1f7a33" : "#a39e98", border: "none", borderRadius: "4px", cursor: canSave ? "pointer" : "default" }}
           >
             {saving ? "저장 중..." : item ? "수정" : "추가"}
           </button>

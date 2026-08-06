@@ -51,7 +51,7 @@ const TYPE_LABEL: Record<string, string> = {
 const TYPE_COLOR: Record<string, string> = {
   ATA: "#fae100",
   CTA: "#a78bfa",
-  SMS: "#38a848",
+  SMS: "#1f7a33",
   LMS: "#3b82f6",
   MMS: "#f97316",
   BMS: "#06b6d4",

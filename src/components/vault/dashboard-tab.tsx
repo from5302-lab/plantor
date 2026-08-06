@@ -152,7 +152,7 @@ export function DashboardTab({ entries, categories, recurringItems }: Props) {
           style={{
             fontSize: "16px",
             fontWeight: 600,
-            color: isToday ? "rgba(0,0,0,0.95)" : "#38a848",
+            color: isToday ? "rgba(0,0,0,0.95)" : "#1f7a33",
             background: "none",
             border: "none",
             cursor: "pointer",
@@ -166,7 +166,7 @@ export function DashboardTab({ entries, categories, recurringItems }: Props) {
 
       {/* 일자 요약 */}
       <div style={{ display: "flex", gap: "8px" }}>
-        <SummaryChip label="수입" amount={dayIncome} color="#38a848" />
+        <SummaryChip label="수입" amount={dayIncome} color="#1f7a33" />
         <SummaryChip label="지출" amount={dayExpense} color="#dd5b00" />
         <SummaryChip label="잔액" amount={balance} color={balance < 0 ? "#dd5b00" : "rgba(0,0,0,0.95)"} />
       </div>
@@ -196,7 +196,7 @@ export function DashboardTab({ entries, categories, recurringItems }: Props) {
             style={{
               fontSize: "26px",
               fontWeight: 700,
-              color: dailyUntilIncome.dailyAmount >= 0 ? "#38a848" : "#dd5b00",
+              color: dailyUntilIncome.dailyAmount >= 0 ? "#1f7a33" : "#dd5b00",
               letterSpacing: "-0.5px",
               textAlign: "center",
               marginBottom: "8px",

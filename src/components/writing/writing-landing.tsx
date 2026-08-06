@@ -32,7 +32,7 @@ export function WritingLanding() {
           style={{
             display: "inline-block",
             background: "#f0faf1",
-            color: "#2a8438",
+            color: "#1f7a33",
             fontSize: 12,
             fontWeight: 600,
             padding: "4px 12px",

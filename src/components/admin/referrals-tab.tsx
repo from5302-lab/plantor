@@ -32,7 +32,7 @@ export function ReferralsTab({ referrals, families }: { referrals: Referral[]; f
       <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         <StatCard label="총 추천 건수" value={`${totalReferrals}건`} />
         <StatCard label="피추천인 총 할인액" value={formatWon(totalRefereeDiscount)} sub="신규 가입 시 10% 적용" color="#1a7f4b" />
-        <StatCard label="추천인 보상 (쿠폰함)" value={`${referrals.length}장`} sub="10% 쿠폰 자동 적립" color="#38a848" />
+        <StatCard label="추천인 보상 (쿠폰함)" value={`${referrals.length}장`} sub="10% 쿠폰 자동 적립" color="#1f7a33" />
       </div>
 
       {/* 남용 경고 */}

@@ -48,7 +48,7 @@ export function MonthNetPanel({ month, entries, recurringItems }: Props) {
   const daily = Math.round(net / daysInMonth);
 
   const cols = [
-    { label: "1일 생활비", value: daily, color: "#38a848" },
+    { label: "1일 생활비", value: daily, color: "#1f7a33" },
     { label: "1주 생활비", value: daily * 7, color: "#2980b9" },
     { label: "1달 생활비", value: net, color: "#8b5cf6" },
   ];

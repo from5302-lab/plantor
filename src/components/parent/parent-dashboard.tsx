@@ -248,7 +248,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0"
                       style={{
-                        backgroundColor: allComplete ? "#38a848" : "rgba(0,0,0,0.1)",
+                        backgroundColor: allComplete ? "#1f7a33" : "rgba(0,0,0,0.1)",
                         color: allComplete ? "#ffffff" : "#a39e98",
                       }}
                     >
@@ -262,7 +262,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                   <div className="text-right">
                     <div
                       className="text-[13px] font-bold"
-                      style={{ color: allComplete ? "#38a848" : "#615d59" }}
+                      style={{ color: allComplete ? "#1f7a33" : "#615d59" }}
                     >
                       {todayDoneCount}/{todayTotal} 완료
                     </div>
@@ -290,8 +290,8 @@ export function ParentDashboard({ userId }: { userId: string }) {
                           <div
                             className="w-[26px] h-[26px] rounded-full flex items-center justify-center"
                             style={{
-                              backgroundColor: hasDone ? "#38a848" : "transparent",
-                              border: isToday ? "2px solid rgba(0,0,0,0.95)" : `1.5px solid ${hasDone ? "#38a848" : "rgba(0,0,0,0.1)"}`,
+                              backgroundColor: hasDone ? "#1f7a33" : "transparent",
+                              border: isToday ? "2px solid rgba(0,0,0,0.95)" : `1.5px solid ${hasDone ? "#1f7a33" : "rgba(0,0,0,0.1)"}`,
                               opacity: isFuture ? 0.4 : 1,
                             }}
                           >
@@ -335,7 +335,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                           {/* 완료 뱃지 */}
                           <div
                             className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center"
-                            style={{ backgroundColor: done ? "#38a848" : "rgba(0,0,0,0.06)" }}
+                            style={{ backgroundColor: done ? "#1f7a33" : "rgba(0,0,0,0.06)" }}
                           >
                             {done && <span className="text-white text-xs font-bold">✓</span>}
                           </div>
@@ -372,7 +372,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                                 src={shot.screenshotUrl}
                                 alt="인증샷"
                                 className="w-10 h-10 object-cover rounded-md block"
-                                style={{ border: "2px solid #38a848" }}
+                                style={{ border: "2px solid #1f7a33" }}
                               />
                             </button>
                           )}
