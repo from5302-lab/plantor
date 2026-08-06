@@ -207,8 +207,11 @@ function DesktopLinks({
 }) {
   return (
     <>
-      {/* 피드 링크는 두지 않는다 — 로고가 이미 피드로 간다(feedHref). 소개는 /about 이 맡는다. */}
-      <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
+      {/* 피드 링크는 두지 않는다 — 로고가 이미 피드로 간다(feedHref).
+          소개는 아직 회원이 아닌 사람 몫이라 로그인하면 자리를 비운다(모바일과 동일). */}
+      {!loading && !user && (
+        <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
+      )}
 
       {!loading && !user && (
         <button
