@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, doc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { collection, doc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { FeedEventCard, toFeedEvent, type FeedEvent } from "./feed-event-card";
 
@@ -71,11 +71,17 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid, familyNames, header }: {
+export function FeedList({ myUid, familyNames, header, childId, showSummary = true, bare = false }: {
   myUid: string | null;
   familyNames: Map<string, string>;
   /** 피드 맨 위에 얹을 것(프로필 카드). 조립은 CommunityShell 이 한다. */
   header?: React.ReactNode;
+  /** 주면 그 학생의 기록만 — 프로필의 '내 기록' 탭 */
+  childId?: string;
+  /** 오늘 현황 한 줄. 한 사람만 보는 화면에서는 의미가 없어 끈다 */
+  showSummary?: boolean;
+  /** 프로필 화면의 탭 안에서 쓸 때 — 배경·최대폭·최소높이를 바깥 화면에 맡긴다 */
+  bare?: boolean;
 }) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,21 +89,25 @@ export function FeedList({ myUid, familyNames, header }: {
   useEffect(() => {
     // 정렬·표시 기준은 '학습을 끝낸 시각'(occurredAt). 스크랩 시각(createdAt)이 아니다.
     // occurredAt이 없는 문서는 이 쿼리에서 빠지므로 전 문서에 백필해 두었다.
-    const q = query(collection(db, "feedEvents"), orderBy("occurredAt", "desc"), limit(PAGE));
+    const q = childId
+      ? query(collection(db, "feedEvents"), where("childId", "==", childId), orderBy("occurredAt", "desc"), limit(PAGE))
+      : query(collection(db, "feedEvents"), orderBy("occurredAt", "desc"), limit(PAGE));
     return onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => toFeedEvent(d.id, d.data())));
       setLoading(false);
     }, () => setLoading(false));
-  }, []);
+  }, [childId]);
 
   return (
-    <div className="min-h-screen bg-p-bg">
-      <div className="max-w-[600px] mx-auto bg-white min-h-[calc(100vh-113px)]">
+    <div className={bare ? "" : "min-h-screen bg-p-bg"}>
+      <div className={bare ? "" : "max-w-[600px] mx-auto bg-white min-h-[calc(100vh-113px)]"}>
         {header && <div className="px-4 sm:px-5 pt-4">{header}</div>}
 
-        <div className="px-4 sm:px-5 py-4 border-b border-black/[0.07]">
-          <TodaySummary events={events} />
-        </div>
+        {showSummary && (
+          <div className="px-4 sm:px-5 py-4 border-b border-black/[0.07]">
+            <TodaySummary events={events} />
+          </div>
+        )}
 
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)

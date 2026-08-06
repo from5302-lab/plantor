@@ -2255,9 +2255,9 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                           {/* 이 학생이 보는 피드(프로필 카드 포함) 미리보기 */}
                           <span
                             onClick={() => window.open(`/admin/preview?type=feed&childId=${child.id}&name=${encodeURIComponent(child.name)}`, "_blank")}
-                            title="이 학생이 보는 피드 미리보기 (새창)"
+                            title="이 학생이 로그인하면 보는 프로필 화면 미리보기 (새창)"
                             style={{ fontSize: 11, color: "#a39e98", cursor: "pointer" }}
-                          >피드</span>
+                          >프로필</span>
                           <EditableGrade childId={child.id} grade={child.grade} />
                           <span style={{ fontFamily: "monospace", fontSize: 11, color: "#a39e98", backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 4, padding: "2px 6px" }}>
                             {child.loginId || "-"}

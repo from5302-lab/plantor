@@ -61,6 +61,7 @@ export function LearnDashboard({
   readOnly = false,
   previewChildId,
   previewLoginId,
+  hideRewardHeader = false,
 }: {
   userId: string;
   userName: string | null;
@@ -69,6 +70,8 @@ export function LearnDashboard({
   readOnly?: boolean;
   previewChildId?: string;
   previewLoginId?: string;
+  /** 프로필 화면의 탭 안에서 쓸 때 — 카드가 이미 위에 있으므로 두 번 그리지 않는다 */
+  hideRewardHeader?: boolean;
 }) {
   const {
     childId, childName, studentPhone, subscriptions,
@@ -452,7 +455,9 @@ export function LearnDashboard({
         )}
 
         {/* 리워드 — 레벨·XP·포인트·뱃지 (첫 화면 최상단) */}
-        <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
+        {!hideRewardHeader && (
+          <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
+        )}
 
         {/* 날짜 헤더 */}
         <div className="mb-8">

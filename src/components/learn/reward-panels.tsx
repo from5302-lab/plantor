@@ -23,7 +23,7 @@ function priceLabel(it: ShopItem) {
   return it.badgeCode ? "뱃지 보상 · 무료" : "무료";
 }
 
-function BadgeVault({ state }: { state: RewardState }) {
+export function BadgeVault({ state }: { state: RewardState }) {
   const owned = new Set(state.badges.map((b) => b.code));
   const earned = BADGES.filter((b) => owned.has(b.code));
   const openLocked = BADGES.filter((b) => !owned.has(b.code) && !b.hidden);
@@ -86,7 +86,7 @@ function BadgeVault({ state }: { state: RewardState }) {
  * 그래서 (1) 큰 무대 미리보기 (2) 눌러서 내 아바타에 바로 입혀보기(구매 전) 를 둔다.
  * 못 사는 아이템도 계속 움직이게 둔다. 갖고 싶어야 모은다.
  */
-function Shop({ state }: { state: RewardState }) {
+export function Shop({ state }: { state: RewardState }) {
   const [slot, setSlot] = useState<ShopSlot>("frame");
   const [tryOn, setTryOn] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);

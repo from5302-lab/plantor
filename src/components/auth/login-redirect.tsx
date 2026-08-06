@@ -11,7 +11,8 @@ export function LoginRedirect() {
 
   useEffect(() => {
     if (loading || !user || !role) return;
-    if (role === "student") router.replace("/learn");
+    // 학생의 첫 화면은 프로필(/me) — 학습하기·계획하기는 그 안의 탭이다
+    if (role === "student") router.replace("/me");
     else if (role === "parent") router.replace("/account");
   }, [loading, user, role, router]);
 

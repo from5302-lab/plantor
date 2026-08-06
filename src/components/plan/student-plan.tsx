@@ -19,8 +19,13 @@ function tsToDate(ts: unknown): Date | null {
 
 // ── 메인 ───────────────────────────────────────────────────────────────────────
 
-export function StudentPlan({ userId, userEmail }: { userId: string; userEmail?: string | null }) {
-  const { childId, childName, subscriptions, ready } = useChildData({ userId, userEmail });
+export function StudentPlan({ userId, userEmail, previewChildId }: {
+  userId: string;
+  userEmail?: string | null;
+  /** 어드민 미리보기 — 이 학생의 계획을 그대로 보여준다(추가·삭제는 화면에서 막는다) */
+  previewChildId?: string;
+}) {
+  const { childId, childName, subscriptions, ready } = useChildData({ userId, userEmail, previewChildId });
   const subscribedSlugs = subscriptions.map(s => s.serviceSlug);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -89,8 +94,8 @@ export function StudentPlan({ userId, userEmail }: { userId: string; userEmail?:
           </div>
         </div>
 
-        {/* 과제 추가 버튼 / 폼 */}
-        {!showForm ? (
+        {/* 과제 추가 버튼 / 폼 — 미리보기에서는 데이터를 바꾸지 않는다 */}
+        {previewChildId ? null : !showForm ? (
           <button
             onClick={() => setShowForm(true)}
             className="w-full h-11 rounded-[10px] border-[1.5px] border-dashed border-black/[0.18] bg-transparent text-p-muted text-sm font-semibold cursor-pointer mb-6 flex items-center justify-center gap-1.5"

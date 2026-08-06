@@ -20,10 +20,10 @@ export function Navbar() {
 
   const displayId = role === "admin" ? "" : (user?.displayName || user?.email?.replace("@plantor.app", "") || "");
 
-  // 피드로 가는 주소.
-  // "/" 에는 LoginRedirect 가 걸려 있어 학생·학부모가 열면 곧바로 학습 홈으로 되돌아간다.
-  // 그들에게는 리다이렉트가 없는 /community 를 준다 — 내용은 같은 피드다.
-  const feedHref = role === "student" || role === "parent" ? "/community" : "/";
+  // 로고를 눌렀을 때 갈 곳.
+  // "/" 에는 LoginRedirect 가 걸려 있어 학생·학부모가 열면 곧바로 되돌아간다.
+  // 학생의 홈은 프로필(/me) 이고, 학부모는 리다이렉트가 없는 /community 를 준다.
+  const feedHref = role === "student" ? "/me" : role === "parent" ? "/community" : "/";
 
   // 메뉴 열릴 때 body 스크롤 잠금
   useEffect(() => {
@@ -114,12 +114,8 @@ export function Navbar() {
               </Link>
             )}
 
-            {!loading && user && role === "student" && (
-              <>
-                <Link href="/plan" className="nav-link text-[13px] font-medium text-p-secondary no-underline">계획</Link>
-                <Link href="/learn" className="nav-link text-[13px] font-semibold text-p-teal no-underline">학습 홈</Link>
-              </>
-            )}
+            {/* 학생은 계획·학습·뱃지·상점이 전부 프로필(/me) 안의 탭이라 상단바에 따로 두지 않는다.
+                로고가 프로필로 간다. */}
 
             {!loading && user && role === "parent" && (
               <>
@@ -213,8 +209,11 @@ function DesktopLinks({
 }) {
   return (
     <>
-      {/* 피드가 첫 화면이라 "/" 가 곧 피드다. 소개는 /about 이 맡는다. */}
-      <Link href={feedHref} className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
+      {/* 피드가 첫 화면이라 "/" 가 곧 피드다. 소개는 /about 이 맡는다.
+          학생에게는 두지 않는다 — 전체 피드가 프로필 안의 탭이라 링크가 겹친다. */}
+      {role !== "student" && (
+        <Link href={feedHref} className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
+      )}
       <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
 
       {!loading && !user && (
@@ -248,12 +247,9 @@ function DesktopLinks({
         </>
       )}
 
+      {/* 학생은 계획·학습·뱃지·상점이 전부 프로필(/me) 안의 탭이다 */}
       {!loading && user && role === "student" && (
-        <>
-          <Link href="/plan" className="nav-link text-sm font-medium text-p-secondary no-underline">계획</Link>
-          <Link href="/learn" className="nav-link text-sm font-semibold text-p-teal no-underline">학습 홈</Link>
-          <UserChip label="학생" id={displayId} onSignOut={signOut} onProfile={onProfile} />
-        </>
+        <UserChip label="학생" id={displayId} onSignOut={signOut} onProfile={onProfile} />
       )}
     </>
   );

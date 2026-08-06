@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { AccountDashboard } from "@/components/account/account-shell";
 import { LearnDashboard } from "@/components/learn/learn-dashboard";
-import { CommunityShell } from "@/components/community/community-shell";
+import { ProfileShell } from "@/components/profile/profile-shell";
 
 /** 어드민 전용 읽기전용 미리보기 — 회원목록 이름 클릭 시 새창으로 학부모/학생 화면을 본다. */
 export function AdminPreviewShell() {
@@ -43,8 +43,8 @@ export function AdminPreviewShell() {
     else if (loginId) content = <AccountDashboard userId="" fallbackName={name || null} readOnly previewLoginId={loginId} />; // 계정 없는 직강 학부모
     else content = <CenterMsg>계정을 찾을 수 없습니다.</CenterMsg>;
   } else if (type === "feed" && childId) {
-    // 학생이 보는 피드(프로필 카드 포함). 카드가 childId 로 붙으므로 loginId 경로는 없다.
-    content = <CommunityShell previewChildId={childId} />;
+    // 학생이 로그인하면 보는 프로필 화면(카드 + 탭). childId 로 붙으므로 loginId 경로는 없다.
+    content = <ProfileShell previewChildId={childId} previewName={name || undefined} />;
   } else if (type === "learn" && (childId || loginId)) {
     content = (
       <LearnDashboard
