@@ -18,6 +18,44 @@
     "trailingSlash": false,
     "headers": [
       {
+        "comment": "해시가 박힌 빌드 산출물 — 내용이 바뀌면 파일명이 바뀌므로 영구 캐시해도 안전하다",
+        "source": "/_next/static/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "comment": "HTML 은 매번 검사한다. Firebase 기본값(max-age=3600)이면 배포해도 최대 1시간 동안 옛 화면이 남는다. cleanUrls 때문에 요청 경로에 확장자가 없어 세 갈래로 적는다",
+        "source": "/",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**/!(*.*)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/sw.js",
         "headers": [
           {
