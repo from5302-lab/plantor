@@ -93,7 +93,6 @@ export function Navbar() {
               <DesktopLinks
                 user={user}
                 role={role}
-                feedHref={feedHref}
                 loading={loading}
                 hasAiPackage={hasAiPackage}
                 displayId={displayId}
@@ -195,11 +194,10 @@ export function Navbar() {
 
 /* ── 데스크톱 링크 (기존 로직 그대로) ─────────────────────────────────── */
 function DesktopLinks({
-  user, role, feedHref, loading, hasAiPackage, displayId, signOut, onLogin, onProfile,
+  user, role, loading, hasAiPackage, displayId, signOut, onLogin, onProfile,
 }: {
   user: ReturnType<typeof useAuth>["user"];
   role: string | null;
-  feedHref: string;
   loading: boolean;
   hasAiPackage: boolean;
   displayId: string;
@@ -209,11 +207,7 @@ function DesktopLinks({
 }) {
   return (
     <>
-      {/* 피드가 첫 화면이라 "/" 가 곧 피드다. 소개는 /about 이 맡는다.
-          학생에게는 두지 않는다 — 전체 피드가 프로필 안의 탭이라 링크가 겹친다. */}
-      {role !== "student" && (
-        <Link href={feedHref} className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
-      )}
+      {/* 피드 링크는 두지 않는다 — 로고가 이미 피드로 간다(feedHref). 소개는 /about 이 맡는다. */}
       <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
 
       {!loading && !user && (
