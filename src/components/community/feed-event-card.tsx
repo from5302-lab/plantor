@@ -339,7 +339,7 @@ function Body({ e }: { e: FeedEvent }) {
   );
 }
 
-export function FeedEventCard({ event, myUid, familyNames, hideAuthor = false }: {
+export function FeedEventCard({ event, myUid, familyNames, hideAuthor = false, preview = false }: {
   event: FeedEvent;
   myUid: string | null;
   familyNames: Map<string, string>;
@@ -349,6 +349,8 @@ export function FeedEventCard({ event, myUid, familyNames, hideAuthor = false }:
    * 같은 얼굴이 화면에 네 번 나온다. 여기서는 시각만 남긴다.
    */
   hideAuthor?: boolean;
+  /** 어드민 미리보기 — 엄지척을 학생과 같게 그리되 저장은 건너뛴다 */
+  preview?: boolean;
 }) {
   // 본인·형제·자녀는 실명으로. 나머지는 가린 이름 그대로.
   const real = event.childId ? familyNames.get(event.childId) : undefined;
@@ -384,7 +386,7 @@ export function FeedEventCard({ event, myUid, familyNames, hideAuthor = false }:
           <Body e={event} />
 
           <div className="mt-2.5">
-            <ThumbsButton eventId={event.id} myUid={myUid} likeCount={event.likeCount} />
+            <ThumbsButton eventId={event.id} myUid={myUid} likeCount={event.likeCount} preview={preview} />
           </div>
         </div>
       </div>

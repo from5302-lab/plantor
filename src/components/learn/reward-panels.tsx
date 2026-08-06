@@ -3,6 +3,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
+import { notifyPreview } from "@/components/ui/preview-notice";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
 import { T } from "@/lib/design-tokens";
 import { AvatarView } from "./avatar-view";
@@ -38,9 +39,10 @@ export function BadgeVault({ state, readOnly = false }: { state: RewardState; re
   const on = equipped ?? state.equippedBadges;
 
   async function toggle(code: string) {
-    if (readOnly) return;
     const next = on.includes(code) ? on.filter((c) => c !== code) : [...on, code].slice(-slots);
     setEquipped(next); setMsg("");
+    // 미리보기: 화면은 학생이 누른 것과 똑같이 바뀌고 저장만 건너뛴다.
+    if (readOnly) { notifyPreview(); return; }
     try {
       await httpsCallable(functions, "equipBadges")({ codes: next });
     } catch (e) {
@@ -61,16 +63,10 @@ export function BadgeVault({ state, readOnly = false }: { state: RewardState; re
         <span className="text-p-muted font-semibold"> / {TOTAL_BADGES}</span>
       </div>
 
-      {/* 읽기 전용에서도 왜 안 눌리는지 말해 준다 — 아무 반응 없이 무시하면 고장으로 읽힌다 */}
+      {/* 미리보기에서도 학생과 같은 문구를 보여준다 — 화면이 달라지면 파악이 안 된다 */}
       <div className="mb-2 text-[12px] text-p-secondary">
-        {readOnly ? (
-          <>장착은 학생 본인 계정에서만 됩니다. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요</>
-        ) : (
-          <>
-            뱃지를 눌러 장착하세요. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요
-            {slots < 3 && <span className="text-p-muted"> · Lv.{slots === 1 ? 10 : 30}에 한 칸 더</span>}
-          </>
-        )}
+        뱃지를 눌러 장착하세요. 지금 <b className="text-black/75">{slots}개</b>까지 낄 수 있어요
+        {slots < 3 && <span className="text-p-muted"> · Lv.{slots === 1 ? 10 : 30}에 한 칸 더</span>}
       </div>
 
       {/* 한 줄 가로 스크롤 — 상점과 같은 리듬. 격자로 깔면 뱃지가 늘수록 세로로만 길어진다.
@@ -84,7 +80,7 @@ export function BadgeVault({ state, readOnly = false }: { state: RewardState; re
               key={b.code}
               onClick={() => toggle(b.code)}
               title={`${b.desc}${effectLabel(b.code) ? ` · ${effectLabel(b.code)}` : ""}`}
-              className={`relative w-[92px] h-[92px] shrink-0 rounded-xl p-1.5 flex flex-col items-center justify-center ${readOnly ? "cursor-default" : "cursor-pointer"}`}
+              className="relative w-[92px] h-[92px] shrink-0 rounded-xl p-1.5 flex flex-col items-center justify-center cursor-pointer"
               style={{
                 background: r.bg,
                 border: `1.5px solid ${isOn ? "#1f7a33" : r.ring}`,
@@ -213,6 +209,8 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
   };
 
   async function buyAndWear(it: ShopItem) {
+    // 미리보기: 버튼은 학생 것과 똑같이 보이고 눌리되, 포인트를 쓰지 않는다.
+    if (readOnly) { notifyPreview(); return; }
     setBusy(it.id); setMsg("");
     try {
       if (!state.owned.has(it.id)) await httpsCallable(functions, "purchaseShopItem")({ itemId: it.id });
@@ -263,9 +261,7 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
           <span className="text-[11px] text-p-secondary">입어보는 중</span>
           {/* 남의 카드(학부모·미리보기)에서는 입어보기까지만. 구매·착용 콜러블은 호출자 본인의
               학생을 찾으므로(rewards-api.ts resolveChild) 눌러도 실패한다. */}
-          {readOnly ? (
-            <span className="ml-auto text-[11px] font-semibold text-p-secondary">구매는 학생 본인만</span>
-          ) : (
+          {(
             <button
               onClick={() => buyAndWear(trying.item!)}
               disabled={!!lockOf(trying.item) || trying.item.cost > state.points || busy === trying.item.id}
@@ -332,7 +328,7 @@ export function Shop({ state, readOnly = false, hideStage = false, tryOn: tryOnP
 
       {msg && <p className="mt-2 text-[12px] text-[#c00000] shrink-0">{msg}</p>}
       <p className="mt-2 text-[11px] text-p-muted text-center shrink-0">
-        {readOnly ? "눌러서 입어볼 수 있어요. 구매는 학생 본인 계정에서만 됩니다." : "눌러서 입어보고, 마음에 들면 구매하세요."}
+눌러서 입어보고, 마음에 들면 구매하세요.
       </p>
     </div>
   );

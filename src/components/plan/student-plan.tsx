@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
+import { notifyPreview } from "@/components/ui/preview-notice";
 import { collection, query, where, onSnapshot, deleteDoc, doc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { AddTaskFormBatch, EditableTaskCard } from "@/components/shared/add-task-form";
@@ -139,15 +140,12 @@ export function StudentPlan({ userId, userEmail, previewChildId, embedded = fals
         )}
 
         {/* 과제 추가 버튼 / 폼.
-            미리보기에서는 자리를 두되 잠근다 — 통째로 숨기면 화면이 고장난 것처럼 보이고,
-            누를 수 있게 두면 규칙(tasks.create 는 본인 계정만)이 막아 실패한다. */}
-        {previewChildId ? (
-          <div className="w-full h-11 rounded-[10px] border-[1.5px] border-dashed border-black/[0.12] text-p-muted text-sm font-semibold mb-6 flex items-center justify-center gap-1.5">
-            <Plus size={16} strokeWidth={2.5} aria-hidden /> 주간 과제 추가하기 <span className="text-[12px] font-medium">(미리보기에서는 잠김)</span>
-          </div>
-        ) : !showForm ? (
+            미리보기에서도 학생과 똑같이 그린다 — 화면을 파악하러 들어오는 곳이라
+            "잠김" 같은 문구를 심으면 정작 학생 화면을 볼 수 없다.
+            누르면 저장만 건너뛰고 아래에 잠깐 알린다. */}
+        {!showForm ? (
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => (previewChildId ? notifyPreview() : setShowForm(true))}
             // 이 화면의 유일한 주요 액션인데 muted 글자라 가장 약한 요소였다.
             className="w-full h-11 rounded-[10px] border-[1.5px] border-dashed border-black/[0.18] bg-transparent text-p-secondary text-sm font-semibold cursor-pointer mb-6 flex items-center justify-center gap-1.5"
           >

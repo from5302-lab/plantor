@@ -9,6 +9,7 @@ import { CenterMsg } from "@/components/ui/center-msg";
 import { AccountDashboard } from "@/components/account/account-shell";
 import { LearnDashboard } from "@/components/learn/learn-dashboard";
 import { ProfileShell } from "@/components/profile/profile-shell";
+import { PreviewNotice } from "@/components/ui/preview-notice";
 
 /** 어드민 전용 읽기전용 미리보기 — 회원목록 이름 클릭 시 새창으로 학부모/학생 화면을 본다. */
 export function AdminPreviewShell() {
@@ -59,6 +60,7 @@ export function AdminPreviewShell() {
     content = <CenterMsg>잘못된 미리보기 주소입니다.</CenterMsg>;
   }
 
-  return content;
+  // 화면은 학생 것과 똑같이 두고, 저장이 건너뛰어질 때만 아래에서 잠깐 알린다.
+  return <>{content}<PreviewNotice /></>;
 }
 

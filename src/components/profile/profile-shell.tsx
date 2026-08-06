@@ -138,8 +138,9 @@ function TabBody({ tab, childId, uid, userName, userEmail, familyNames, rewards,
   if (tab === "mine" || tab === "all") {
     return (
       <FeedList
-        // 미리보기에서는 운영자 계정으로 엄지척이 눌리지 않게 막는다
-        myUid={isPreview ? null : uid}
+        myUid={uid}
+        // 미리보기: 학생과 같게 보이고 눌리되 서버에는 쓰지 않는다
+        preview={isPreview}
         familyNames={familyNames}
         // childId 를 못 구했으면 빈 결과를 보여준다 — 필터 없이 전체가 뜨면 남의 기록이 내 것처럼 읽힌다
         childId={tab === "mine" ? (childId ?? "__none__") : undefined}

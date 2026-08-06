@@ -87,7 +87,7 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid, familyNames, header, childId, showSummary = true, bare = false }: {
+export function FeedList({ myUid, familyNames, header, childId, showSummary = true, bare = false, preview = false }: {
   myUid: string | null;
   familyNames: Map<string, string>;
   /** 피드 맨 위에 얹을 것(프로필 카드). 조립은 CommunityShell 이 한다. */
@@ -98,6 +98,8 @@ export function FeedList({ myUid, familyNames, header, childId, showSummary = tr
   showSummary?: boolean;
   /** 프로필 화면의 탭 안에서 쓸 때 — 배경·최대폭·최소높이를 바깥 화면에 맡긴다 */
   bare?: boolean;
+  /** 어드민 미리보기 — 엄지척이 학생과 같게 보이되 서버에는 쓰지 않는다 */
+  preview?: boolean;
 }) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,7 +149,7 @@ export function FeedList({ myUid, familyNames, header, childId, showSummary = tr
                     {dayLabel(day)}
                   </div>
                 )}
-                <FeedEventCard event={e} myUid={myUid} familyNames={familyNames} hideAuthor={!!childId} />
+                <FeedEventCard event={e} myUid={myUid} familyNames={familyNames} hideAuthor={!!childId} preview={preview} />
               </div>
             );
           })

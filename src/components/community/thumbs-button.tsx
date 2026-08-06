@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import { ThumbsUp } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { notifyPreview } from "@/components/ui/preview-notice";
 
 // 엄지척. 문서 ID가 uid라서 같은 사람이 두 번 누르는 게 규칙 단계에서 불가능하다.
 // 개수는 서버(onFeedLike/onFeedUnlike)가 세므로 여기서는 내 한 표만 로컬로 보정한다.
 
-export function ThumbsButton({ eventId, myUid, likeCount }: {
+export function ThumbsButton({ eventId, myUid, likeCount, preview = false }: {
   eventId: string;
   myUid: string | null;
   likeCount: number;
+  /** 어드민 미리보기 — 학생과 똑같이 보이고 눌리되 서버에는 쓰지 않는다 */
+  preview?: boolean;
 }) {
   const [liked, setLiked] = useState(false);
   const [pending, setPending] = useState(false);
@@ -33,6 +36,12 @@ export function ThumbsButton({ eventId, myUid, likeCount }: {
   }, [eventId, myUid]);
 
   async function toggle() {
+    if (preview) {
+      setLiked((v) => !v);
+      setCount((c) => c + (liked ? -1 : 1));
+      notifyPreview();
+      return;
+    }
     if (!myUid || pending) return;
     const ref = doc(db, "feedEvents", eventId, "likes", myUid);
     const next = !liked;
