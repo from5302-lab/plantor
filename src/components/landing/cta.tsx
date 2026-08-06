@@ -2,39 +2,31 @@ import Link from "next/link";
 
 export function Cta() {
   return (
-    <section className="px-6 max-[600px]:px-4" style={{ backgroundColor: "#f6f5f4", paddingTop: 80, paddingBottom: 80 }}>
-      <div style={{ margin: "0 auto", maxWidth: 600, textAlign: "center" }}>
-        <div style={{ marginBottom: 20 }}><img src="/favicon.svg" alt="" width={56} height={56} style={{ display: "block", margin: "0 auto" }} /></div>
+    <section className="bg-p-bg px-5 py-16 sm:px-6 sm:py-20">
+      <div className="mx-auto max-w-[600px] text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/favicon.svg" alt="" width={52} height={52} className="mx-auto block" />
         <h2
-          style={{
-            fontSize: "clamp(26px, 4vw, 36px)",
-            fontWeight: 700,
-            letterSpacing: "-0.75px",
-            lineHeight: 1.2,
-            color: "rgba(0,0,0,0.95)",
-            margin: 0,
-          }}
+          className="mt-5 text-[24px] font-bold leading-[1.25] text-black/95 sm:text-[32px]"
+          style={{ letterSpacing: "-0.03em" }}
         >
-          지금 바로 시작하세요.
+          오늘부터 한 칸씩 자라게
         </h2>
-        <div style={{ marginTop: 32 }}>
+        <p className="mt-3 text-[14px] leading-[1.65] text-p-secondary sm:text-[15px]">
+          궁금한 점은 신청 전에 편하게 물어보세요.
+        </p>
+        <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
           <Link
             href="/signup"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: 52,
-              padding: "0 36px",
-              borderRadius: 4,
-              backgroundColor: "#38a848",
-              color: "#ffffff",
-              fontSize: 16,
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
+            className="btn-primary inline-flex h-12 items-center justify-center rounded-lg bg-p-green px-9 text-[15px] font-bold text-white no-underline"
           >
             지금 신청하기 →
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex h-12 items-center justify-center rounded-lg border border-black/10 bg-white px-9 text-[15px] font-semibold text-black/75 no-underline"
+          >
+            피드 먼저 둘러보기
           </Link>
         </div>
       </div>

@@ -178,7 +178,9 @@ function DesktopLinks({
 }) {
   return (
     <>
-      <Link href="/community" className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
+      {/* 피드가 첫 화면이라 "/" 가 곧 피드다. 소개는 /about 이 맡는다. */}
+      <Link href="/" className="nav-link text-sm font-medium text-p-secondary no-underline">피드</Link>
+      <Link href="/about" className="nav-link text-sm font-medium text-p-secondary no-underline">소개</Link>
 
       {!loading && !user && (
         <button
@@ -269,7 +271,8 @@ function MobileMenu({
 
         {/* 메뉴 항목 */}
         <div className="flex flex-col py-2">
-          <MobileLink href="/community" label="피드" onClick={onClose} />
+          <MobileLink href="/" label="피드" onClick={onClose} />
+          <MobileLink href="/about" label="소개" onClick={onClose} />
           {/* 로그인 버튼은 상단바로 옮겼다 — 메뉴를 열지 않아도 보이게 */}
 
           {!loading && user && role === "admin" && (

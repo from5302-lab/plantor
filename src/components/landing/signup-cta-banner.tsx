@@ -1,35 +1,15 @@
 import Link from "next/link";
-import { T } from "@/lib/design-tokens";
 
 export function SignupCtaBanner() {
   return (
-    <section
-      className="section-pad px-6 max-[600px]:px-4"
-      style={{
-        backgroundColor: T.white,
-        borderTop: T.border,
-        borderBottom: T.border,
-        paddingTop: 80,
-        paddingBottom: 80,
-      }}
-    >
-      <div style={{ margin: "0 auto", maxWidth: 600, textAlign: "center" }}>
+    <section className="border-y border-black/[0.08] bg-white px-5 py-14 sm:px-6 sm:py-16">
+      <div className="mx-auto max-w-[600px] text-center">
+        <p className="text-[15px] font-semibold text-black/85 sm:text-[17px]" style={{ letterSpacing: "-0.02em" }}>
+          신규·연장 신청은 매달 25일까지 받습니다.
+        </p>
         <Link
           href="/signup"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 56,
-            padding: "0 48px",
-            borderRadius: 4,
-            backgroundColor: T.blue,
-            color: T.white,
-            fontSize: 17,
-            fontWeight: 700,
-            textDecoration: "none",
-            letterSpacing: "-0.2px",
-          }}
+          className="btn-primary mt-5 inline-flex h-[52px] items-center justify-center rounded-lg bg-p-green px-10 text-[16px] font-bold text-white no-underline"
         >
           지금 신청하기 →
         </Link>

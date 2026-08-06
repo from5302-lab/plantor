@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, doc, query, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import Link from "next/link";
+import { collection, doc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Rarity } from "@/lib/rewards/catalog";
-import { FeedEventCard, type FeedEvent, type StudyEntry } from "./feed-event-card";
+import { FeedEventCard, toFeedEvent, type FeedEvent } from "./feed-event-card";
 
 // 리워드 자랑 피드. 랭킹이 아니라 **시간순 스트림**이다 —
 // 상위 몇 명이 화면을 독점하면 나머지가 위축되고, 그건 리워드 설계의 원칙과 정면으로 어긋난다.
@@ -72,7 +72,11 @@ function SkeletonCard() {
   );
 }
 
-export function FeedList({ myUid, familyNames }: { myUid: string | null; familyNames: Map<string, string> }) {
+export function FeedList({ myUid, familyNames, showIntroLink = false }: {
+  myUid: string | null;
+  familyNames: Map<string, string>;
+  showIntroLink?: boolean;
+}) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,37 +85,7 @@ export function FeedList({ myUid, familyNames }: { myUid: string | null; familyN
     // occurredAt이 없는 문서는 이 쿼리에서 빠지므로 전 문서에 백필해 두었다.
     const q = query(collection(db, "feedEvents"), orderBy("occurredAt", "desc"), limit(PAGE));
     return onSnapshot(q, (snap) => {
-      setEvents(snap.docs.map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          type: (data.type ?? "daily") as FeedEvent["type"],
-          name: String(data.name ?? ""),
-          grade: String(data.grade ?? ""),
-          equipped: (data.equipped ?? {}) as Record<string, string | null>,
-          nameStyle: data.nameStyle ?? null,
-          level: Number(data.level ?? 1),
-          title: String(data.title ?? "씨앗"),
-          likeCount: Number(data.likeCount ?? 0),
-          createdAt: data.occurredAt instanceof Timestamp ? data.occurredAt.toDate()
-            : data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
-          badgeCode: data.badgeCode,
-          badgeName: data.badgeName,
-          rarity: data.rarity as Rarity | undefined,
-          growth: data.growth === true,
-          prevTitle: data.prevTitle,
-          itemId: data.itemId,
-          itemName: data.itemName,
-          exclusive: data.exclusive === true,
-          serviceSlug: data.serviceSlug ?? undefined,
-          date: data.date ?? undefined,
-          childId: String(data.childId ?? ""),
-          xp: Number(data.xp ?? 0),
-          doneCount: Number(data.doneCount ?? 0),
-          streak: Number(data.streak ?? 0),
-          services: Array.isArray(data.services) ? (data.services as StudyEntry[]) : [],
-        };
-      }));
+      setEvents(snap.docs.map((d) => toFeedEvent(d.id, d.data())));
       setLoading(false);
     }, () => setLoading(false));
   }, []);
@@ -120,6 +94,17 @@ export function FeedList({ myUid, familyNames }: { myUid: string | null; familyN
     <div className="min-h-screen bg-p-bg">
       <div className="max-w-[600px] mx-auto bg-white min-h-[calc(100vh-113px)]">
         <div className="px-4 sm:px-5 py-4 border-b border-black/[0.07]">
+          {showIntroLink && (
+            <Link
+              href="/about"
+              className="flex items-center justify-between gap-2 rounded-xl border border-black/[0.08] px-3.5 py-2.5 no-underline"
+            >
+              <span className="text-[13px] text-p-secondary">
+                <b className="font-semibold text-black/80">플랜토</b>는 어떤 곳인가요?
+              </span>
+              <span className="text-[13px] font-semibold text-p-green shrink-0">소개 보기 →</span>
+            </Link>
+          )}
           <TodaySummary events={events} />
         </div>
 

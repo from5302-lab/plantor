@@ -1,78 +1,34 @@
 import { CORE_VALUES } from "@/data/site";
-import { T } from "@/lib/design-tokens";
 
+// 학부모가 얻는 것. 아이 쪽 이야기(리워드)를 앞에서 했으니 여기서는 보호자 관점으로 붙인다.
 export function Values() {
   return (
-    <section className="section-pad px-6 max-[600px]:px-4" style={{ backgroundColor: T.bg, paddingTop: 80, paddingBottom: 80 }}>
-      <div style={{ margin: "0 auto", maxWidth: 1000 }}>
-        <div style={{ marginBottom: 48, textAlign: "center" }}>
-          <p
-            style={{
-              marginBottom: 8,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: T.textMuted,
-            }}
-          >
-            THiNK
-          </p>
+    <section className="bg-p-bg px-5 py-16 sm:px-6 sm:py-20">
+      <div className="mx-auto max-w-[900px]">
+        <div className="text-center">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-p-muted">For parents</p>
           <h2
-            style={{
-              fontSize: "clamp(26px, 4vw, 36px)",
-              fontWeight: 700,
-              letterSpacing: "-0.75px",
-              color: T.textPrimary,
-              margin: 0,
-            }}
+            className="text-[24px] font-bold text-black/95 sm:text-[32px]"
+            style={{ letterSpacing: "-0.03em" }}
           >
-            학습비는 1/10, 학습효과는 3배
+            매일 묻지 않아도 알 수 있게
           </h2>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 20,
-          }}
-        >
+        <div className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           {CORE_VALUES.map((value) => (
             <div
               key={value.key}
-              className="card-hover"
-              style={{
-                backgroundColor: T.white,
-                border: T.border,
-                borderRadius: 12,
-                padding: 28,
-                boxShadow: T.shadow,
-              }}
+              className="rounded-2xl border border-black/[0.08] bg-white px-5 py-6"
             >
-              <div style={{ marginBottom: 16, fontSize: 28 }}>{value.emoji}</div>
+              <div className="text-[26px] leading-none" aria-hidden>{value.emoji}</div>
               <h3
-                style={{
-                  marginBottom: 8,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  lineHeight: 1.35,
-                  letterSpacing: "-0.1px",
-                  color: T.textPrimary,
-                }}
+                className="mt-3.5 text-[16px] font-bold leading-[1.4] text-black/90"
+                style={{ letterSpacing: "-0.02em" }}
               >
                 {value.title}
               </h3>
-              <p
-                style={{
-                  fontSize: 14,
-                  lineHeight: 1.65,
-                  color: T.textSecondary,
-                  margin: 0,
-                }}
-              >
-                {value.description}
-              </p>
+              <p className="mt-2 text-[13.5px] leading-[1.65] text-p-secondary">{value.description}</p>
             </div>
           ))}
         </div>

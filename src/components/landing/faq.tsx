@@ -1,78 +1,30 @@
 import { FAQS } from "@/data/site";
-import { T } from "@/lib/design-tokens";
 
 export function Faq() {
   return (
-    <section className="section-pad px-6 max-[600px]:px-4" style={{ backgroundColor: T.white, paddingTop: 80, paddingBottom: 80 }}>
-      <div style={{ margin: "0 auto", maxWidth: 680 }}>
-        <div style={{ marginBottom: 48, textAlign: "center" }}>
-          <p
-            style={{
-              marginBottom: 8,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: T.textMuted,
-            }}
-          >
-            FAQ
-          </p>
+    <section className="bg-white px-5 py-16 sm:px-6 sm:py-20">
+      <div className="mx-auto max-w-[680px]">
+        <div className="text-center">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-p-muted">FAQ</p>
           <h2
-            style={{
-              fontSize: "clamp(26px, 4vw, 36px)",
-              fontWeight: 700,
-              letterSpacing: "-0.75px",
-              color: T.textPrimary,
-              margin: 0,
-            }}
+            className="text-[24px] font-bold text-black/95 sm:text-[32px]"
+            style={{ letterSpacing: "-0.03em" }}
           >
             자주 묻는 질문
           </h2>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="mt-8 flex flex-col gap-2">
           {FAQS.map((faq, i) => (
             <details
               key={i}
-              className="faq-item"
-              style={{
-                backgroundColor: T.white,
-                border: T.border,
-                borderRadius: 12,
-                padding: "18px 20px",
-                boxShadow: T.shadow,
-              }}
+              className="faq-item rounded-xl border border-black/[0.08] bg-white px-5 py-4"
             >
-              <summary
-                style={{
-                  display: "flex",
-                  cursor: "pointer",
-                  listStyle: "none",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  textAlign: "left",
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: T.textPrimary,
-                  letterSpacing: "-0.1px",
-                }}
-              >
-                <span>{faq.q}</span>
-                <span style={{ color: T.blue, fontSize: 18, fontWeight: 300, flexShrink: 0 }}>+</span>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-[14.5px] font-semibold text-black/90">
+                <span style={{ letterSpacing: "-0.01em" }}>{faq.q}</span>
+                <span className="shrink-0 text-[18px] font-light text-p-green">+</span>
               </summary>
-              <p
-                style={{
-                  marginTop: 12,
-                  marginBottom: 0,
-                  fontSize: 14,
-                  lineHeight: 1.7,
-                  color: T.textSecondary,
-                }}
-              >
-                {faq.a}
-              </p>
+              <p className="mt-3 text-[13.5px] leading-[1.7] text-p-secondary">{faq.a}</p>
             </details>
           ))}
         </div>

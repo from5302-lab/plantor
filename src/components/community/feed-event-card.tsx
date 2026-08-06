@@ -1,6 +1,7 @@
 "use client";
 
 import { Flame, Sprout, TrendingUp } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
 import { AvatarView } from "@/components/learn/avatar-view";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import { SERVICES } from "@/data/site";
@@ -62,6 +63,40 @@ export type FeedEvent = {
   services?: StudyEntry[];
 };
 
+const toDate = (v: unknown): Date | null => (v instanceof Timestamp ? v.toDate() : null);
+
+/** Firestore 문서 → 피드 이벤트. 피드 목록과 소개 페이지 미리보기가 같은 변환을 쓴다. */
+export function toFeedEvent(id: string, data: Record<string, unknown>): FeedEvent {
+  return {
+    id,
+    type: (data.type ?? "daily") as FeedEvent["type"],
+    name: String(data.name ?? ""),
+    grade: String(data.grade ?? ""),
+    equipped: (data.equipped ?? {}) as Record<string, string | null>,
+    nameStyle: (data.nameStyle ?? null) as string | null,
+    level: Number(data.level ?? 1),
+    title: String(data.title ?? "씨앗"),
+    likeCount: Number(data.likeCount ?? 0),
+    // 정렬·표시 기준은 학습을 끝낸 시각(occurredAt). 스크랩 시각(createdAt)이 아니다.
+    createdAt: toDate(data.occurredAt) ?? toDate(data.createdAt) ?? new Date(),
+    badgeCode: data.badgeCode as string | undefined,
+    badgeName: data.badgeName as string | undefined,
+    rarity: data.rarity as Rarity | undefined,
+    growth: data.growth === true,
+    prevTitle: data.prevTitle as string | undefined,
+    itemId: data.itemId as string | undefined,
+    itemName: data.itemName as string | undefined,
+    exclusive: data.exclusive === true,
+    serviceSlug: (data.serviceSlug ?? undefined) as string | undefined,
+    date: (data.date ?? undefined) as string | undefined,
+    childId: String(data.childId ?? ""),
+    xp: Number(data.xp ?? 0),
+    doneCount: Number(data.doneCount ?? 0),
+    streak: Number(data.streak ?? 0),
+    services: Array.isArray(data.services) ? (data.services as StudyEntry[]) : [],
+  };
+}
+
 function timeAgo(date: Date): string {
   const secs = Math.floor((Date.now() - date.getTime()) / 1000);
   if (secs < 60) return "방금 전";
@@ -77,12 +112,33 @@ function serviceName(slug?: string): string {
 }
 
 /**
+ * 괄호 표기는 버리고 부르는 이름만 남긴다 (서버 feed-events.ts의 callName과 같은 규칙).
+ * 가린 이름은 서버가 이미 처리해서 넘기고, 여기서는 가족에게 되살린 실명을 다듬는다.
+ *   사랑이(박수현) → 사랑이
+ */
+function callName(name: string): string {
+  const raw = (name ?? "").trim();
+  return raw.replace(/\s*[(（][^)）]*[)）]\s*/g, " ").trim() || raw;
+}
+
+/** #rrggbb → rgba. 학습사이트 파비콘 색을 띠로 쓰되, 글자를 이기지 않게 흐린다. */
+function tint(hex: string | undefined, alpha: number): string | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? "");
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/**
  * 그날 한 과목 하나 — 학습 세트가 여러 개면 세트별로 칸을 나눠 각자의 성적을 적는다
  * (평균 하나로 뭉치면 어느 세트를 잘했는지 안 보인다).
  * 세트 안의 단계(암기·리콜·스펠·테스트…)도 하나씩 따로 보여준다.
  */
 function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: boolean }) {
   const svc = SERVICES.find((s) => s.slug === entry.slug);
+  // 학습 세트 왼쪽 띠 — 어느 학습사이트인지 색으로 바로 읽히게 파비콘 색을 쓴다.
+  // 색이 없는 서비스는 기존 초록으로 돌아간다.
+  const bar = tint(svc?.brandColor, 0.5) ?? "rgba(56,168,72,0.28)";
   const items: StudyItem[] = entry.items?.length
     ? entry.items
     : (entry.labels ?? []).map((label) => ({ label }));
@@ -115,7 +171,7 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
               <div
                 key={`${it.label}-${i}`}
                 className="rounded-md bg-white px-2 sm:px-2.5 py-1.5"
-                style={{ borderLeft: "3px solid rgba(56,168,72,0.28)" }}
+                style={{ borderLeft: `3px solid ${bar}` }}
               >
                 <div className="flex items-baseline gap-1.5 flex-wrap">
                   {it.kind && (
@@ -289,7 +345,8 @@ export function FeedEventCard({ event, myUid, familyNames }: {
   familyNames: Map<string, string>;
 }) {
   // 본인·형제·자녀는 실명으로. 나머지는 가린 이름 그대로.
-  const displayName = (event.childId && familyNames.get(event.childId)) || event.name;
+  const real = event.childId ? familyNames.get(event.childId) : undefined;
+  const displayName = real ? callName(real) : event.name;
   // 꾸미기: 이름 색·그라데이션 (globals.css)
   const nameCls = (event.nameStyle && SHOP_BY_ID.get(event.nameStyle)?.cssClass) || "";
   return (
