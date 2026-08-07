@@ -6,7 +6,7 @@
 <title>멀티플랜토 · 3D 학원 맵</title>
 <style>
   :root{--panel:rgba(255,255,255,.94);--ink:#1d2a22;--muted:#6b7f72;--line:#d5e2d8;
-        --primary:#2f9e6a;--radius:10px;
+        --primary:#1f7a33;--radius:10px;
         --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:100%;height:100%;overflow:hidden;background:#f4f8f5;font-family:var(--font)}
@@ -16,15 +16,18 @@
   .hud{position:fixed;inset:0;pointer-events:none;color:var(--ink)}
   .hud > *{pointer-events:auto}
 
-  .auth{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:6px;
-        background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-        padding:6px 7px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(30,60,45,.10)}
-  .auth #count{font-size:11px;font-weight:800;color:var(--primary);padding:0 5px}
+  .auth{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px}
+  .auth #count{font-size:11.5px;font-weight:800;color:#3a4a40;padding:9px 12px;border-radius:8px;
+        background:rgba(255,255,255,.94);box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06)}
   .auth #count[hidden]{display:none}
-  .auth a,.auth button{padding:6px 12px;border:none;border-radius:8px;font:inherit;font-size:12px;
-        font-weight:800;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .auth a,.auth button{padding:9px 14px;border:none;border-radius:8px;font:inherit;font-size:12.5px;
+        font-weight:800;cursor:pointer;text-decoration:none;white-space:nowrap;
+        box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+        transition:filter 150ms cubic-bezier(.4,0,.2,1)}
+  .auth a:hover,.auth button:hover{filter:brightness(1.06)}
+  .auth a:focus-visible,.auth button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .auth button{background:var(--primary);color:#fff}
-  .auth a.me{background:#eaf2ec;color:#35513f}
+  .auth a.me{background:rgba(255,255,255,.94);color:#3a4a40}
   .auth a.login{background:var(--primary);color:#fff}
 
   .where{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
@@ -46,10 +49,14 @@
   .prompt kbd{background:#e2ece4;color:#35513f;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
 
   .rot{position:absolute;bottom:16px;right:14px;display:flex;gap:8px}
-  .rot button{width:42px;height:42px;border-radius:50%;background:var(--panel);border:1px solid var(--line);
-              color:#35513f;font-weight:800;font-size:15px;backdrop-filter:blur(6px);
-              box-shadow:0 2px 10px rgba(30,60,45,.12)}
+  .rot button{width:44px;height:44px;border-radius:8px;background:var(--panel);border:1px solid var(--line);
+              color:#3a4a40;display:grid;place-items:center;backdrop-filter:blur(6px);
+              box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+              transition:background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1)}
+  .rot button:hover{background:#f2f6f3}
   .rot button:active{background:var(--primary);color:#fff}
+  .rot button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  @media (prefers-reduced-motion: reduce){ .rot button{transition:none} }
 
   .toast{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
          background:var(--panel);border:1px solid var(--line);border-radius:8px;
@@ -88,8 +95,8 @@
   </div>
 
   <div class="rot">
-    <button id="rotL" aria-label="왼쪽으로 회전">↶</button>
-    <button id="rotR" aria-label="오른쪽으로 회전">↷</button>
+    <button id="rotL" aria-label="왼쪽으로 회전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button id="rotR" aria-label="오른쪽으로 회전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
   </div>
   <div class="toast" id="toast"></div>
   <div id="err"></div>
@@ -174,12 +181,12 @@ function nameTag(text){
 // ⚠ name 은 화면 표기 전용이다. id 는 저장·네트워크 경로에 쓰이므로 바꾸지 말 것.
 //   ('개인 자습실' 같은 이름은 나중에 바뀔 수 있다 — 그때 name 만 고치면 된다)
 const ROOMS = [
-  {id:'class',  name:'교실',        sub:'클래스카드 · 오토보카 · 매일국어', x:-9, z:-17, w:16, d:10, door:'s', hue:0x4fae7a},
-  {id:'office', name:'원장실',      sub:'입회 상담 · 레벨 테스트',         x: 9, z:-17, w:16, d:10, door:'s', hue:0x8ab04a},
-  {id:'study',  name:'개인 자습실',  sub:'플래닝 · 자습 인증',              x:-9, z:  1, w:16, d:10, door:'n', hue:0x2f8f6d,
+  {id:'class',  name:'교실',        sub:'클래스카드 · 오토보카 · 매일국어', x:-9, z:-17, w:16, d:10, door:'s', hue:0x1f7a33},
+  {id:'office', name:'원장실',      sub:'입회 상담 · 레벨 테스트',         x: 9, z:-17, w:16, d:10, door:'s', hue:0x1f7a33},
+  {id:'study',  name:'개인 자습실',  sub:'플래닝 · 자습 인증',              x:-9, z:  1, w:16, d:10, door:'n', hue:0x1f7a33,
    personal:true,
    go:'/campus/planning-room'},
-  {id:'lounge', name:'휴게실',      sub:'쉬는 시간 · 잡담',                x: 9, z:  1, w:16, d:10, door:'n', hue:0x9ccf6a},
+  {id:'lounge', name:'휴게실',      sub:'쉬는 시간 · 잡담',                x: 9, z:  1, w:16, d:10, door:'n', hue:0x1f7a33},
 ];
 const HALL = {id:'hall', name:'복도'};
 const CORRIDOR = {minX:-17, maxX:17, minZ:-12, maxZ:-4};
@@ -193,9 +200,9 @@ const prop = (id, x, z, w, d, h, c, solid = true) => PROPS.push({id,x,z,w,d,h,c,
 // 교실: 화이트보드 + 책상 6
 prop('class-board', -9, -21.5, 8, 0.3, 1.7, 0xf7fbf7);
 for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++)
-  prop(`class-desk-${r}${c}`, -14 + c*5, -18.4 + r*3.4, 3.4, 1.2, 0.75, 0xe3d3b8);
+  prop(`class-desk-${r}${c}`, -14 + c*5, -18.4 + r*3.4, 3.4, 1.2, 0.75, 0xe8e1d4);
 // 원장실: 책상 + 소파 + 책장
-prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xdcc7a8);
+prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xe4dbc9);
 prop('office-sofa', 9, -14.6, 4.4, 1.4, 0.7, 0x9fc9ac);
 prop('office-shelf', 16, -17, 0.9, 6, 2.2, 0xf0f4f1);
 // 개인 자습실은 고정 가구가 없다 — 로그인 계정의 배치를 불러와 그린다(아래 applyRoom)
@@ -270,17 +277,17 @@ function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
 // 줌아웃하거나 가장자리에 서면 맵 밖 빈 배경이 보였다. 지면을 넓게 깔아
 // 세상이 이어지게 한다. 먼 쪽은 안개가 배경색으로 녹여 경계가 안 보인다.
 {
-  const g = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI/2), flat(0xdfeadb));
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI/2), flat(0xe4ebe0));
   g.position.set(0, -0.06, -8);
   scene.add(g);
 
   // 건물을 둘러싼 산책로 — 실내 흰 바닥과 잔디 사이의 완충
-  const path = new THREE.Mesh(new THREE.PlaneGeometry(46, 40).rotateX(-Math.PI/2), flat(0xeef3ea));
+  const path = new THREE.Mesh(new THREE.PlaneGeometry(46, 40).rotateX(-Math.PI/2), flat(0xf2f4ef));
   path.position.set(0, -0.04, -8);
   scene.add(path);
 
   // 나무 — 맵 경계 바깥에만 둔다(게임플레이 평면에 영향 없음, 충돌 없음)
-  const trunk = lam(0xbfa27e, null, 0.25), leaf = lam(0x8fc79a, null, 0.3);
+  const trunk = lam(0xc4ab8c, null, 0.25), leaf = lam(0xadc4a8, null, 0.3);
   const TREES = [
     [-24,-26],[-15,-28],[-4,-29],[7,-28],[17,-27],[24,-22],
     [26,-12],[26,-2],[24, 9],[15, 12],[4, 13],[-7, 12],[-17, 11],[-25, 6],[-26,-6],[-25,-16],
@@ -295,11 +302,11 @@ function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
   }
 }
 
-floorPlate(-18, 18, -22.5, 6.5, 0xe9efea, 2, 0);          // 베이스 바닥(룸 사이 여백)
+floorPlate(-18, 18, -22.5, 6.5, 0xeceae7, 2, 0);          // 룸 사이 여백 — 한 단계 더 어둡게
 floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0xffffff, 2, 0.01);  // 복도 = 흰 타일
 for (const r of ROOMS)
   floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2,
-             new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.88).getHex(), 2, 0.01);  // 아주 옅은 톤만
+             0xf2f1ed, 2, 0.01);   // 룸 바닥 = warm white. 복도(순백)와 명도로만 갈린다
 
 // 바닥이 조명을 무시하는 대신 그림자도 못 받는다. 그림자만 그리는 투명 평면을
 // 한 겹 덮어 접지감을 살린다(이게 없으면 아바타가 공중에 뜬 것처럼 보인다).
@@ -714,6 +721,12 @@ function frame(){
 
   // 내 좌표 발행 — 룸이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
   if (net) net.publish(P.x, P.z, P.yaw, moving, roomChannel(inRoom));
+
+  // 조감에서는 이름표가 서로 겹쳐 오히려 안 읽힌다 — 멀어지면 감춘다
+  const tagsOn = zoom < 1.15;
+  meTag.visible = tagsOn;
+  for (const n of NPCS) n.rig.root.children.forEach(c => { if (c.isSprite) c.visible = tagsOn; });
+  for (const r of remotes.values()) r.rig.root.children.forEach(c => { if (c.isSprite) c.visible = tagsOn; });
 
   // ── 카메라 회전 보간 ──
   if (Math.abs(camYawTo - camYaw) > 1e-4){

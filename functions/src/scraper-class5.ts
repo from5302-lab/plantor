@@ -126,7 +126,10 @@ class Class5Client {
     const exitIdx = html.indexOf("collapseExit");
     if (exitIdx >= 0) html = html.slice(0, exitIdx);
     const roster = new Map<string, string>();
-    const rowRe = /<div class="[^"]*\bstd-items\b[^"]*"[^>]*?data-idx="(\d+)"[^>]*>\s*<div[^>]*>\s*<a[^>]*>([^<]*)<\/a>/g;
+    // 이름 칸이 행의 **첫 번째** 자식이라고 못 박으면 안 된다 — 실제로 앞에 선택 체크박스 칸이
+    // 하나 생기면서 이 정규식이 0명을 반환했고, 그 뒤로 이름 매칭이 조용히 죽어 있었다.
+    // 자리 대신 의미(std-name-link)로 찾는다.
+    const rowRe = /<div class="[^"]*\bstd-items\b[^"]*"[^>]*?data-idx="(\d+)"[^>]*>[\s\S]{0,1500}?<a[^>]*\bstd-name-link\b[^>]*>([^<]*)<\/a>/g;
     let m: RegExpExecArray | null;
     while ((m = rowRe.exec(html))) {
       const id = m[1];

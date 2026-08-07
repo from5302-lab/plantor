@@ -400,9 +400,20 @@ export function studySummary(
       if (grade) note = String(grade);
     }
   } else if (serviceSlug === "class5") {
+    // 예전엔 시각만 실었다 — 문법·리딩을 끝내도 피드에는 제목과 시각뿐이라
+    // 클래스카드 줄(단계별 점수)과 나란히 놓으면 아무것도 안 한 것처럼 보였다.
+    // 정답률(cardFirstTry)은 리워드 품질 판정이 쓰는 바로 그 값이라 새로 만드는 지표가 아니다.
     for (const u of units) {
       if (!u?.unitLabel) continue;
-      items.push({ kind: u.type ? String(u.type) : null, label: String(u.unitLabel), stats: timeStats(u) });
+      const stats: StudyStat[] = [];
+      const acc = toScore(u?.cardFirstTry);
+      if (acc != null) stats.push({ name: "정답률", value: `${acc}%` });
+      // 문법 게임은 백분율이 아니라 2~5만점대 raw 점수다 — % 를 붙이면 안 된다
+      const game = toScore(u?.gameScore);
+      if (game != null) stats.push({ name: "게임", value: `${comma(game)}점` });
+      // 학습시간은 넣지 않는다 — 시각 범위가 이미 durationSec 으로 역산한 값이라 같은 말이다
+      stats.push(...timeStats(u));
+      items.push({ kind: u.type ? String(u.type) : null, label: String(u.unitLabel), stats });
     }
   }
 

@@ -1,0 +1,63 @@
+// 클래스5 카테고리 판정 · 피드 요약 회귀 테스트.
+//
+// 2026-08-07 사고: movie_type "grammar" 를 판정에서 빠뜨려 **문법 과제가 전부 Movie 로** 잡혔다.
+// grammar 파트 자동체크가 세 학생에게 단 한 번도 찍히지 않았고, 학부모 화면엔 ✗ 로 보였다.
+// 같은 날, 피드의 클래스5 줄은 시각만 실어 클래스카드 줄(단계별 점수) 옆에서 빈 줄처럼 보였다.
+// 픽스처는 class5 reportHomeworkDate 실제 응답(박지유 2026-08-05)에서 가져왔다.
+//
+// 실행: npm --prefix functions run build && node scripts/test-class5-summary.mjs
+
+import { createRequire } from "node:module";
+createRequire(new URL("../functions/package.json", import.meta.url))("firebase-admin")
+  .initializeApp({ projectId: "plantor-from302" });
+const { studySummary } = await import("../functions/lib/rewards.js");
+const { class5DonePartSlugs, class5DonePartCounts } = await import("../functions/lib/scraper-class5.js");
+
+const results = [];
+const check = (name, got, want) => {
+  results.push([JSON.stringify(got) === JSON.stringify(want), name, got, want]);
+};
+
+// 스크래퍼가 만들어 저장하는 실제 units 모양
+const units = [
+  { type: "Movie", unitLabel: "Peppa Pig 1 / George Catches a Cold", completed: true, cardFirstTry: 100, durationSec: 679, movieType: "movie", startHour: 10, startAt: "10:49", endAt: "11:01" },
+  { type: "Grammar", unitLabel: "Unit 04 지시대명사: this, that", completed: true, cardFirstTry: 99, durationSec: 520, movieType: "grammar", startHour: 11, startAt: "11:03", endAt: "11:12" },
+];
+
+const out = studySummary("class5", units, null, { units });
+check("[피드] 문법 줄에 정답률과 시각이 함께 뜬다", out.items[1], {
+  kind: "Grammar",
+  label: "Unit 04 지시대명사: this, that",
+  stats: [{ name: "정답률", value: "99%" }, { name: "", value: "오전 11:03 ~ 오전 11:12" }],
+});
+check("[피드] 무비 줄도 같은 규칙", out.items[0].stats, [
+  { name: "정답률", value: "100%" }, { name: "", value: "오전 10:49 ~ 오전 11:01" },
+]);
+
+// 문법 게임은 백분율이 아니라 raw 점수 — % 를 붙이면 안 된다
+const withGame = [{ type: "Grammar", unitLabel: "Unit 05", completed: true, cardFirstTry: 88, gameScore: 32400 }];
+check("[피드] 게임 점수는 점, 천단위 쉼표", studySummary("class5", withGame, null, { units: withGame }).items[0].stats, [
+  { name: "정답률", value: "88%" }, { name: "게임", value: "32,400점" },
+]);
+
+// 아직 안 끝낸 과제는 상세가 없다 — 제목만 남는다
+const notDone = [{ type: "Grammar", unitLabel: "Unit 06", completed: false }];
+check("[피드] 미완료 과제는 점수 없이 제목만", studySummary("class5", notDone, null, { units: notDone }).items[0].stats, []);
+
+// ── 파트 자동체크: 문법이 Movie 로 새지 않는지 ──────────────────────────────
+check("[체크] 완료 파트가 grammar 로 잡힌다", class5DonePartSlugs(units).sort(), ["grammar", "movie"]);
+check("[체크] 파트별 개수", class5DonePartCounts(units), { movie: 1, grammar: 1 });
+// 이번 사고의 핵심: 문법만 끝낸 날 movie 가 딸려 들어가면 안 된다
+const onlyGrammar = [
+  { type: "Movie", unitLabel: "Peppa Pig 1 / Jelly", completed: false },
+  { type: "Grammar", unitLabel: "Unit 03", completed: true, cardFirstTry: 94 },
+];
+check("[체크] 문법만 한 날 → movie 는 안 찍힌다", class5DonePartSlugs(onlyGrammar), ["grammar"]);
+
+let failed = 0;
+for (const [ok, name, got, want] of results) {
+  console.log(`${ok ? "✅" : "❌"} ${name}`);
+  if (!ok) { failed++; console.log("   got :", JSON.stringify(got)); console.log("   want:", JSON.stringify(want)); }
+}
+console.log(`\n${results.length - failed}/${results.length} 통과`);
+process.exit(failed ? 1 : 0);
