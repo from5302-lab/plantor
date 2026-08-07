@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, validateId } from "@/lib/auth-context";
 import { INPUT_STYLE } from "@/lib/design-tokens";
 import { ModalOverlay } from "@/components/ui/modal-overlay";
+import { readNextParam } from "@/lib/next-url";
 
 export function AuthModal({ onClose }: { onClose: () => void }) {
   const { signIn, role } = useAuth();
@@ -20,6 +21,10 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!pendingRedirect || !role) return;
     onClose();
+    // next 가 있으면 역할별 기본 이동보다 우선한다.
+    // /campus 처럼 Next 라우터 밖(정적 파일)일 수 있어 전체 이동을 쓴다.
+    const next = readNextParam();
+    if (next) { window.location.assign(next); return; }
     if (role === "student") router.push("/learn");
     else if (role === "parent") router.push("/account");
     else if (role === "admin") router.push("/admin");

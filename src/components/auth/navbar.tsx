@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { ProfileModal } from "@/components/auth/profile-modal";
+import { readNextParam, wantsLoginModal } from "@/lib/next-url";
 
 export function Navbar() {
   const { user, role, hasAiPackage, loading, signOut } = useAuth();
@@ -24,6 +25,15 @@ export function Navbar() {
   // "/" 에는 LoginRedirect 가 걸려 있어 학생·학부모가 열면 곧바로 되돌아간다.
   // 학생의 홈은 프로필(/me) 이고, 학부모는 리다이렉트가 없는 /community 를 준다.
   const feedHref = role === "student" ? "/me" : role === "parent" ? "/community" : "/";
+
+  // /?login=1&next=... 로 들어오면 로그인 모달을 자동으로 연다.
+  // 로그인 페이지가 없는 외부 화면(예: /campus)에서 돌려보낼 때 쓴다.
+  useEffect(() => {
+    if (loading || !wantsLoginModal()) return;
+    const next = readNextParam();
+    if (user) { if (next) window.location.replace(next); return; }  // 이미 로그인 → 바로 이동
+    setShowAuth(true);
+  }, [loading, user]);
 
   // 메뉴 열릴 때 body 스크롤 잠금
   useEffect(() => {

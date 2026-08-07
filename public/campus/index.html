@@ -379,7 +379,8 @@ const ME = await whenReady();
 {
   const who = document.getElementById('who');
   if (ME){ who.textContent = ME.name + '님'; who.className = 'me'; who.href = '/me'; }
-  else   { who.textContent = '로그인';       who.className = 'login'; who.href = PLANTOR_HOME; }
+  else   { who.textContent = '로그인';       who.className = 'login';
+           who.href = PLANTOR_HOME + '?login=1&next=/campus'; }   // 로그인 후 여기로 돌아온다
   document.getElementById('dressBtn').hidden = !ME;
 }
 
