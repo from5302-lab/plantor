@@ -120,7 +120,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf4f8f5);            // 거의 흰색
 scene.fog = new THREE.Fog(0xf4f8f5, 44, 84);
-const camera = new THREE.PerspectiveCamera(35, 1, 0.5, 200);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 200);   // 긴 렌즈 = 디오라마 느낌
 
 // ── 재질 헬퍼 ──────────────────────────────────────────────────────
 
@@ -257,6 +257,35 @@ function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
   scene.add(m);
   return m;
 }
+// ── 건물 바깥 ──────────────────────────────────────────────────
+// 줌아웃하거나 가장자리에 서면 맵 밖 빈 배경이 보였다. 지면을 넓게 깔아
+// 세상이 이어지게 한다. 먼 쪽은 안개가 배경색으로 녹여 경계가 안 보인다.
+{
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI/2), flat(0xdfeadb));
+  g.position.set(0, -0.06, -8);
+  scene.add(g);
+
+  // 건물을 둘러싼 산책로 — 실내 흰 바닥과 잔디 사이의 완충
+  const path = new THREE.Mesh(new THREE.PlaneGeometry(46, 40).rotateX(-Math.PI/2), flat(0xeef3ea));
+  path.position.set(0, -0.04, -8);
+  scene.add(path);
+
+  // 나무 — 맵 경계 바깥에만 둔다(게임플레이 평면에 영향 없음, 충돌 없음)
+  const trunk = lam(0xbfa27e, null, 0.25), leaf = lam(0x8fc79a, null, 0.3);
+  const TREES = [
+    [-24,-26],[-15,-28],[-4,-29],[7,-28],[17,-27],[24,-22],
+    [26,-12],[26,-2],[24, 9],[15, 12],[4, 13],[-7, 12],[-17, 11],[-25, 6],[-26,-6],[-25,-16],
+  ];
+  for (const [x, z] of TREES){
+    const t = new THREE.Group(); t.position.set(x, 0, z);
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.5, 8), trunk);
+    tr.position.y = 0.75; tr.castShadow = true;
+    const lv = new THREE.Mesh(new THREE.SphereGeometry(1.25, 14, 12), leaf);
+    lv.position.y = 2.3; lv.scale.set(1, 0.92, 1); lv.castShadow = true;
+    t.add(tr, lv); scene.add(t);
+  }
+}
+
 floorPlate(-18, 18, -22.5, 6.5, 0xe9efea, 2, 0);          // 베이스 바닥(룸 사이 여백)
 floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0xffffff, 2, 0.01);  // 복도 = 흰 타일
 for (const r of ROOMS)
@@ -419,7 +448,7 @@ showCount();
 // ══ 카메라 ════════════════════════════════════════════════════════
 // 고정 아이소메트릭 프레이밍. 위치와 look-at을 각각 따로 스무딩한다.
 // 카메라는 수평각(camYaw)으로 돈다. 기본 45°가 기존 아이소메트릭 각도다.
-const CAM_R = 21.2, CAM_H = 19.5;
+const CAM_R = 21.8, CAM_H = 14.2;        // 부감 33°. 더 낮추면 허리벽이 시야를 가린다
 let camYaw = Math.PI/4, camYawTo = Math.PI/4;
 const CAM_DIR = new THREE.Vector3();
 const camDirFrom = y => CAM_DIR.set(Math.sin(y)*CAM_R, CAM_H, Math.cos(y)*CAM_R);
@@ -632,7 +661,7 @@ function frame(){
   const fit = Math.min(1.7, Math.max(1, 1.35 / camera.aspect));
   tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(player.root.position);
   camPos.lerp(tmp, 1 - Math.exp(-6.5 * dt));
-  camLook.lerp(tmp.set(P.x, 0.95, P.z), 1 - Math.exp(-9 * dt));
+  camLook.lerp(tmp.set(P.x, 1.30, P.z), 1 - Math.exp(-9 * dt));
   camera.position.copy(camPos);
   camera.lookAt(camLook);
 
