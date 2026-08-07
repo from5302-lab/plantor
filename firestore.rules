@@ -60,6 +60,11 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read, create: if request.auth != null && request.auth.uid == uid;
+      // 멀티플랜토(/campus) 캐릭터 저장. 본인은 campus 필드 '하나만' 고칠 수 있다.
+      // role·familyId·aiPackageEndDate 처럼 권한·결제에 걸리는 필드는 그대로 막혀 있다.
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['campus']);
       allow read, write: if isAdmin();
     }
 

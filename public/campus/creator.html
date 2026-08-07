@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>멀티플랜토 · 캐릭터 생성기</title>
+<style>
+  :root{--bg:#0f1117;--panel:#171a22;--ink:#f2f4f8;--muted:#9aa2b4;--line:#252a35;
+    --primary:#7c6cf0;--radius:12px;--radius-sm:8px;
+    --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  button,input{font-family:inherit}
+  button{cursor:pointer;border:none;background:none;color:inherit}
+
+  .top{display:flex;align-items:center;gap:10px;padding:13px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .top .dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
+  .top b{font-size:14px}
+  .top small{color:var(--muted);font-size:12px;font-weight:600}
+  .top a{margin-left:auto;color:var(--muted);font-size:12px;font-weight:700;text-decoration:none}
+  .top a:hover{color:var(--ink)}
+
+  .shell{display:grid;grid-template-columns:1fr 300px;gap:16px;max-width:1300px;margin:0 auto;padding:16px 20px 60px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+  .stage{padding:12px;position:relative}
+  .sky{border-radius:9px;background:linear-gradient(180deg,#1d2231 0%,#141821 72%);overflow:hidden}
+  #cv{width:100%;height:520px;display:block}
+
+  .bar{display:flex;flex-wrap:wrap;gap:14px;padding:12px 4px 2px;align-items:center}
+  .grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .grp>span{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;margin-right:2px}
+  .btn{padding:6px 11px;border-radius:var(--radius-sm);font-weight:700;font-size:12px;background:#222735;color:#c9cfdc}
+  .btn:hover{background:#2c3243}
+  .btn.on{background:var(--primary);color:#fff}
+
+  .side{padding:0;align-self:start;max-height:calc(100vh - 120px);overflow-y:auto}
+  .sec{padding:15px 16px;border-bottom:1px solid var(--line)}
+  .sec:last-child{border-bottom:none}
+  .sec>h3{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chips .btn{font-size:11.5px;padding:6px 9px}
+  .read{display:flex;gap:8px;margin:12px 0 4px}
+  .read div{flex:1;background:#1e2230;border-radius:var(--radius-sm);padding:8px 10px}
+  .read span{display:block;font-size:10px;color:var(--muted);font-weight:700}
+  .read b{font-size:16px;font-variant-numeric:tabular-nums}
+
+  .sl{margin-bottom:10px}
+  .sl label{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;margin-bottom:3px}
+  .sl label i{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+  .sl input{width:100%;accent-color:var(--primary)}
+
+  .meas{display:flex;gap:7px;margin-bottom:8px}
+  .meas label{flex:1;font-size:11px;font-weight:700;color:var(--muted)}
+  .meas input{width:100%;margin-top:3px;background:#1e2230;border:1px solid var(--line);color:var(--ink);
+    border-radius:6px;padding:6px 8px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .bmi{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:9px}
+  .bmi b{color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums}
+  .bmi input{width:52px;background:#1e2230;border:1px solid var(--line);color:var(--ink);
+    border-radius:6px;padding:3px 5px;font-size:11.5px;font-weight:700;text-align:right}
+  .wide{width:100%;background:var(--primary);color:#fff;font-weight:700;font-size:12.5px;padding:9px;border-radius:var(--radius-sm)}
+  .wide.ghost{background:#222735;color:#c9cfdc;margin-top:7px}
+  .warn{font-size:11px;line-height:1.65;color:#e8b45f;background:#2e2415;border-radius:6px;padding:8px 10px;margin-top:10px}
+
+  .swatch{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .swatch i{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent;display:block}
+  .swatch i.on{border-color:#fff;box-shadow:0 0 0 2px var(--primary)}
+  .slot{font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px}
+
+  .saved{margin-top:9px;font-size:11.5px;font-weight:700;line-height:1.6;color:var(--muted);min-height:16px}
+  .saved.ok{color:#5fd1a0}
+  .saved.bad{color:#e8a05f}
+  .out{width:100%;height:88px;background:#12151d;border:1px solid var(--line);color:#9fb0d0;
+    border-radius:8px;padding:8px;font-size:10.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+  @media(max-width:900px){.shell{grid-template-columns:1fr}#cv{height:380px}.side{max-height:none}}
+</style>
+</head>
+<body>
+
+<div class="top"><span class="dot"></span><b>멀티플랜토 · 캐릭터 생성기</b>
+  <small>체형 · 헤어 · 옷 · 색 · 액션</small><span id="who" style="margin-left:10px;font-size:11.5px;font-weight:700;color:var(--muted)"></span>
+  <a href="/campus/">← 학원 맵</a></div>
+
+<div class="shell">
+  <div class="panel stage">
+    <div class="sky"><canvas id="cv"></canvas></div>
+    <div class="bar">
+      <div class="grp"><span>하체</span>
+        <button class="btn on" data-low="idle">대기</button>
+        <button class="btn" data-low="walk">걷기</button>
+        <button class="btn" data-low="run">뛰기</button>
+        <button class="btn" data-low="sit">앉기</button>
+      </div>
+      <div class="grp"><span>상체</span>
+        <button class="btn on" data-up="none">없음</button>
+        <button class="btn" data-up="wave">손들기</button>
+        <button class="btn" data-up="bow">인사</button>
+        <button class="btn" data-up="offer">건네기</button>
+      </div>
+      <div class="grp"><span>뷰</span>
+        <button class="btn on" data-view="near">가까이</button>
+        <button class="btn" data-view="game">게임 카메라</button>
+        <button class="btn" data-sil="1">실루엣</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel side">
+    <div class="sec">
+      <h3>체형 프리셋</h3>
+      <div class="chips" id="bodyPresets"></div>
+      <div class="read">
+        <div><span>등신</span><b id="rHead">—</b></div>
+        <div><span>키</span><b id="rTall">—</b></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>키 · 몸무게로 만들기</h3>
+      <div class="meas">
+        <label>키 (cm)<input id="mH" type="number" value="165" min="130" max="200" step="1"></label>
+        <label>몸무게 (kg)<input id="mW" type="number" value="56" min="25" max="150" step="1"></label>
+      </div>
+      <div class="bmi">BMI <b id="mBmi">—</b> · 기준 <input id="mRef" type="number" value="20.5" step="0.5"></div>
+      <button class="wide" id="mApply">이 값으로 체형 만들기</button>
+      <div class="warn">미성년 대상이다. 실제 제품에서는 몸무게를 <b>필수로 받지 말고</b>,
+        입력값을 되돌려 보여주지 말고, 만든 뒤 슬라이더로 고칠 수 있게 둘 것.</div>
+    </div>
+
+    <div class="sec"><h3>체형 파라미터</h3><div id="sliders"></div></div>
+
+    <div class="sec"><h3>헤어</h3><div class="chips" id="hairChips"></div></div>
+
+    <div class="sec">
+      <h3>옷</h3>
+      <div class="slot">상의</div><div class="chips" id="topChips" style="margin-bottom:11px"></div>
+      <div class="slot">하의</div><div class="chips" id="botChips"></div>
+    </div>
+
+    <div class="sec"><h3>색</h3><div id="colors"></div></div>
+
+    <div class="sec">
+      <h3>맵에 적용</h3>
+      <button class="wide" id="saveGo">저장하고 맵으로 →</button>
+      <button class="wide ghost" id="save">저장만 하기</button>
+      <button class="wide ghost" id="clear">저장 지우기</button>
+      <div class="saved" id="savedMsg"></div>
+    </div>
+
+    <div class="sec">
+      <h3>기타</h3>
+      <button class="wide ghost" id="rand" style="margin-top:0">랜덤 생성</button>
+      <button class="wide ghost" id="reset">기본값으로</button>
+      <textarea class="out" id="json" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {
+  buildAvatar, disposeAvatar, poseAvatar, toon,
+  BODY_BASE, BODY_SLIDERS, HAIR_STYLES, TOPS, BOTTOMS, PALETTE,
+  fromMeasurements, headsRatio, heightM, SEAT_Y,
+} from '/campus/lib/avatar.js';
+import { loadCharacter, saveCharacter, clearCharacter, whenReady, PLANTOR_HOME }
+  from '/campus/lib/store.js';
+
+// ── 씬 ────────────────────────────────────────────────────────────
+const cv = document.getElementById('cv');
+const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 2, 0.1, 200);
+
+scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x2a2f3c, 0.60));
+const sun = new THREE.DirectionalLight(0xfff4e6, 1.15);
+sun.position.set(4, 11, 8); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, {left:-5, right:5, top:5, bottom:-5, near:1, far:32});
+sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -0.0015;
+scene.add(sun);
+
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(40,40).rotateX(-Math.PI/2),
+                         new THREE.MeshLambertMaterial({color:0x252a3a})));
+const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(40,40).rotateX(-Math.PI/2),
+                                   new THREE.ShadowMaterial({opacity:0.35}));
+shadowPlane.position.y = 0.001; shadowPlane.receiveShadow = true; scene.add(shadowPlane);
+
+// 의자 — 앉기에서만 보인다
+const chair = new THREE.Group();
+{
+  const wood = toon(0x8a6242), woodD = toon(0x6d4c33);
+  const put = (g, m, p) => { const x = new THREE.Mesh(g, m); x.position.set(...p);
+                             x.castShadow = true; x.receiveShadow = true; chair.add(x); };
+  put(new THREE.BoxGeometry(0.62,0.07,0.58), wood, [0, SEAT_Y, 0]);
+  put(new THREE.BoxGeometry(0.62,0.60,0.07), wood, [0, SEAT_Y+0.33, -0.25]);
+  for (const sx of [-1,1]) for (const sz of [-1,1])
+    put(new THREE.BoxGeometry(0.07, SEAT_Y, 0.07), woodD, [sx*0.25, SEAT_Y/2, sz*0.24]);
+}
+chair.visible = false; scene.add(chair);
+
+// 건네는 물건 — 손 소켓에 붙는다
+const item = new THREE.Group();
+{
+  const a = new THREE.Mesh(new THREE.BoxGeometry(0.20,0.26,0.05), toon(0xd8564f));
+  const b = new THREE.Mesh(new THREE.BoxGeometry(0.185,0.245,0.052), toon(0xf3efe4));
+  a.castShadow = true; item.add(a, b);
+}
+
+const SIL_MAT = new THREE.MeshBasicMaterial({color:0x0b0d12});
+
+// ── 상태 ──────────────────────────────────────────────────────────
+const BODY_PRESETS = [
+  {name:'표준',      b:{}},
+  {name:'작고 통통',  b:{height:0.95, head:1.08, girth:1.18, limb:1.14, legLen:0.87}},
+  {name:'크고 마름',  b:{height:1.06, head:0.88, girth:0.88, limb:0.88, legLen:1.16, armLen:1.08}},
+  {name:'작고 마름',  b:{height:0.92, head:0.99, girth:0.86, shoulder:0.88, limb:0.86}},
+  {name:'다부짐',    b:{height:1.05, head:0.92, girth:1.16, shoulder:1.22, limb:1.16}},
+  {name:'성인',      b:{height:1.02, head:1.10, girth:1.16, shoulder:1.08, limb:1.08, legLen:0.89, torso:0.94}},
+];
+const DEFAULT_LOOK = {
+  hairStyle:'spiky', topStyle:'uniform', bottomStyle:'pants',
+  skin:0xf6d3b4, hair:0x2a2330, top:0x2b3350, bottom:0x2b3350, shoe:0xdfe4ef,
+  trim:0xe9ecf2, tie:0x8e2b3a, eye:'#26324f', glasses:false,
+};
+const COLOR_SLOTS = [
+  ['skin','피부','skin'], ['hair','머리','hair'], ['top','상의','cloth'],
+  ['bottom','하의','cloth'], ['shoe','신발','shoe'], ['tie','넥타이 · 포인트','cloth'],
+];
+
+let body = Object.assign({}, BODY_BASE);
+let look = Object.assign({}, DEFAULT_LOOK);
+let low = 'idle', up = 'none', view = 'near', sil = false;
+let rig = null;
+
+function rebuild(){
+  disposeAvatar(rig);
+  rig = buildAvatar(look, body);
+  scene.add(rig.root);
+  applySil();
+  syncReadout();
+}
+
+function applySil(){
+  rig && rig.root.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.userData.outline) o.visible = !sil;
+    else o.material = sil ? SIL_MAT : o.userData.mat;
+  });
+}
+
+function syncReadout(){
+  document.getElementById('rHead').textContent = headsRatio(body).toFixed(2);
+  document.getElementById('rTall').textContent = heightM(body).toFixed(2) + 'm';
+  for (const [k] of BODY_SLIDERS){
+    const s = sliders[k]; if (!s) continue;
+    s.inp.value = body[k]; s.out.textContent = (+body[k]).toFixed(2);
+  }
+  document.querySelectorAll('#hairChips .btn').forEach(b => b.classList.toggle('on', b.dataset.v === look.hairStyle));
+  document.querySelectorAll('#topChips .btn').forEach(b => b.classList.toggle('on', b.dataset.v === look.topStyle));
+  document.querySelectorAll('#botChips .btn').forEach(b => b.classList.toggle('on', b.dataset.v === look.bottomStyle));
+  document.querySelectorAll('#colors i').forEach(i =>
+    i.classList.toggle('on', +i.dataset.c === look[i.dataset.slot]));
+  document.getElementById('json').value = JSON.stringify({
+    body: Object.fromEntries(Object.entries(body).map(([k,v]) => [k, +(+v).toFixed(3)])),
+    look,
+  });
+}
+
+// ── 컨트롤 만들기 ─────────────────────────────────────────────────
+const chip = (parent, label, value, onClick) => {
+  const b = document.createElement('button');
+  b.className = 'btn'; b.textContent = label; b.dataset.v = value;
+  b.onclick = onClick; parent.appendChild(b); return b;
+};
+
+const bp = document.getElementById('bodyPresets');
+BODY_PRESETS.forEach(p => chip(bp, p.name, p.name, () => {
+  body = Object.assign({}, BODY_BASE, p.b); rebuild();
+}));
+
+const sliders = {};
+const slBox = document.getElementById('sliders');
+for (const [key, label, min, max] of BODY_SLIDERS){
+  const d = document.createElement('div'); d.className = 'sl';
+  d.innerHTML = `<label>${label}<i>1.00</i></label>
+                 <input type="range" min="${min}" max="${max}" step="0.01">`;
+  slBox.appendChild(d);
+  const inp = d.querySelector('input');
+  sliders[key] = {inp, out:d.querySelector('i')};
+  inp.oninput = () => { body[key] = +inp.value; rebuild(); };
+}
+
+HAIR_STYLES.forEach(h => chip(document.getElementById('hairChips'), h.name, h.id,
+  () => { look.hairStyle = h.id; rebuild(); }));
+TOPS.forEach(t => chip(document.getElementById('topChips'), t.name, t.id,
+  () => { look.topStyle = t.id; rebuild(); }));
+BOTTOMS.forEach(b => chip(document.getElementById('botChips'), b.name, b.id,
+  () => { look.bottomStyle = b.id; rebuild(); }));
+
+const colBox = document.getElementById('colors');
+for (const [slot, label, pal] of COLOR_SLOTS){
+  const h = document.createElement('div'); h.className = 'slot'; h.textContent = label;
+  const row = document.createElement('div'); row.className = 'swatch';
+  for (const c of PALETTE[pal]){
+    const i = document.createElement('i');
+    i.style.background = '#' + c.toString(16).padStart(6,'0');
+    i.dataset.c = c; i.dataset.slot = slot;
+    i.onclick = () => { look[slot] = c; rebuild(); };
+    row.appendChild(i);
+  }
+  colBox.append(h, row);
+}
+
+// 키·몸무게
+const mH = document.getElementById('mH'), mW = document.getElementById('mW'),
+      mRef = document.getElementById('mRef'), mBmi = document.getElementById('mBmi');
+const showBmi = () => {
+  const b = (+mW.value) / Math.pow((+mH.value)/100, 2);
+  mBmi.textContent = isFinite(b) ? b.toFixed(1) : '—';
+};
+[mH, mW].forEach(el => el.oninput = showBmi); showBmi();
+document.getElementById('mApply').onclick = () => {
+  showBmi();
+  body = fromMeasurements(+mH.value, +mW.value, +mRef.value || 20.5).body;
+  rebuild();
+};
+
+const pick = a => a[Math.floor(Math.random()*a.length)];
+document.getElementById('rand').onclick = () => {
+  body = Object.assign({}, BODY_BASE, pick(BODY_PRESETS).b);
+  look = Object.assign({}, look, {
+    hairStyle: pick(HAIR_STYLES).id,
+    topStyle:  pick(TOPS).id,
+    bottomStyle: pick(BOTTOMS).id,
+    skin: pick(PALETTE.skin), hair: pick(PALETTE.hair),
+    top:  pick(PALETTE.cloth), bottom: pick(PALETTE.cloth), shoe: pick(PALETTE.shoe),
+  });
+  rebuild();
+};
+document.getElementById('reset').onclick = () => {
+  body = Object.assign({}, BODY_BASE);
+  look = Object.assign({}, DEFAULT_LOOK);
+  rebuild();
+};
+
+document.querySelector('.bar').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const grp = () => b.parentElement.querySelectorAll('.btn').forEach(x => x.classList.toggle('on', x === b));
+  if (b.dataset.low){ low = b.dataset.low; grp(); }
+  if (b.dataset.up){  up  = b.dataset.up;  grp(); }
+  if (b.dataset.view){ view = b.dataset.view;
+    b.parentElement.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b)); }
+  if (b.dataset.sil){ sil = !sil; b.classList.toggle('on', sil); applySil(); }
+});
+
+// plantor 로그인 세션을 확인하고, 저장된 캐릭터가 있으면 이어서 고칠 수 있게 불러온다
+const ME = await whenReady();
+document.getElementById('who').innerHTML = ME
+  ? ME.name + '님 계정에 저장됩니다'
+  : '손님 모드 · <a href="' + PLANTOR_HOME + '" style="color:var(--primary);text-decoration:none">plantor 로그인</a>하면 계정에 저장됩니다';
+
+const msg = document.getElementById('savedMsg');
+function setMsg(text, cls){ msg.textContent = text; msg.className = 'saved' + (cls ? ' ' + cls : ''); }
+
+const restored = await loadCharacter();
+if (restored){ look = restored.look; body = restored.body; }
+setMsg(restored ? '저장된 캐릭터를 불러왔습니다.' : '아직 저장된 캐릭터가 없습니다.');
+
+async function doSave(){
+  const r = await saveCharacter(look, body);
+  if (r.ok) setMsg(r.where === 'account'
+    ? '계정에 저장했습니다. 다른 기기에서도 그대로 나옵니다.'
+    : '이 브라우저에만 저장했습니다. 로그인하면 계정으로 옮겨집니다.', 'ok');
+  else setMsg('저장 실패 — ' + r.error, 'bad');
+  return r.ok;
+}
+document.getElementById('save').onclick   = doSave;
+document.getElementById('saveGo').onclick = async () => { if (await doSave()) location.href = '/campus/'; };
+document.getElementById('clear').onclick  = async () => {
+  const r = await clearCharacter();
+  setMsg(r.ok ? '저장을 지웠습니다. 맵은 기본 캐릭터로 돌아갑니다.' : '지우기 실패 — ' + r.error, r.ok ? '' : 'bad');
+};
+
+rebuild();
+
+// ── 루프 ───────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+const GAME_DIR = new THREE.Vector3(12.5, 16, 12.5).normalize();
+let t = 0;
+(function loop(){
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.floor(w*renderer.getPixelRatio())){
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  t += Math.min(clock.getDelta(), 0.05);
+
+  chair.visible = (low === 'sit');
+  rig.root.position.set(0, 0, low === 'sit' ? 0.04 : 0);
+  rig.root.rotation.y = 0.42;
+  poseAvatar(rig, low, up, t);
+
+  // 건네기일 때만 물건이 손 소켓에 붙는다
+  if (up === 'offer'){
+    if (item.parent !== rig.armR.socket){ rig.armR.socket.add(item); item.position.set(0,0,0); item.rotation.set(0.2,0,0.35); }
+  } else if (item.parent) item.parent.remove(item);
+
+  if (view === 'near'){
+    camera.fov = 32; camera.position.set(0.18, 1.30, 4.2);
+    camera.lookAt(0, 0.86, 0);
+  } else {
+    camera.fov = 35;
+    camera.position.copy(GAME_DIR).multiplyScalar(22.6);
+    camera.lookAt(0, 0.8, 0);
+  }
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+})();
+
+window.__creator = {get body(){return body}, get look(){return look},
+                    get rig(){return rig}, get low(){return low}, get up(){return up},
+                    setBody:v => { body = Object.assign({}, BODY_BASE, v); rebuild(); },
+                    setLook:v => { look = Object.assign({}, look, v); rebuild(); }};
+</script>
+</body>
+</html>
