@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "campus": {
+      "rooms": {
+        "//": "룸 단위 구독. 같은 룸에 있는 사람만 서로를 본다 — 비용이 접속자 수의 제곱으로 늘지 않게 나눈다.",
+
+        "$room": {
+          ".read": "auth != null",
+
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+
+            "meta": {
+              "//": "look/body 세부 검증은 클라이언트의 sanitizeCharacter가 맡는다. 여기선 형태와 이름 길이만 막는다.",
+              ".validate": "newData.hasChild('name')",
+              "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
+              "look": { ".validate": "newData.hasChildren()" },
+              "body": { ".validate": "newData.hasChildren()" },
+              "$other": { ".validate": false }
+            },
+
+            "pos": {
+              "//": "맵 범위를 벗어난 좌표는 애초에 못 쓴다(순간이동·맵 밖 이탈 방지).",
+              "x":  { ".validate": "newData.isNumber() && newData.val() >= -20 && newData.val() <= 20" },
+              "z":  { ".validate": "newData.isNumber() && newData.val() >= -25 && newData.val() <= 10" },
+              "y":  { ".validate": "newData.isNumber() && newData.val() >= -7 && newData.val() <= 7" },
+              "m":  { ".validate": "newData.isBoolean()" },
+              "at": { ".validate": "newData.val() <= now" },
+              "$other": { ".validate": false }
+            },
+
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}

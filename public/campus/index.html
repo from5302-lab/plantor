@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>멀티플랜토 · 3D 학원 맵</title>
 <style>
-  :root{--panel:rgba(23,26,34,.92);--ink:#f2f4f8;--muted:#9aa2b4;--line:#2b3040;
-        --primary:#7c6cf0;--radius:10px;
+  :root{--panel:rgba(255,255,255,.94);--ink:#1d2a22;--muted:#6b7f72;--line:#d5e2d8;
+        --primary:#2f9e6a;--radius:10px;
         --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{width:100%;height:100%;overflow:hidden;background:#0f1117;font-family:var(--font)}
+  html,body{width:100%;height:100%;overflow:hidden;background:#e7efe8;font-family:var(--font)}
   #cv{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
   #cv:active{cursor:grabbing}
 
@@ -18,7 +18,8 @@
 
   .brand{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:8px;
          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-         padding:9px 13px;font-size:13px;font-weight:800;backdrop-filter:blur(6px)}
+         padding:9px 13px;font-size:13px;font-weight:800;backdrop-filter:blur(6px);
+         box-shadow:0 2px 10px rgba(30,60,45,.10)}
   .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
   .brand small{color:var(--muted);font-weight:600;font-size:11.5px}
 
@@ -37,17 +38,17 @@
   .prompt button{margin-top:9px;width:100%;font-family:inherit;cursor:pointer;border:none;
                  background:var(--primary);color:#fff;font-weight:700;font-size:12.5px;
                  padding:8px 14px;border-radius:8px}
-  .prompt kbd{background:#2b3040;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
+  .prompt kbd{background:#e2ece4;color:#35513f;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
 
   .chars{position:absolute;bottom:14px;left:14px;display:flex;gap:6px;
          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
          padding:8px;backdrop-filter:blur(6px)}
-  .chars button{font-family:inherit;cursor:pointer;border:none;background:#222735;color:#c9cfdc;
+  .chars button{font-family:inherit;cursor:pointer;border:none;background:#eaf2ec;color:#35513f;
                 font-weight:700;font-size:12px;padding:7px 11px;border-radius:7px}
   .chars button.on{background:var(--primary);color:#fff}
 
-  .hint{position:absolute;bottom:16px;right:14px;font-size:11px;line-height:1.7;color:var(--muted);
-        text-align:right;font-weight:600;text-shadow:0 1px 3px #000}
+  .hint{position:absolute;bottom:16px;right:14px;font-size:11px;line-height:1.7;color:#4d6455;
+        text-align:right;font-weight:700;text-shadow:0 1px 3px rgba(255,255,255,.85)}
 
   .toast{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
          background:var(--panel);border:1px solid var(--line);border-radius:8px;
@@ -64,8 +65,8 @@
 <canvas id="cv"></canvas>
 
 <div class="hud">
-  <div class="brand"><span class="dot"></span>멀티플랜토 <small>3D 학원 맵</small><a href="/campus/creator.html" style="margin-left:6px;color:#7c6cf0;font-size:11.5px;font-weight:700;text-decoration:none">캐릭터 만들기 →</a><span id="who" style="margin-left:8px;font-size:11px;font-weight:700;color:#9aa2b4"></span></div>
-  <div class="where" id="where">현재 위치 · <b>중앙 복도</b></div>
+  <div class="brand"><span class="dot"></span>멀티플랜토 <small>3D 학원 맵</small><a href="/campus/creator.html" style="margin-left:6px;color:#2f9e6a;font-size:11.5px;font-weight:700;text-decoration:none">캐릭터 만들기 →</a><span id="who" style="margin-left:8px;font-size:11px;font-weight:700;color:#6b7f72"></span><span id="count" style="margin-left:8px;font-size:11px;font-weight:700;color:#2f9e6a"></span></div>
+  <div class="where" id="where">현재 위치 · <b>복도</b></div>
 
   <div class="prompt" id="prompt">
     <h4 id="pTitle">플래닝룸</h4>
@@ -90,13 +91,14 @@
 import * as THREE from 'three';
 import { buildAvatar, disposeAvatar, poseAvatar } from '/campus/lib/avatar.js';
 import { loadCharacter, whenReady, PLANTOR_HOME } from '/campus/lib/store.js';
+import { joinCampus } from '/campus/lib/net.js';
 
 // ══════════════════════════════════════════════════════════════════
 //  멀티플랜토 3D 학원 맵 — 수직 슬라이스 1
 //  범위: 이동 · 카메라 · 충돌 · 룸 존 트리거. 그 이상은 다음 슬라이스.
 //
 //  레이어 분리 원칙 (author-game-levels):
-//    ① 저작 데이터(ROOMS/PROPS/LAMPS) — 안정적인 id를 가진 단일 소스
+//    ① 저작 데이터(ROOMS/PROPS) — 안정적인 id를 가진 단일 소스
 //    ② 시각 지오메트리 — 데이터에서 생성, 카메라 쪽 벽은 낮게 그린다
 //    ③ 충돌 지오메트리 — 데이터에서 별도 생성. 장식에서 유추하지 않는다
 //    ④ 존 트리거 — 룸 앵커 기준 별도 AABB
@@ -111,8 +113,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x11131a);
-scene.fog = new THREE.Fog(0x11131a, 34, 62);
+scene.background = new THREE.Color(0xe7efe8);            // 밝은 민트 화이트
+scene.fog = new THREE.Fog(0xe7efe8, 40, 78);
 const camera = new THREE.PerspectiveCamera(35, 1, 0.5, 200);
 
 // ── 재질 헬퍼 ──────────────────────────────────────────────────────
@@ -151,52 +153,48 @@ function nameTag(text){
 }
 
 // ══ ① 저작 레벨 데이터 ═════════════════════════════════════════════
-// 상단 3룸(문=남쪽) + 중앙 복도 + 하단 3룸(문=북쪽). 전부 y=0 평면.
+// 복도 하나 + 룸 넷. 상단 2룸(문=남쪽) · 중앙 복도 · 하단 2룸(문=북쪽).
+// 전부 y=0 평면.
+//
+// ⚠ name 은 화면 표기 전용이다. id 는 저장·네트워크 경로에 쓰이므로 바꾸지 말 것.
+//   ('개인 자습실' 같은 이름은 나중에 바뀔 수 있다 — 그때 name 만 고치면 된다)
 const ROOMS = [
-  {id:'class',  name:'강의실',         sub:'클래스카드 · 오토보카 · 매일국어', x:-14, z:-16.5, w:12, d:9, door:'s', hue:0x4f7fd4},
-  {id:'live',   name:'라이브 강의실',   sub:'구글 미트 실시간 수업',          x:  0, z:-16.5, w:12, d:9, door:'s', hue:0x8b6ee0},
-  {id:'office', name:'원장실',          sub:'입회 상담 · 레벨 테스트',        x: 14, z:-16.5, w:12, d:9, door:'s', hue:0xd4884f},
-  {id:'ai',     name:'AI 디지털 트윈',  sub:'24시간 관리 · 질의응답',         x:-14, z:  0.5, w:12, d:9, door:'n', hue:0x3fb0a8},
-  {id:'plan',   name:'플래닝룸',        sub:'시간표 · 일정 관리 (허브)',      x:  0, z:  0.5, w:12, d:9, door:'n', hue:0x4fa36b},
-  {id:'study',  name:'자습실',          sub:'성취 인증 · 스트릭',            x: 14, z:  0.5, w:12, d:9, door:'n', hue:0xd45f7f},
+  {id:'class',  name:'교실',        sub:'클래스카드 · 오토보카 · 매일국어', x:-9, z:-17, w:16, d:10, door:'s', hue:0x4fae7a},
+  {id:'office', name:'원장실',      sub:'입회 상담 · 레벨 테스트',         x: 9, z:-17, w:16, d:10, door:'s', hue:0x8ab04a},
+  {id:'study',  name:'개인 자습실',  sub:'플래닝 · 자습 인증',              x:-9, z:  1, w:16, d:10, door:'n', hue:0x2f8f6d,
+   go:'/campus/planning-room'},
+  {id:'lounge', name:'휴게실',      sub:'쉬는 시간 · 잡담',                x: 9, z:  1, w:16, d:10, door:'n', hue:0x9ccf6a},
 ];
-const CORRIDOR = {minX:-20, maxX:20, minZ:-12, maxZ:-4};
+const HALL = {id:'hall', name:'복도'};
+const CORRIDOR = {minX:-17, maxX:17, minZ:-12, maxZ:-4};
 const DOOR_W = 3.6, WALL_T = 0.4, WALL_H = 3.4, LOW_H = 1.2;
 // 맵 바깥 경계(북/서)만 높게 세워 배경으로 쓰고, 나머지 벽은 전부 허리 높이로 낮춘다.
 // 카메라가 +x/+z에서 내려다보므로 이렇게 해야 어떤 벽도 플레이어를 가리지 않는다.
-const isBackdrop = s => s.minZ < -20.8 || s.minX < -20.2;
+const isBackdrop = s => s.minZ < -21.8 || s.minX < -17.2;
 
 // 가구 — 저작 데이터에서 시각·충돌을 함께 생성한다(장식에서 유추 금지)
 const PROPS = [];
 const prop = (id, x, z, w, d, h, c, solid = true) => PROPS.push({id,x,z,w,d,h,c,solid});
-// 강의실: 화이트보드 + 책상 6
-prop('class-board', -14, -20.5, 7, 0.3, 1.7, 0xeef1f6);
+// 교실: 화이트보드 + 책상 6
+prop('class-board', -9, -21.5, 8, 0.3, 1.7, 0xf7fbf7);
 for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++)
-  prop(`class-desk-${r}${c}`, -18.4 + c*4.4, -16.4 + r*3.2, 3.0, 1.2, 0.75, 0x9a6b45);
-// 라이브 강의실: 대형 스크린 + 좌석 4
-prop('live-screen', 0, -20.5, 8, 0.35, 2.3, 0x1b2030);
-for (let c = 0; c < 4; c++) prop(`live-seat-${c}`, -4.8 + c*3.2, -15.4, 1.5, 1.5, 0.85, 0x6b5fb8);
+  prop(`class-desk-${r}${c}`, -14 + c*5, -18.4 + r*3.4, 3.4, 1.2, 0.75, 0xd9c3a0);
 // 원장실: 책상 + 소파 + 책장
-prop('office-desk', 14, -18.6, 4.6, 1.8, 0.78, 0x8a5f3c);
-prop('office-sofa', 14, -14.2, 4.2, 1.4, 0.7, 0xb08050);
-prop('office-shelf', 19.2, -16.5, 0.9, 5, 2.2, 0x7a5636);
-// AI 트윈: 중앙 홀로그램 단상 + 벤치 2
-prop('ai-podium', -14, 0.5, 2.4, 2.4, 0.6, 0x2b6b70);
-prop('ai-bench-l', -18.2, 0.5, 1.0, 4.4, 0.55, 0x3f8f8a);
-prop('ai-bench-r', -9.8, 0.5, 1.0, 4.4, 0.55, 0x3f8f8a);
-// 플래닝룸: 대형 테이블 + 화이트보드
-prop('plan-table', 0, 1.2, 6.4, 3.0, 0.76, 0x7f6a4e);
-prop('plan-board', 0, 4.4, 7.5, 0.3, 1.8, 0xeef1f6);
-// 자습실: 1인 열람석 6
-for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++)
-  prop(`study-carrel-${r}${c}`, 9.6 + c*4.4, -1.6 + r*3.4, 3.0, 1.3, 1.15, 0x9d5f6e);
+prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xc9ab84);
+prop('office-sofa', 9, -14.6, 4.4, 1.4, 0.7, 0x9fc9ac);
+prop('office-shelf', 16, -17, 0.9, 6, 2.2, 0xd9c3a0);
+// 개인 자습실: 칸막이 열람석 8
+for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++)
+  prop(`study-carrel-${r}${c}`, -15 + c*4, -1.4 + r*3.6, 3.0, 1.3, 1.15, 0xdfeade);
+// 휴게실: 소파 2 + 테이블 + 자판기
+prop('lounge-sofa-a', 6, -1.6, 5, 1.3, 0.7, 0x8fc9a8);
+prop('lounge-sofa-b', 6,  3.4, 5, 1.3, 0.7, 0x8fc9a8);
+prop('lounge-table', 6, 0.9, 3.2, 1.6, 0.5, 0xd9c3a0);
+prop('lounge-vending', 15.4, -1.6, 1.2, 2, 2.1, 0x4fae7a);
 
-// 광원 대장 (author-game-levels §motivated lights)
-//   모든 로컬 광원은 눈에 보이는 발광체(천장 조명 메시)에 부착된다. 떠 있는 광원 없음.
-// intensity는 decay=2 기준. 조명 바로 아래 머리(거리 ≈2)에서 34/2² = 8.5로 완전히 날아가므로 10 이하로 둔다.
-const LAMPS = ROOMS.map(r => ({id:`lamp-${r.id}`, emitter:`ceil-${r.id}`, x:r.x, y:3.5, z:r.z, color:0xfff2dd, intensity:9, range:15}));
-LAMPS.push({id:'lamp-hall-w', emitter:'ceil-hall-w', x:-10, y:3.5, z:-8, color:0xe8eeff, intensity:8, range:16});
-LAMPS.push({id:'lamp-hall-e', emitter:'ceil-hall-e', x: 10, y:3.5, z:-8, color:0xe8eeff, intensity:8, range:16});
+// 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
+// 밝기는 조명 세기가 아니라 재질의 밝은 색에서 나온다. 세기를 올려 밝히면
+// 툰 셰이딩이 흰색으로 포화돼 캐릭터 얼굴이 날아간다(민머리에서 특히 드러난다).
 
 // ══ ③ 충돌 레이어 ═════════════════════════════════════════════════
 // 시각 높이와 무관하다. 카메라 쪽 벽을 낮게 그려도 충돌은 그대로다.
@@ -248,14 +246,14 @@ function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
   m.receiveShadow = true; scene.add(m);
   return m;
 }
-floorPlate(-21, 21, -21.5, 5.5, 0x2a2f3c, 2, 0);
-floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0x6f7488, 2, 0.01);
+floorPlate(-18, 18, -22.5, 6.5, 0xc9d6cb, 2, 0);          // 베이스 바닥(룸 사이 여백)
+floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0xf7fbf6, 2, 0.01);  // 복도 = 흰 타일
 for (const r of ROOMS)
   floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2,
-             new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.52).getHex(), 2, 0.01);
+             new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.66).getHex(), 2, 0.01);
 
 // 벽 — 시각 높이만 여기서 정한다. 충돌은 위에서 이미 만들었으므로 영향 없다.
-const wallMat = lam(0xd8dae4), wallLowMat = lam(0xc3c7d6);
+const wallMat = lam(0xfbfdfb), wallLowMat = lam(0xeaf1e9);   // 흰 벽 / 허리벽은 살짝 그린
 for (const s of WALL_SEGS){
   const tall = isBackdrop(s);
   const h = tall ? WALL_H : LOW_H;
@@ -265,7 +263,7 @@ for (const s of WALL_SEGS){
   scene.add(m);
 }
 // 룸 사이 빈 구간을 채우는 순수 장식 블록 (충돌 없음 — 이미 룸 벽으로 막혀 있다)
-for (const gx of [-7, 7]) for (const gz of [[-21,-12],[-4,5]]){
+for (const gx of [0]) for (const gz of [[-22,-12],[-4,6]]){
   const m = new THREE.Mesh(new THREE.BoxGeometry(2, LOW_H, gz[1]-gz[0]), wallLowMat);
   m.position.set(gx, LOW_H/2, (gz[0]+gz[1])/2);
   m.receiveShadow = true; scene.add(m);
@@ -291,27 +289,20 @@ for (const r of ROOMS){
   scene.add(sign);
 }
 
-// 조명 — LAMPS 대장대로 발광체 메시 + 광원을 같은 위치에 붙인다
+// 조명 — 전역 조명만. 천장 전등 같은 로컬 광원은 두지 않는다
 // 전체 노출: hemi + sun + 포인트 합이 1을 크게 넘으면 툰 셰이딩이 흰색으로 포화된다(민머리에서 특히 눈에 띔)
-scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x2a2f3c, 0.58));
-const sun = new THREE.DirectionalLight(0xfff4e6, 1.05);
-sun.position.set(16, 26, 12); sun.target.position.set(0, 0, -8);
+// 합이 1.4를 크게 넘으면 툰 3단 램프가 최상단에 붙어 흰색으로 포화된다
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcddccf, 0.52));
+const sun = new THREE.DirectionalLight(0xfffaf0, 0.92);
+sun.position.set(14, 24, 14); sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, {left:-28, right:28, top:28, bottom:-28, near:1, far:70});
+Object.assign(sun.shadow.camera, {left:-24, right:24, top:24, bottom:-24, near:1, far:70});
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0012;
+const amb = new THREE.AmbientLight(0xffffff, 0.16); scene.add(amb);   // 그림자 바닥을 띄운다
 scene.add(sun, sun.target);
 
-for (const L of LAMPS){
-  const emitter = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.9),
-                                 new THREE.MeshBasicMaterial({color:L.color}));
-  emitter.position.set(L.x, L.y + 0.14, L.z); emitter.name = L.emitter;
-  scene.add(emitter);
-  const light = new THREE.PointLight(L.color, L.intensity, L.range, 2);
-  light.position.set(L.x, L.y, L.z); light.name = L.id;
-  scene.add(light);
-}
 
 // ══ 아바타 프리셋 ══════════════════════════════════════════════════
 // 생성기(/creator.html)와 같은 스키마를 쓴다. 빌더는 /lib/avatar.js 한 곳에만 있다.
@@ -355,13 +346,9 @@ meTag.scale.set(2.0, 0.5, 1);
 const P = {x: 0, z: -8, yaw: 0, walkT: 0};
 player.root.position.set(P.x, 0, P.z);
 
-// ── NPC — 실시간 멀티플레이가 붙기 전의 자리표시 ─────────────────
+// ── 고정 NPC — 충쌤은 사람이 아니라 AI 페르소나라 항상 자리를 지킨다
 const NPCS = [
-  // 충쌤은 원장실 책상 앞에서 문을 바라보고 서 있다 (yaw 0 = +z, 즉 출입구 방향)
-  {name:'충쌤', preset:'충쌤', x: 14,   z:-17.2, yaw: 0,   outline:true},
-  {name:'서연', preset:'청류', x:-14.5, z:-15.0, yaw: 0.4},
-  {name:'도윤', preset:'뇌명', x: 1.8,  z: -1.4, yaw:-2.6},
-  {name:'하린', preset:'회풍', x: 13.2, z: -0.4, yaw: 2.2},
+  {name:'충쌤', preset:'충쌤', x:14, z:-17.2, yaw:0, outline:true},
 ].map(n => {
   const rig = mkChar(n.preset, !!n.outline);
   rig.root.position.set(n.x, 0, n.z);
@@ -371,9 +358,47 @@ const NPCS = [
   return {rig, phase: Math.random()*6};
 });
 
+// ── 실제 접속자 ────────────────────────────────────────────────────
+// 좌표는 5Hz로만 오므로 프레임마다 보간해서 끊김 없이 움직이게 한다.
+let net = null;                     // 아래 showCount()가 읽으므로 먼저 선언한다
+const remotes = new Map();          // uid → {rig, x,z,yaw, tx,tz,tyaw, moving, walkT}
+const elCount = document.getElementById('count');
+const showCount = () => {
+  elCount.textContent = net ? (remotes.size ? `· 접속 ${remotes.size + 1}명` : '· 나 혼자') : '';
+};
+
+function addRemote(uid, info){
+  const rig = buildAvatar(info.look, info.body, {outline:false});
+  const tag = nameTag(info.name); tag.position.set(0, 3.45, 0); rig.root.add(tag);
+  rig.root.visible = false;          // 첫 좌표가 오기 전엔 숨긴다(원점에서 미끄러져 오는 것 방지)
+  scene.add(rig.root);
+  remotes.set(uid, {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0, moving:false, walkT:0, first:true});
+  showCount();
+}
+function dropRemote(uid){
+  const r = remotes.get(uid);
+  if (!r) return;
+  disposeAvatar(r.rig);
+  remotes.delete(uid);
+  showCount();
+}
+function poseRemote(uid, p){
+  const r = remotes.get(uid);
+  if (!r) return;
+  r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw; r.moving = p.moving;
+  if (r.first){ r.x = p.x; r.z = p.z; r.yaw = p.yaw; r.first = false; r.rig.root.visible = true; }
+}
+
+if (ME){
+  const mine = CHARACTERS[curName];
+  net = joinCampus({uid: ME.uid, name: ME.name, look: mine.look, body: mine.body},
+                   {onJoin: addRemote, onLeave: dropRemote, onPose: poseRemote});
+}
+showCount();
+
 // ══ 카메라 ════════════════════════════════════════════════════════
 // 고정 아이소메트릭 프레이밍. 위치와 look-at을 각각 따로 스무딩한다.
-const CAM_DIR = new THREE.Vector3(12.5, 16, 12.5);
+const CAM_DIR = new THREE.Vector3(15, 19.5, 15);
 let zoom = 1;
 const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
 const camLook = new THREE.Vector3(P.x, 0.9, P.z);
@@ -455,7 +480,7 @@ function toast(msg){
 function setRoom(room){
   if (room === currentRoom) return;
   currentRoom = room;
-  elWhere.innerHTML = '현재 위치 · <b>' + (room ? room.name : '중앙 복도') + '</b>';
+  elWhere.innerHTML = '현재 위치 · <b>' + (room ? room.name : HALL.name) + '</b>';
   if (room){
     elPTitle.textContent = room.name; elPSub.textContent = room.sub;
     elPrompt.classList.add('on');
@@ -463,8 +488,7 @@ function setRoom(room){
 }
 function interact(){
   if (!currentRoom) return;
-  // 이 파일은 / 와 /prototypes/ 양쪽에서 서빙되므로 절대경로로 건다
-  if (currentRoom.id === 'plan') location.href = '/campus/planning-room.html';
+  if (currentRoom.go) location.href = currentRoom.go;      // 룸 데이터가 이동 대상을 갖는다
   else toast(currentRoom.name + ' — 다음 슬라이스에서 구현');
 }
 document.getElementById('pBtn').onclick = interact;
@@ -489,6 +513,8 @@ function swapPlayer(name){
   const tag = nameTag('나'); tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
   player.root.add(tag);
   scene.add(player.root);
+  const c = CHARACTERS[name];
+  if (net) net.updateMeta(c.look, c.body);
 }
 
 // ══ 루프 ══════════════════════════════════════════════════════════
@@ -550,11 +576,31 @@ function frame(){
 
   for (const n of NPCS) poseAvatar(n.rig, 'idle', 'none', t + n.phase);
 
+  // 내 좌표 발행 (net.js가 스로틀·변화감지를 맡는다)
+
+
+  // 다른 접속자 — 받은 좌표로 보간해서 그린다
+  for (const r of remotes.values()){
+    const k = 1 - Math.exp(-11 * dt);
+    r.x += (r.tx - r.x) * k;
+    r.z += (r.tz - r.z) * k;
+    let dy = r.tyaw - r.yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    r.yaw += dy * Math.min(1, dt * 12);
+    r.rig.root.position.set(r.x, 0, r.z);
+    r.rig.root.rotation.y = r.yaw;
+    if (r.moving) r.walkT += dt * SPEED * 1.55;
+    poseAvatar(r.rig, r.moving ? 'walk' : 'idle', 'none', r.moving ? r.walkT/7 : t);
+  }
+
   // ── 존 판정 ──
   let inRoom = null;
   for (const z of ZONES)
     if (P.x > z.minX && P.x < z.maxX && P.z > z.minZ && P.z < z.maxZ){ inRoom = z.room; break; }
   setRoom(inRoom);
+
+  // 내 좌표 발행 — 룸이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
+  if (net) net.publish(P.x, P.z, P.yaw, moving, inRoom ? inRoom.id : HALL.id);
 
   // ── 카메라: 위치와 look-at을 각각 스무딩 ──
   tmp.copy(CAM_DIR).multiplyScalar(zoom).add(player.root.position);
