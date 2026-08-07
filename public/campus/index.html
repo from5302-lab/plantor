@@ -22,6 +22,8 @@
          box-shadow:0 2px 10px rgba(30,60,45,.10)}
   .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
   .brand small{color:var(--muted);font-weight:600;font-size:11.5px}
+  .brand button{margin-left:4px;padding:5px 11px;border:none;border-radius:8px;font:inherit;
+                font-size:11.5px;font-weight:800;background:var(--primary);color:#fff;cursor:pointer}
 
   .where{position:absolute;top:60px;left:14px;
          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
@@ -70,7 +72,7 @@
 <canvas id="cv"></canvas>
 
 <div class="hud">
-  <div class="brand"><span class="dot"></span>멀티플랜토 <small>3D 학원 맵</small><a href="/campus/creator.html" style="margin-left:6px;color:#2f9e6a;font-size:11.5px;font-weight:700;text-decoration:none">캐릭터 만들기 →</a><span id="who" style="margin-left:8px;font-size:11px;font-weight:700;color:#6b7f72"></span><span id="count" style="margin-left:8px;font-size:11px;font-weight:700;color:#2f9e6a"></span></div>
+  <div class="brand"><span class="dot"></span>멀티플랜토 <small>3D 학원 맵</small><button id="dressBtn">꾸미기</button><span id="who" style="margin-left:8px;font-size:11px;font-weight:700;color:#6b7f72"></span><span id="count" style="margin-left:8px;font-size:11px;font-weight:700;color:#2f9e6a"></span></div>
   <div class="where" id="where">현재 위치 · <b>복도</b></div>
 
   <div class="prompt" id="prompt">
@@ -92,8 +94,9 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { buildAvatar, disposeAvatar, poseAvatar } from '/campus/lib/avatar.js';
-import { loadCharacter, loadRoom, whenReady, PLANTOR_HOME } from '/campus/lib/store.js';
+import { buildAvatar, disposeAvatar, poseAvatar, DEFAULT_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
+import { mountCustomizer } from '/campus/lib/customizer.js';
+import { loadCharacter, saveCharacter, loadRoom, whenReady, PLANTOR_HOME } from '/campus/lib/store.js';
 import { FURNITURE, itemBox } from '/campus/lib/room.js';
 import { joinCampus } from '/campus/lib/net.js';
 
@@ -353,36 +356,26 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.11));   // 그림자 바닥을 살�
 scene.add(sun, sun.target);
 
 
-// ══ 아바타 프리셋 ══════════════════════════════════════════════════
-// 생성기(/creator.html)와 같은 스키마를 쓴다. 빌더는 /lib/avatar.js 한 곳에만 있다.
-let CHARACTERS = {
-  '홍염': {body:{}, look:{hairStyle:'spiky', topStyle:'longtee', bottomStyle:'pants',
-    skin:0xf6d3b4, hair:0x5e1118, top:0xf0603c, bottom:0x2b2a30, shoe:0xf7a541, tie:0x8e1f2b, eye:'#8e1f2b'}},
-  '청류': {body:{}, look:{hairStyle:'bob', topStyle:'longtee', bottomStyle:'pants',
-    skin:0xf7dcc2, hair:0x123945, top:0x4fb8c9, bottom:0x2b3350, shoe:0x9fe4dd, tie:0x1d5a6b, eye:'#1d5a6b'}},
-  '뇌명': {body:{}, look:{hairStyle:'crop', topStyle:'uniform', bottomStyle:'pants',
-    skin:0xfae0c8, hair:0xb98a09, top:0x1f3763, bottom:0x2b2f3d, shoe:0xf7e6a8, tie:0xf5c518, eye:'#7a5c05'}},
-  '회풍': {body:{}, look:{hairStyle:'long', topStyle:'longtee', bottomStyle:'skirt',
-    skin:0xf3d8c4, hair:0x413a55, top:0xa99ad6, bottom:0x33363f, shoe:0xd8d2e8, tie:0x6d6480, eye:'#4b4162'}},
-  // 충쌤 — 원장/강사 페르소나 (PRD 6.2 / 6.4)
-  '충쌤': {body:{height:1.02, head:1.10, girth:1.16, shoulder:1.08, limb:1.08, legLen:0.89, torso:0.94},
-    look:{hairStyle:'bald', topStyle:'hood', bottomStyle:'pants', glasses:true,
-          brow:'thick', mouth:'flat', blush:'hatch',
-          skin:0xf5d2b6, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a'}},
+// ══ 아바타 ════════════════════════════════════════════════════════
+// 학생은 '기본 학생'에서 출발해 각자 꾸민다(4속성 캐릭터 프리셋은 걷어냈다 —
+// 스위처가 없어진 뒤로 아무도 쓰지 않았고, 시안은 prototypes/characters.html 에 남아 있다).
+// 충쌤만 고정 프리셋으로 둔다. 사람이 아니라 AI 페르소나라 항상 원장실을 지킨다.
+const TEACHER = {
+  body:{height:1.02, head:1.10, girth:1.16, shoulder:1.08, limb:1.08, legLen:0.89, torso:0.94},
+  look:{hairStyle:'bald', topStyle:'hood', bottomStyle:'pants', glasses:true,
+        brow:'thick', mouth:'flat', blush:'hatch',
+        skin:0xf5d2b6, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a'},
 };
-// 생성기에서 저장한 캐릭터가 있으면 맨 앞에 놓고 기본 선택으로 쓴다.
+
 // plantor와 origin이 같으므로 로그인 세션이 그대로 공유된다.
 const ME = await whenReady();
 document.getElementById('who').innerHTML = ME
   ? ME.name + '님'
-  : '손님 · <a href="' + PLANTOR_HOME + '" style="color:#7c6cf0;text-decoration:none">plantor 로그인</a>';
-const SAVED = await loadCharacter();
-if (SAVED) CHARACTERS = Object.assign({'내 캐릭터': SAVED}, CHARACTERS);
+  : '손님 · <a href="' + PLANTOR_HOME + '" style="color:#2f9e6a;text-decoration:none">plantor 로그인</a>';
 
-const mkChar = (name, outline = true) => {
-  const c = CHARACTERS[name];
-  return buildAvatar(c.look, c.body, {outline});
-};
+const SAVED = await loadCharacter();
+let myLook = SAVED ? {...SAVED.look} : {...DEFAULT_LOOK};
+let myBody = SAVED ? {...SAVED.body} : {...BODY_BASE};
 
 // ── 개인 자습실 가구 ───────────────────────────────────────────────
 // 가구는 데이터다. 메시와 충돌 상자를 둘 다 이 데이터에서 만든다.
@@ -416,11 +409,10 @@ const roomChannel = r => !r ? HALL.id
   : r.id;
 
 // ── 플레이어 ──────────────────────────────────────────────────────
-let curName = SAVED ? '내 캐릭터' : '홍염';
-let player = mkChar(curName);
+let player = buildAvatar(myLook, myBody);
 scene.add(player.root);
-const meTag = nameTag('나');
-meTag.position.set(0, 2.15, 0); player.root.add(meTag);
+const meTag = nameTag(ME ? ME.name : '나');
+meTag.position.set(0, 3.45, 0); player.root.add(meTag);
 meTag.scale.set(2.0, 0.5, 1);
 
 const P = {x: 0, z: -8, yaw: 0, walkT: 0};
@@ -428,9 +420,9 @@ player.root.position.set(P.x, 0, P.z);
 
 // ── 고정 NPC — 충쌤은 사람이 아니라 AI 페르소나라 항상 자리를 지킨다
 const NPCS = [
-  {name:'충쌤', preset:'충쌤', x:14, z:-17.2, yaw:0, outline:true},
+  {name:'충쌤', preset:TEACHER, x:14, z:-17.2, yaw:0},
 ].map(n => {
-  const rig = mkChar(n.preset, !!n.outline);
+  const rig = buildAvatar(n.preset.look, n.preset.body);
   rig.root.position.set(n.x, 0, n.z);
   rig.root.rotation.y = n.yaw;
   const tag = nameTag(n.name); tag.position.set(0, 3.45, 0); rig.root.add(tag);
@@ -470,8 +462,7 @@ function poseRemote(uid, p){
 }
 
 if (ME){
-  const mine = CHARACTERS[curName];
-  net = joinCampus({uid: ME.uid, name: ME.name, look: mine.look, body: mine.body},
+  net = joinCampus({uid: ME.uid, name: ME.name, look: myLook, body: myBody},
                    {onJoin: addRemote, onLeave: dropRemote, onPose: poseRemote});
 }
 showCount();
@@ -594,6 +585,30 @@ document.getElementById('rotL').onclick = () => turn(-1);
 document.getElementById('rotR').onclick = () => turn(1);
 
 // 캐릭터 스위처
+// ── 꾸미기 모달 ────────────────────────────────────────────────────
+// 미리보기는 맵에 서 있는 내 아바타 자체다. 렌더러를 하나 더 돌리지 않는다.
+function rebuildPlayer(){
+  disposeAvatar(player);
+  player = buildAvatar(myLook, myBody);
+  player.root.position.set(P.x, 0, P.z);
+  player.root.rotation.y = P.yaw;
+  const tag = nameTag(ME ? ME.name : '나');
+  tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
+  player.root.add(tag);
+  scene.add(player.root);
+}
+
+const cz = mountCustomizer({
+  onChange(look, body){ myLook = look; myBody = body; rebuildPlayer(); },
+  async onSave(look, body){
+    const r = await saveCharacter(look, body);
+    if (r.ok && net) net.updateMeta(look, body);      // 남들 화면에도 바로 반영
+    return r;
+  },
+  onClose(){ rebuildPlayer(); },
+});
+document.getElementById('dressBtn').onclick = () => cz.open(myLook, myBody, ME);
+
 // ══ 루프 ══════════════════════════════════════════════════════════
 const SPEED = 4.6;
 const clock = new THREE.Clock();
@@ -618,7 +633,10 @@ function frame(){
   resize();
 
   // ── 입력 → 이동 벡터 (카메라 기준) ──
+  // 꾸미는 동안에는 조작을 받지 않는다(모달 뒤에서 캐릭터가 걸어가면 안 된다)
+  const frozen = cz.isOpen();
   let ix = 0, iy = 0;
+  if (frozen){ for (const k in keys) keys[k] = false; tap.target = null; stick.vx = stick.vy = 0; }
   if (keys['w'] || keys['arrowup'])    iy += 1;
   if (keys['s'] || keys['arrowdown'])  iy -= 1;
   if (keys['a'] || keys['arrowleft'])  ix -= 1;

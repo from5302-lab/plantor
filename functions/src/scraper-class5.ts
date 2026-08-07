@@ -257,6 +257,11 @@ function inferCategory(item: Class5Item, catMap: Map<string, string>): string {
     const matched = cand && catMap.get(cand);
     if (matched) return matched;
   }
+  // Grammar 과제는 라이브러리 세트명이 "명사"·"대명사" 같은 문법 주제인데
+  // 실제 과제 제목은 "Unit 04 지시대명사: this, that" 이라 catMap 조회가 절대 맞지 않는다.
+  // movie_type 이 "grammar" 로 명시돼 오므로 그걸 그대로 믿는다.
+  // (이게 없어서 문법 과제가 전부 Movie 로 잡혔고, grammar 파트 자동체크가 한 번도 안 찍혔다)
+  if (item.movie_type === "grammar") return "Grammar";
   if (item.movie_type === "song") return "Song";
   if (item.movie_type === "write") return "Writing";
   if (item.movie_type === "book" || item.movie_type === "read") return "Reading";

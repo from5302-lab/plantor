@@ -227,6 +227,14 @@ export const PALETTE = {
   shoe:  [0xdfe4ef, 0x1b1b20, 0x8a5f3c, 0xd45f7f, 0x3fb0a8, 0xf5c518],
 };
 
+// 기본 학생 — 게스트도, 갓 가입한 계정도 이 모습으로 시작한다.
+// 삐죽머리는 개성이 너무 강해 '기본값'으로 맞지 않는다. 단정한 머리 + 교복.
+export const DEFAULT_LOOK = {
+  hairStyle:'crop', topStyle:'uniform', bottomStyle:'pants',
+  skin:0xf6d3b4, hair:0x4a3527, top:0x2b3350, bottom:0x2b3350, shoe:0xdfe4ef,
+  trim:0xe9ecf2, tie:0x8e2b3a, eye:'#26324f', glasses:false,
+};
+
 // ══ 빌드 ══════════════════════════════════════════════════════════
 export function buildAvatar(look, body = BODY_BASE, opts = {}){
   const {outline = true} = opts;
@@ -466,15 +474,14 @@ export function sanitizeCharacter(raw){
   const pickId = (list, v, fb) => list.some(x => x.id === v) ? v : fb;
 
   const look = {
-    hairStyle:   pickId(HAIR_STYLES, src.hairStyle,   'spiky'),
-    topStyle:    pickId(TOPS,        src.topStyle,    'longtee'),
-    bottomStyle: pickId(BOTTOMS,     src.bottomStyle, 'pants'),
+    hairStyle:   pickId(HAIR_STYLES, src.hairStyle,   DEFAULT_LOOK.hairStyle),
+    topStyle:    pickId(TOPS,        src.topStyle,    DEFAULT_LOOK.topStyle),
+    bottomStyle: pickId(BOTTOMS,     src.bottomStyle, DEFAULT_LOOK.bottomStyle),
     glasses: !!src.glasses,
-    eye: (typeof src.eye === 'string' && /^#[0-9a-f]{3,8}$/i.test(src.eye)) ? src.eye : '#26324f',
+    eye: (typeof src.eye === 'string' && /^#[0-9a-f]{3,8}$/i.test(src.eye)) ? src.eye : DEFAULT_LOOK.eye,
   };
-  const DEF = {skin:0xf6d3b4, hair:0x2a2330, top:0x4f7fd4, bottom:0x2b3350, shoe:0xdfe4ef,
-               trim:0xe9ecf2, tie:0x8e2b3a};
-  for (const k in DEF) look[k] = isColor(src[k]) ? src[k] : DEF[k];
+  for (const k of ['skin','hair','top','bottom','shoe','trim','tie'])
+    look[k] = isColor(src[k]) ? src[k] : DEFAULT_LOOK[k];
   for (const k of ['brow','mouth','blush']) if (typeof src[k] === 'string') look[k] = src[k];
 
   const body = Object.assign({}, BODY_BASE);
