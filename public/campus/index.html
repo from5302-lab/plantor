@@ -16,22 +16,23 @@
   .hud{position:fixed;inset:0;pointer-events:none;color:var(--ink)}
   .hud > *{pointer-events:auto}
 
-  .brand{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:8px;
-         background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-         padding:9px 13px;font-size:13px;font-weight:800;backdrop-filter:blur(6px);
-         box-shadow:0 2px 10px rgba(30,60,45,.10)}
-  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
-  .brand small{color:var(--muted);font-weight:600;font-size:11.5px}
-  .brand button{margin-left:4px;padding:5px 11px;border:none;border-radius:8px;font:inherit;
-                font-size:11.5px;font-weight:800;background:var(--primary);color:#fff;cursor:pointer}
+  .auth{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:6px;
+        background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+        padding:6px 7px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(30,60,45,.10)}
+  .auth #count{font-size:11px;font-weight:800;color:var(--primary);padding:0 4px 0 6px}
+  .auth a,.auth button{padding:6px 12px;border:none;border-radius:8px;font:inherit;font-size:12px;
+        font-weight:800;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .auth button{background:var(--primary);color:#fff}
+  .auth a.me{background:#eaf2ec;color:#35513f}
+  .auth a.login{background:var(--primary);color:#fff}
 
-  .where{position:absolute;top:60px;left:14px;
+  .where{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
          padding:7px 14px;font-size:12.5px;font-weight:700;backdrop-filter:blur(6px);white-space:nowrap;
          box-shadow:0 2px 10px rgba(30,60,45,.10)}
   .where b{color:var(--primary)}
 
-  .prompt{position:absolute;bottom:70px;left:50%;transform:translateX(-50%) translateY(8px);
+  .prompt{position:absolute;bottom:78px;left:50%;transform:translateX(-50%) translateY(8px);
           background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
           padding:12px 16px;text-align:center;opacity:0;transition:opacity .18s,transform .18s;
           backdrop-filter:blur(6px);min-width:210px}
@@ -58,10 +59,10 @@
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}
   @media(max-width:760px){
-    .brand{top:10px;left:10px;padding:7px 10px;font-size:12px;gap:6px}
-    .brand small{display:none}
-    .where{top:50px;left:10px;font-size:12px;padding:6px 11px}
-    .prompt{bottom:76px;min-width:calc(100vw - 28px);left:14px;right:14px;transform:translateY(8px)}
+    .auth{top:10px;right:10px;padding:5px 6px}
+    .auth a,.auth button{padding:6px 10px;font-size:11.5px}
+    .where{bottom:14px;font-size:12px;padding:6px 11px}
+    .prompt{bottom:70px;min-width:0;left:14px;right:14px;transform:translateY(8px)}
     .prompt.on{transform:translateY(0)}
     .rot{bottom:14px;right:10px}
     .rot button{width:46px;height:46px}
@@ -72,7 +73,11 @@
 <canvas id="cv"></canvas>
 
 <div class="hud">
-  <div class="brand"><span class="dot"></span>멀티플랜토 <small>3D 학원 맵</small><button id="dressBtn">꾸미기</button><span id="who" style="margin-left:8px;font-size:11px;font-weight:700;color:#6b7f72"></span><span id="count" style="margin-left:8px;font-size:11px;font-weight:700;color:#2f9e6a"></span></div>
+  <div class="auth">
+    <span id="count"></span>
+    <button id="dressBtn" hidden>꾸미기</button>
+    <a id="who" href="/"></a>
+  </div>
   <div class="where" id="where">현재 위치 · <b>복도</b></div>
 
   <div class="prompt" id="prompt">
@@ -369,9 +374,13 @@ const TEACHER = {
 
 // plantor와 origin이 같으므로 로그인 세션이 그대로 공유된다.
 const ME = await whenReady();
-document.getElementById('who').innerHTML = ME
-  ? ME.name + '님'
-  : '손님 · <a href="' + PLANTOR_HOME + '" style="color:#2f9e6a;text-decoration:none">plantor 로그인</a>';
+// 우측 상단이 곧 로그인 상태 표시다. 꾸미기는 로그인한 사람에게만 보인다.
+{
+  const who = document.getElementById('who');
+  if (ME){ who.textContent = ME.name + '님'; who.className = 'me'; who.href = '/me'; }
+  else   { who.textContent = '로그인';       who.className = 'login'; who.href = PLANTOR_HOME; }
+  document.getElementById('dressBtn').hidden = !ME;
+}
 
 const SAVED = await loadCharacter();
 let myLook = SAVED ? {...SAVED.look} : {...DEFAULT_LOOK};
