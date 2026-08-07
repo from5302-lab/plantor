@@ -19,7 +19,8 @@
   .auth{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:6px;
         background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
         padding:6px 7px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(30,60,45,.10)}
-  .auth #count{font-size:11px;font-weight:800;color:var(--primary);padding:0 4px 0 6px}
+  .auth #count{font-size:11px;font-weight:800;color:var(--primary);padding:0 5px}
+  .auth #count[hidden]{display:none}
   .auth a,.auth button{padding:6px 12px;border:none;border-radius:8px;font:inherit;font-size:12px;
         font-weight:800;cursor:pointer;text-decoration:none;white-space:nowrap}
   .auth button{background:var(--primary);color:#fff}
@@ -445,7 +446,9 @@ let net = null;                     // 아래 showCount()가 읽으므로 먼저
 const remotes = new Map();          // uid → {rig, x,z,yaw, tx,tz,tyaw, moving, walkT}
 const elCount = document.getElementById('count');
 const showCount = () => {
-  elCount.textContent = net ? (remotes.size ? `· 접속 ${remotes.size + 1}명` : '· 나 혼자') : '';
+  const t = net ? (remotes.size ? `접속 ${remotes.size + 1}명` : '나 혼자') : '';
+  elCount.textContent = t;
+  elCount.hidden = !t;          // 비어 있으면 숨긴다(padding 만 남아 왼쪽 여백이 생겼다)
 };
 
 function addRemote(uid, info){
