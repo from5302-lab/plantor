@@ -16,6 +16,7 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
+import { sanitizeRoom, DEFAULT_ROOM } from './room.js';
 
 const app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -97,4 +98,29 @@ export async function clearCharacter(){
     await setDoc(doc(db, 'users', me.uid), {campus: null}, {merge:true});
     return {ok:true, where:'account'};
   } catch (e){ return {ok:false, where:'account', error: e?.code || String(e)}; }
+}
+
+// ── 개인 자습실 배치 ───────────────────────────────────────────────
+//  users/{uid}.campus.room = [{t, x, z, r}]
+//  비로그인은 저장하지 않는다(어느 계정의 방인지 정해지지 않았으므로).
+export async function loadRoom(){
+  const me = await whenReady();
+  if (!me) return DEFAULT_ROOM.slice();
+  try {
+    const snap = await getDoc(doc(db, 'users', me.uid));
+    const r = sanitizeRoom(snap.data()?.campus?.room);
+    if (r && r.length) return r;
+  } catch (e){ console.warn('[campus] 방 배치를 읽지 못했습니다', e); }
+  return DEFAULT_ROOM.slice();
+}
+
+export async function saveRoom(items){
+  const me = await whenReady();
+  if (!me) return {ok:false, error:'로그인이 필요합니다.'};
+  const clean = sanitizeRoom(items) || [];
+  try {
+    await setDoc(doc(db, 'users', me.uid),
+                 {campus: {room: clean, updatedAt: serverTimestamp()}}, {merge:true});
+    return {ok:true};
+  } catch (e){ return {ok:false, error: e?.code || String(e)}; }
 }

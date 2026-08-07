@@ -93,7 +93,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { buildAvatar, disposeAvatar, poseAvatar } from '/campus/lib/avatar.js';
-import { loadCharacter, whenReady, PLANTOR_HOME } from '/campus/lib/store.js';
+import { loadCharacter, loadRoom, whenReady, PLANTOR_HOME } from '/campus/lib/store.js';
+import { FURNITURE, itemBox } from '/campus/lib/room.js';
 import { joinCampus } from '/campus/lib/net.js';
 
 // ══════════════════════════════════════════════════════════════════
@@ -167,6 +168,7 @@ const ROOMS = [
   {id:'class',  name:'교실',        sub:'클래스카드 · 오토보카 · 매일국어', x:-9, z:-17, w:16, d:10, door:'s', hue:0x4fae7a},
   {id:'office', name:'원장실',      sub:'입회 상담 · 레벨 테스트',         x: 9, z:-17, w:16, d:10, door:'s', hue:0x8ab04a},
   {id:'study',  name:'개인 자습실',  sub:'플래닝 · 자습 인증',              x:-9, z:  1, w:16, d:10, door:'n', hue:0x2f8f6d,
+   personal:true,
    go:'/campus/planning-room'},
   {id:'lounge', name:'휴게실',      sub:'쉬는 시간 · 잡담',                x: 9, z:  1, w:16, d:10, door:'n', hue:0x9ccf6a},
 ];
@@ -187,9 +189,7 @@ for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++)
 prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xdcc7a8);
 prop('office-sofa', 9, -14.6, 4.4, 1.4, 0.7, 0x9fc9ac);
 prop('office-shelf', 16, -17, 0.9, 6, 2.2, 0xf0f4f1);
-// 개인 자습실: 칸막이 열람석 8
-for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++)
-  prop(`study-carrel-${r}${c}`, -15 + c*4, -1.4 + r*3.6, 3.0, 1.3, 1.15, 0xf2f6f3);
+// 개인 자습실은 고정 가구가 없다 — 로그인 계정의 배치를 불러와 그린다(아래 applyRoom)
 // 휴게실: 소파 2 + 테이블 + 자판기
 prop('lounge-sofa-a', 6, -1.6, 5, 1.3, 0.7, 0x8fc9a8);
 prop('lounge-sofa-b', 6,  3.4, 5, 1.3, 0.7, 0x8fc9a8);
@@ -384,6 +384,37 @@ const mkChar = (name, outline = true) => {
   return buildAvatar(c.look, c.body, {outline});
 };
 
+// ── 개인 자습실 가구 ───────────────────────────────────────────────
+// 가구는 데이터다. 메시와 충돌 상자를 둘 다 이 데이터에서 만든다.
+const roomGroup = new THREE.Group(); scene.add(roomGroup);
+const ROOM_COLLIDERS = [];
+const FURN_MAT = {};
+const furnMat = t => (FURN_MAT[t] ||= lam(FURNITURE[t].c, null, 0.24));
+let myRoom = [];
+
+function applyRoom(items){
+  myRoom = items;
+  roomGroup.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+  roomGroup.clear();
+  ROOM_COLLIDERS.length = 0;
+  for (const it of items){
+    const f = FURNITURE[it.t];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, f.h, f.d), furnMat(it.t));
+    m.position.set(it.x, f.h/2, it.z);
+    m.rotation.y = it.r;
+    m.castShadow = f.solid !== false;
+    m.receiveShadow = true;
+    roomGroup.add(m);
+    if (f.solid !== false) ROOM_COLLIDERS.push(itemBox(it));
+  }
+}
+applyRoom(await loadRoom());
+
+// 실시간 채널 — 개인 방은 계정별로 나눈다. 로그인 전엔 공용 채널로 둔다.
+const roomChannel = r => !r ? HALL.id
+  : (r.personal && ME) ? `${r.id}:${ME.uid}`
+  : r.id;
+
 // ── 플레이어 ──────────────────────────────────────────────────────
 let curName = SAVED ? '내 캐릭터' : '홍염';
 let player = mkChar(curName);
@@ -518,7 +549,7 @@ cv.addEventListener('pointercancel', () => { stick.on = false; stick.vx = stick.
 // ══ 충돌 해소 — 축 분리 방식이라 벽을 따라 미끄러진다 ═════════════
 const R = 0.42;
 function resolve(p, axis){
-  for (const c of COLLIDERS){
+  for (const c of COLLIDERS.concat(ROOM_COLLIDERS)){
     if (p.x + R <= c.minX || p.x - R >= c.maxX || p.z + R <= c.minZ || p.z - R >= c.maxZ) continue;
     if (axis === 'x') p.x = (p.x < (c.minX + c.maxX)/2) ? c.minX - R : c.maxX + R;
     else              p.z = (p.z < (c.minZ + c.maxZ)/2) ? c.minZ - R : c.maxZ + R;
@@ -540,7 +571,10 @@ function toast(msg){
 function setRoom(room){
   if (room === currentRoom) return;
   currentRoom = room;
-  elWhere.innerHTML = '현재 위치 · <b>' + (room ? room.name : HALL.name) + '</b>';
+  const label = !room ? HALL.name
+    : (room.personal && ME) ? `${ME.name}님의 자습실`
+    : room.name;
+  elWhere.innerHTML = '현재 위치 · <b>' + label + '</b>';
   if (room){
     elPTitle.textContent = room.name; elPSub.textContent = room.sub;
     elPrompt.classList.add('on');
@@ -648,7 +682,7 @@ function frame(){
   setRoom(inRoom);
 
   // 내 좌표 발행 — 룸이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
-  if (net) net.publish(P.x, P.z, P.yaw, moving, inRoom ? inRoom.id : HALL.id);
+  if (net) net.publish(P.x, P.z, P.yaw, moving, roomChannel(inRoom));
 
   // ── 카메라 회전 보간 ──
   if (Math.abs(camYawTo - camYaw) > 1e-4){
