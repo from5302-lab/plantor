@@ -242,6 +242,46 @@ function classcardSetKind(unitLabel: string): string | null {
   return null;
 }
 
+/**
+ * "2분 18초"(또는 "2분"/"18초") → 초. 파싱 실패는 0.
+ * 개인 학습현황 카드와 같은 규칙(src/components/learn/auto-result-card.tsx parseKoTime).
+ */
+function koTimeSec(t: unknown): number {
+  const s = String(t ?? "");
+  return Number(s.match(/(\d+)\s*분/)?.[1] ?? 0) * 60 + Number(s.match(/(\d+)\s*초/)?.[1] ?? 0);
+}
+
+/** 초 → "5분 20초" (1분 미만은 "20초", 초가 0이면 "5분") */
+function koTimeText(sec: number): string {
+  const m = Math.floor(sec / 60); const s = sec % 60;
+  if (m === 0) return `${s}초`;
+  return s === 0 ? `${m}분` : `${m}분 ${s}초`;
+}
+
+/** 1265 → "1,265". toLocaleString은 런타임 ICU에 기대게 되므로 직접 넣는다. */
+function comma(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/**
+ * 그날 학습을 시작한 시각(시) 모음 — 얼리버드(7시 전)·올빼미(23시 후) 판정의 유일한 근거.
+ *
+ * 대부분의 스크래퍼는 units[].startHour를 채우지만 **매일국어는 채우지 않는다.**
+ * 초등은 시각이 units가 아니라 elementary[].startAt("09:35")에 들어 있어,
+ * units만 보던 예전 코드에서는 매일국어만 하는 학생이 두 뱃지에 아예 도달할 수 없었다.
+ * (중등 리포트는 시계 시각 자체를 주지 않아 여전히 대상이 아니다.)
+ */
+function startHours(scraped: Json | null): number[] {
+  const units: Json[] = Array.isArray(scraped?.units) ? scraped!.units : [];
+  const out = units.map((u) => u?.startHour).filter((h: unknown): h is number => typeof h === "number");
+  const elementary: Json[] = Array.isArray(scraped?.elementary) ? scraped!.elementary : [];
+  for (const e of elementary) {
+    const h = parseInt(String(e?.startAt ?? "").slice(0, 2), 10);
+    if (Number.isFinite(h) && h >= 0 && h <= 23) out.push(h);
+  }
+  return out;
+}
+
 /** 매일국어 획득/최대 경험치 — 신형은 xpGot·xpMax, 구형 로그는 "19xp / 30xp" 문자열. */
 function dailykorXp(detail: Json | null): { got: number; max: number } | null {
   const got = Number(detail?.xpGot);
@@ -257,7 +297,7 @@ function dailykorXp(detail: Json | null): { got: number; max: number } | null {
  * 학습 세트가 여러 개면 세트별로 나눠 각자의 점수를 붙인다 — 평균 하나로 뭉치지 않는다.
  * 스크랩 원본에서 사람이 읽을 수 있는 값만 뽑는다.
  */
-function studySummary(
+export function studySummary(
   serviceSlug: string, units: Json[], detail: Json | null, scraped?: Json | null,
 ): { items: StudyItem[]; note: string | null; lastEnd: string | null } {
   const items: StudyItem[] = [];
@@ -321,13 +361,35 @@ function studySummary(
       });
     }
 
+    // 중등은 지문 단위. 정답률 하나만 싣던 것을 초등 수준까지 채운다 —
+    // 독해속도·훈련시간은 이미 긁어 오고 있었는데 피드에서 버리고 있었다.
     const passages: Json[] = Array.isArray(detail?.passages) ? detail!.passages : [];
-    for (const p of passages) {
+    const rows: StudyItem[] = [];
+    for (const [i, p] of passages.entries()) {
       if (!p?.type) continue;
+      const stats: StudyStat[] = [];
+      if (p.accuracy) stats.push({ name: "정답률", value: String(p.accuracy) });
+      // 독해속도는 숫자만 싣는다. 추천치(600자/분) 대비 '너무 빠름' 판정은
+      // 개인 화면(/learn)에만 둔다 — 피드는 공개 화면이라 딱지가 남의 집에도 보인다.
+      const speed = parseInt(String(p.readingSpeed ?? ""), 10);
+      if (Number.isFinite(speed) && speed > 0) stats.push({ name: "독해속도", value: `${comma(speed)}자/분` });
+      // 중등 리포트는 시계 시각을 주지 않는다(초등은 준다). 대신 걸린 시간을 싣는다.
+      const sec = koTimeSec(p.prepTime) + koTimeSec(p.readingTime) + koTimeSec(p.practiceTime);
+      if (sec > 0) stats.push({ name: "학습", value: koTimeText(sec) });
+      if (!stats.length) continue;
+      rows.push({ kind: passages.length > 1 ? `${i + 1}지문` : null, label: String(p.type), stats });
+    }
+    items.push(...rows.slice(0, 5));
+
+    // 단계별 경험치 — 초등의 단어·교과서·실전 세 칸에 대응한다.
+    // 지문이 아니라 하루 단위 값이라 지문 줄에 붙이면 같은 값이 두 번 찍힌다 → 요약 줄로 따로 둔다.
+    // 파싱을 나중에 붙여 과거 로그에는 없다 → 있을 때만.
+    const steps: Json[] = Array.isArray(detail?.stepXp) ? detail!.stepXp : [];
+    if (rows.length && steps.length) {
       items.push({
         kind: null,
-        label: String(p.type),
-        stats: p.accuracy ? [{ name: "정답률", value: String(p.accuracy) }] : [],
+        label: "단계별 경험치",
+        stats: steps.map((s) => ({ name: String(s.step), value: `${Number(s.got)}/${Number(s.max)}` })),
       });
     }
     // 등급("완료")만으로는 얼마나 했는지 알 수 없다 → 획득 경험치를 쓴다
@@ -387,7 +449,7 @@ export function computeXp(
   // 장착 뱃지 효과 — 조건을 만족한 날에만 붙는다.
   // 상한(SERVICE_CAP)보다 **먼저** 곱해야 한다. 뒤에 붙이면 상한을 우회한다.
   const eff = bundleEffects(opts.equippedBadges ?? []);
-  const hours = units.map((u) => u?.startHour).filter((h: unknown) => typeof h === "number") as number[];
+  const hours = startHours(scrapedData);
   const minutes = units
     .map((u) => Number(u?.studyMinutes))
     .filter((n) => Number.isFinite(n))
@@ -439,8 +501,8 @@ function detectBadges(ctx: BadgeCtx): string[] {
   const { units, detail, stats } = ctx;
   const add = (code: string, cond: unknown) => { if (cond) out.push(code); };
 
-  // ── 시간대 (모든 서비스 공통 · startHour) ──
-  const hours = units.map((u) => u?.startHour).filter((h: unknown) => typeof h === "number") as number[];
+  // ── 시간대 (모든 서비스 공통) ──
+  const hours = startHours(ctx.scraped);
   add("x-early-bird", hours.some((h) => h < 7));
   add("x-night-owl", hours.some((h) => h >= 23));
 
