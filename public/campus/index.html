@@ -9,7 +9,7 @@
         --primary:#2f9e6a;--radius:10px;
         --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{width:100%;height:100%;overflow:hidden;background:#e7efe8;font-family:var(--font)}
+  html,body{width:100%;height:100%;overflow:hidden;background:#f4f8f5;font-family:var(--font)}
   #cv{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
   #cv:active{cursor:grabbing}
 
@@ -28,7 +28,7 @@
          padding:8px 16px;font-size:13px;font-weight:700;backdrop-filter:blur(6px);white-space:nowrap}
   .where b{color:var(--primary)}
 
-  .prompt{position:absolute;bottom:104px;left:50%;transform:translateX(-50%) translateY(8px);
+  .prompt{position:absolute;bottom:64px;left:50%;transform:translateX(-50%) translateY(8px);
           background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
           padding:12px 16px;text-align:center;opacity:0;transition:opacity .18s,transform .18s;
           backdrop-filter:blur(6px);min-width:210px}
@@ -40,16 +40,6 @@
                  padding:8px 14px;border-radius:8px}
   .prompt kbd{background:#e2ece4;color:#35513f;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
 
-  .chars{position:absolute;bottom:14px;left:14px;display:flex;gap:6px;
-         background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-         padding:8px;backdrop-filter:blur(6px)}
-  .chars button{font-family:inherit;cursor:pointer;border:none;background:#eaf2ec;color:#35513f;
-                font-weight:700;font-size:12px;padding:7px 11px;border-radius:7px}
-  .chars button.on{background:var(--primary);color:#fff}
-
-  .hint{position:absolute;bottom:16px;right:14px;font-size:11px;line-height:1.7;color:#4d6455;
-        text-align:right;font-weight:700;text-shadow:0 1px 3px rgba(255,255,255,.85)}
-
   .toast{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
          background:var(--panel);border:1px solid var(--line);border-radius:8px;
          padding:9px 15px;font-size:12.5px;font-weight:700;opacity:0;transition:opacity .25s}
@@ -58,7 +48,7 @@
   #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}
-  @media(max-width:700px){.hint{display:none}.where{font-size:12px;padding:7px 12px}}
+  @media(max-width:700px){.where{font-size:12px;padding:7px 12px}}
 </style>
 </head>
 <body>
@@ -74,12 +64,6 @@
     <button id="pBtn">입장 <kbd>E</kbd></button>
   </div>
 
-  <div class="chars" id="chars"></div>
-  <div class="hint">
-    <div>이동 · <b>WASD</b> / <b>방향키</b></div>
-    <div>모바일 · 화면 드래그(조이스틱), 탭(이동)</div>
-    <div>줌 · 휠 · 카메라 회전 <b>Q</b>/<b>E</b>… 없음(고정)</div>
-  </div>
   <div class="toast" id="toast"></div>
   <div id="err"></div>
 </div>
@@ -113,8 +97,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xe7efe8);            // 밝은 민트 화이트
-scene.fog = new THREE.Fog(0xe7efe8, 40, 78);
+scene.background = new THREE.Color(0xf4f8f5);            // 거의 흰색
+scene.fog = new THREE.Fog(0xf4f8f5, 44, 84);
 const camera = new THREE.PerspectiveCamera(35, 1, 0.5, 200);
 
 // ── 재질 헬퍼 ──────────────────────────────────────────────────────
@@ -178,18 +162,18 @@ const prop = (id, x, z, w, d, h, c, solid = true) => PROPS.push({id,x,z,w,d,h,c,
 // 교실: 화이트보드 + 책상 6
 prop('class-board', -9, -21.5, 8, 0.3, 1.7, 0xf7fbf7);
 for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++)
-  prop(`class-desk-${r}${c}`, -14 + c*5, -18.4 + r*3.4, 3.4, 1.2, 0.75, 0xd9c3a0);
+  prop(`class-desk-${r}${c}`, -14 + c*5, -18.4 + r*3.4, 3.4, 1.2, 0.75, 0xe3d3b8);
 // 원장실: 책상 + 소파 + 책장
-prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xc9ab84);
+prop('office-desk', 9, -19.6, 5, 1.8, 0.78, 0xdcc7a8);
 prop('office-sofa', 9, -14.6, 4.4, 1.4, 0.7, 0x9fc9ac);
-prop('office-shelf', 16, -17, 0.9, 6, 2.2, 0xd9c3a0);
+prop('office-shelf', 16, -17, 0.9, 6, 2.2, 0xf0f4f1);
 // 개인 자습실: 칸막이 열람석 8
 for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++)
-  prop(`study-carrel-${r}${c}`, -15 + c*4, -1.4 + r*3.6, 3.0, 1.3, 1.15, 0xdfeade);
+  prop(`study-carrel-${r}${c}`, -15 + c*4, -1.4 + r*3.6, 3.0, 1.3, 1.15, 0xf2f6f3);
 // 휴게실: 소파 2 + 테이블 + 자판기
 prop('lounge-sofa-a', 6, -1.6, 5, 1.3, 0.7, 0x8fc9a8);
 prop('lounge-sofa-b', 6,  3.4, 5, 1.3, 0.7, 0x8fc9a8);
-prop('lounge-table', 6, 0.9, 3.2, 1.6, 0.5, 0xd9c3a0);
+prop('lounge-table', 6, 0.9, 3.2, 1.6, 0.5, 0xf0f4f1);
 prop('lounge-vending', 15.4, -1.6, 1.2, 2, 2.1, 0x4fae7a);
 
 // 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
@@ -246,14 +230,14 @@ function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
   m.receiveShadow = true; scene.add(m);
   return m;
 }
-floorPlate(-18, 18, -22.5, 6.5, 0xc9d6cb, 2, 0);          // 베이스 바닥(룸 사이 여백)
-floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0xf7fbf6, 2, 0.01);  // 복도 = 흰 타일
+floorPlate(-18, 18, -22.5, 6.5, 0xe9efea, 2, 0);          // 베이스 바닥(룸 사이 여백)
+floorPlate(CORRIDOR.minX, CORRIDOR.maxX, CORRIDOR.minZ, CORRIDOR.maxZ, 0xffffff, 2, 0.01);  // 복도 = 흰 타일
 for (const r of ROOMS)
   floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2,
-             new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.66).getHex(), 2, 0.01);
+             new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.88).getHex(), 2, 0.01);  // 아주 옅은 톤만
 
 // 벽 — 시각 높이만 여기서 정한다. 충돌은 위에서 이미 만들었으므로 영향 없다.
-const wallMat = lam(0xfbfdfb), wallLowMat = lam(0xeaf1e9);   // 흰 벽 / 허리벽은 살짝 그린
+const wallMat = lam(0xffffff), wallLowMat = lam(0xf4f8f5);   // 벽은 흰색
 for (const s of WALL_SEGS){
   const tall = isBackdrop(s);
   const h = tall ? WALL_H : LOW_H;
@@ -292,15 +276,16 @@ for (const r of ROOMS){
 // 조명 — 전역 조명만. 천장 전등 같은 로컬 광원은 두지 않는다
 // 전체 노출: hemi + sun + 포인트 합이 1을 크게 넘으면 툰 셰이딩이 흰색으로 포화된다(민머리에서 특히 눈에 띔)
 // 합이 1.4를 크게 넘으면 툰 3단 램프가 최상단에 붙어 흰색으로 포화된다
-scene.add(new THREE.HemisphereLight(0xffffff, 0xcddccf, 0.52));
-const sun = new THREE.DirectionalLight(0xfffaf0, 0.92);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xf0f5f1, 0.76));
+const sun = new THREE.DirectionalLight(0xfffdf7, 0.58);
 sun.position.set(14, 24, 14); sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, {left:-24, right:24, top:24, bottom:-24, near:1, far:70});
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0012;
-const amb = new THREE.AmbientLight(0xffffff, 0.16); scene.add(amb);   // 그림자 바닥을 띄운다
+sun.shadow.radius = 2;
+scene.add(new THREE.AmbientLight(0xffffff, 0.11));   // 그림자 바닥을 살짝 띄운다
 scene.add(sun, sun.target);
 
 
@@ -494,29 +479,6 @@ function interact(){
 document.getElementById('pBtn').onclick = interact;
 
 // 캐릭터 스위처
-const elChars = document.getElementById('chars');
-Object.keys(CHARACTERS).forEach(name => {
-  const b = document.createElement('button');
-  b.textContent = name; b.className = (name === curName) ? 'on' : '';
-  b.onclick = () => {
-    [...elChars.children].forEach(x => x.classList.toggle('on', x === b));
-    swapPlayer(name);
-  };
-  elChars.appendChild(b);
-});
-function swapPlayer(name){
-  curName = name;
-  disposeAvatar(player);
-  player = mkChar(name);
-  player.root.position.set(P.x, 0, P.z);
-  player.root.rotation.y = P.yaw;
-  const tag = nameTag('나'); tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
-  player.root.add(tag);
-  scene.add(player.root);
-  const c = CHARACTERS[name];
-  if (net) net.updateMeta(c.look, c.body);
-}
-
 // ══ 루프 ══════════════════════════════════════════════════════════
 const SPEED = 4.6;
 const clock = new THREE.Clock();

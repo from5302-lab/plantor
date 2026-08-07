@@ -3,6 +3,7 @@
 export const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBP7uTaWgLDa3Ta5m7BvEIVgUC_wFEnro4",
   authDomain: "plantor-from302.firebaseapp.com",
+  databaseURL: "https://plantor-from302-default-rtdb.asia-southeast1.firebasedatabase.app",   // 실시간 접속자용 (싱가포르)
   projectId: "plantor-from302",
   storageBucket: "plantor-from302.firebasestorage.app",
   messagingSenderId: "440286878236",

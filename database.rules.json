@@ -1,20 +1,22 @@
 {
+  // 캠퍼스(/campus) 실시간 접속자 전용. 그 외 경로는 전부 잠근다.
   "rules": {
     ".read": false,
     ".write": false,
 
     "campus": {
+      // 룸 단위로 나눈다 — 같은 룸에 있는 사람만 서로를 본다.
+      // 전원이 전원을 구독하면 비용이 접속자 수의 제곱으로 늘기 때문이다.
       "rooms": {
-        "//": "룸 단위 구독. 같은 룸에 있는 사람만 서로를 본다 — 비용이 접속자 수의 제곱으로 늘지 않게 나눈다.",
-
         "$room": {
           ".read": "auth != null",
 
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
 
+            // look/body 세부 검증은 클라이언트의 sanitizeCharacter가 맡는다.
+            // 여기선 형태와 이름 길이만 막는다.
             "meta": {
-              "//": "look/body 세부 검증은 클라이언트의 sanitizeCharacter가 맡는다. 여기선 형태와 이름 길이만 막는다.",
               ".validate": "newData.hasChild('name')",
               "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
               "look": { ".validate": "newData.hasChildren()" },
@@ -22,8 +24,8 @@
               "$other": { ".validate": false }
             },
 
+            // 맵 범위를 벗어난 좌표는 애초에 못 쓴다(순간이동·맵 밖 이탈 방지).
             "pos": {
-              "//": "맵 범위를 벗어난 좌표는 애초에 못 쓴다(순간이동·맵 밖 이탈 방지).",
               "x":  { ".validate": "newData.isNumber() && newData.val() >= -20 && newData.val() <= 20" },
               "z":  { ".validate": "newData.isNumber() && newData.val() >= -25 && newData.val() <= 10" },
               "y":  { ".validate": "newData.isNumber() && newData.val() >= -7 && newData.val() <= 7" },
