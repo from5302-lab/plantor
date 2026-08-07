@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { SERVICES } from "@/data/site";
+import { useXpLedger } from "@/lib/hooks/useXpLedger";
 import { ServiceIcon } from "@/components/ui/service-icon";
 import type { LearningLog, AutoUnit, DailykorDetail, DailykorPassage, DailykorVocaItem, DailykorElementaryRound } from "@/lib/types";
 
@@ -241,10 +242,12 @@ export function autoDateLabel(date: string, today: string): string {
 
 /** 자동인증 학습결과 섹션 — 어드민 그리드/학부모 계정/학부모 대시보드 공용.
  *  타이틀 + 날짜 라벨 + 카드 목록을 한 양식으로 렌더한다. 표시할 로그 없으면 null. */
-export function AutoResultSection({ logsByDate, today, className }: {
+export function AutoResultSection({ logsByDate, today, className, childId }: {
   logsByDate: Array<{ date: string; logs: LearningLog[] }>;  // 최신 날짜가 앞
   today: string;
   className?: string;  // 래퍼 여백 — 내용 없으면 래퍼째 렌더 안 함
+  /** 주면 카드마다 그날 XP 내역을 함께 보여준다 (원장 조회) */
+  childId?: string | null;
 }) {
   const groups = logsByDate
     .map((g) => ({ ...g, logs: g.logs.filter(hasAutoResultContent) }))
@@ -257,7 +260,7 @@ export function AutoResultSection({ logsByDate, today, className }: {
         <div key={g.date} className="mb-2.5 last:mb-0">
           <div className="mb-1 text-[11px] font-semibold text-p-secondary">{autoDateLabel(g.date, today)}</div>
           <div className="flex flex-col gap-2">
-            {g.logs.map((l) => <AutoResultCard key={l.id || l.serviceSlug} log={l} />)}
+            {g.logs.map((l) => <AutoResultCard key={l.id || l.serviceSlug} log={l} childId={childId} />)}
           </div>
         </div>
       ))}
@@ -265,7 +268,38 @@ export function AutoResultSection({ logsByDate, today, className }: {
   );
 }
 
-export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loading?: boolean; error?: string }) {
+/**
+ * 그날 이 서비스로 받은 XP와 그 근거 한 줄.
+ *
+ * 점수에 따른 차등은 예전부터 있었지만 화면에는 결과 숫자만 있었다.
+ * "잘 봤더니 더 받았다"가 보이지 않으면 점수는 목표가 되지 않는다.
+ * 산식은 서버가 계산하고 문장까지 만들어 원장에 넣어 둔다 — 여기서는 그대로 그린다.
+ */
+function XpBreakdown({ childId, serviceSlug, date }: { childId?: string | null; serviceSlug: string; date: string }) {
+  const entry = useXpLedger(childId ?? null, serviceSlug, date);
+  if (!entry || entry.xp <= 0) return null;
+  return (
+    <div className="mb-2 rounded-lg bg-[#f0faf1] px-2.5 py-1.5">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-[13px] font-bold text-[#1f7a33] tabular-nums">+{entry.xp} XP</span>
+        {entry.breakdown?.tier ? (
+          <span className="rounded-md bg-[#1f7a33] px-1.5 py-0.5 text-[10px] font-bold text-white">
+            {entry.breakdown.tierMin}점↑
+          </span>
+        ) : null}
+      </div>
+      {entry.xpWhy && (
+        <div className="mt-0.5 text-[11px] text-p-secondary tabular-nums leading-snug">{entry.xpWhy}</div>
+      )}
+    </div>
+  );
+}
+
+export function AutoResultCard({ log, loading, error, childId }: {
+  log?: LearningLog; loading?: boolean; error?: string;
+  /** 주면 그날 이 서비스로 받은 XP와 그 근거를 헤더 아래 붙인다 */
+  childId?: string | null;
+}) {
   const svc = log ? SERVICES.find((s) => s.slug === log.serviceSlug) : null;
   const svcName = svc?.name ?? null;
   const units = log?.scrapedData?.units ?? [];
@@ -293,6 +327,7 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
   const badge = statusBadge(log.autoStatus);
 
   const header = (
+    <>
     <div className="flex items-center gap-2 mb-2">
       {svc && <ServiceIcon service={svc} size={16} />}
       <span className="text-[12px] font-bold text-black/90">{svcName ?? "자동 인증"} {isCompletion ? "완료 인증" : "성적표"}</span>
@@ -300,6 +335,8 @@ export function AutoResultCard({ log, loading, error }: { log?: LearningLog; loa
         <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.bg, color: badge.fg }}>{badge.label}</span>
       )}
     </div>
+    <XpBreakdown childId={childId} serviceSlug={log.serviceSlug} date={log.date} />
+    </>
   );
 
   // 매일국어: '오늘의 학습'과 '어휘력 센터'는 성격이 다른 학습이라 카드를 나눠 표기

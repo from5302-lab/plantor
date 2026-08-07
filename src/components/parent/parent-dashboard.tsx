@@ -393,6 +393,7 @@ export function ParentDashboard({ userId }: { userId: string }) {
                 {/* 자동인증 학습결과 — 과제 등록과 무관하게 표시 (3개 화면 공용 섹션) */}
                 <AutoResultSection
                   className="px-[18px] pt-2.5 pb-3"
+                  childId={child.id}
                   today={today}
                   logsByDate={[{ date: today, logs: todayAuto }]}
                 />

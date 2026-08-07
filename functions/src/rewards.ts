@@ -4,7 +4,7 @@ import { db } from "./config";
 import {
   BADGE_BY_CODE, QUALITY_ANCHOR, RARITY_BONUS, REWARD_SLUGS,
   SPEED_PENALTY_FACTOR, SPEED_PENALTY_MULTIPLE, XP,
-  levelFromXp, streakMultiplier, bundleEffects,
+  levelFromXp, streakMultiplier, bundleEffects, scoreTier,
 } from "./rewards-config";
 import { recordRewardFeed, type FeedInput } from "./feed-events";
 
@@ -430,7 +430,14 @@ export function studySummary(
 
 export type XpComputation = {
   xp: number; quality: number; qualityRaw: number | null; note?: string;
-  breakdown: { base: number; quality: number; volume: number; streakMult: number; lateFactor: number; badgeMult?: number; badgePct?: number };
+  breakdown: {
+    base: number; quality: number; volume: number; streakMult: number; lateFactor: number;
+    badgeMult?: number; badgePct?: number;
+    /** 점수 구간 보너스 XP (0이면 어느 구간에도 못 닿음) */
+    tier?: number;
+    /** 그 보너스를 받은 문턱 점수 — 화면에 "95점↑" 으로 적는다 */
+    tierMin?: number;
+  };
 };
 
 /** 순수 계산 — 저장하지 않는다. 소급 스크립트/재계산 도구도 이걸 쓴다. */
@@ -445,7 +452,7 @@ export function computeXp(
 
   const base = autoStatus === "완료" ? XP.DONE : autoStatus === "진행중" ? XP.PARTIAL : 0;
   if (base === 0) {
-    return { xp: 0, quality: 0, qualityRaw: null, breakdown: { base: 0, quality: 0, volume: 0, streakMult: 1, lateFactor: 1, badgeMult: 1, badgePct: 0 } };
+    return { xp: 0, quality: 0, qualityRaw: null, breakdown: { base: 0, quality: 0, volume: 0, streakMult: 1, lateFactor: 1, badgeMult: 1, badgePct: 0, tier: 0 } };
   }
 
   const qOut = serviceSlug === "autovoca" ? qualityAutovoca(units)
@@ -454,6 +461,10 @@ export function computeXp(
         : qualityClass5(units);
 
   const qualityPts = Math.round(qOut.q * XP.QUALITY_MAX);
+  // 점수 구간 보너스 — 품질 점수와 **따로** 얹되, 그날 벌어들인 몫이므로
+  // 연속 배수·상한은 품질과 똑같이 받는다 (상한 밖에 두면 상한이 뚫린다).
+  const tier = scoreTier(serviceSlug, qOut.raw);
+  const tierPts = tier?.xp ?? 0;
   const volumePts = Math.min(XP.VOLUME_CAP, volumeExtra(serviceSlug, units, detail) * XP.VOLUME_UNIT);
   const mult = streakMultiplier(opts.streak);
 
@@ -477,11 +488,34 @@ export function computeXp(
   const badgeMult = 1 + badgePct / 100;
   const lateFactor = opts.late ? (eff.lateFactor ?? XP.LATE_FACTOR) : 1;
 
-  const xp = Math.min(XP.SERVICE_CAP, Math.round((base + qualityPts) * mult * badgeMult * lateFactor) + volumePts);
+  const xp = Math.min(XP.SERVICE_CAP, Math.round((base + qualityPts + tierPts) * mult * badgeMult * lateFactor) + volumePts);
   return {
     xp, quality: qOut.q, qualityRaw: qOut.raw, note: qOut.note,
-    breakdown: { base, quality: qualityPts, volume: volumePts, streakMult: mult, lateFactor, badgeMult, badgePct },
+    breakdown: {
+      base, quality: qualityPts, volume: volumePts, streakMult: mult, lateFactor, badgeMult, badgePct,
+      tier: tierPts, ...(tier ? { tierMin: tier.min } : {}),
+    },
   };
+}
+
+/**
+ * "왜 이만큼 받았는지" 한 줄. 피드와 학습현황이 같은 문장을 쓰도록 여기 한 곳에서 만든다.
+ *
+ * 점수에 따른 차등은 오래전부터 있었지만 화면 어디에도 그렇게 보이지 않았다.
+ * 아이 입장에서 XP 는 그냥 매일 다른 숫자였다 — 모르는 보상은 동기가 되지 않는다.
+ *   "점수 95 → +38 · 95점↑ 보너스 +20 · 연속 ×1.1"
+ */
+export function xpWhy(comp: XpComputation): string | null {
+  const b = comp.breakdown;
+  if (!b.base) return null;
+  const parts: string[] = [];
+  if (comp.qualityRaw != null) parts.push(`점수 ${comp.qualityRaw} → +${b.quality}`);
+  if (b.tier) parts.push(`${b.tierMin}점↑ 보너스 +${b.tier}`);
+  if (b.volume) parts.push(`추가 학습 +${b.volume}`);
+  if (b.streakMult > 1) parts.push(`연속 ×${b.streakMult}`);
+  if (b.badgePct) parts.push(`뱃지 +${b.badgePct}%`);
+  if (b.lateFactor < 1) parts.push(`만회 ×${b.lateFactor}`);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 // ── 히든 뱃지 판정 ────────────────────────────────────────────────────────────
@@ -826,15 +860,17 @@ export async function awardRewards(params: {
       const study = studySummary(serviceSlug, units, (scrapedData?.detail as Json) ?? null, scrapedData);
       // 표시용 요약이 달라졌으면 XP가 그대로여도 다시 쓴다.
       // 안 그러면 표기 규칙을 고쳐 배포해도 이미 적립된 날의 카드는 옛 문구로 남는다.
+      const why = xpWhy(comp);
       const summaryStale =
         JSON.stringify(ledgerSnap.data()?.studyItems ?? null) !== JSON.stringify(study.items) ||
         (ledgerSnap.data()?.studyNote ?? null) !== study.note ||
-        (ledgerSnap.data()?.studyEndAt ?? null) !== study.lastEnd;
+        (ledgerSnap.data()?.studyEndAt ?? null) !== study.lastEnd ||
+        (ledgerSnap.data()?.xpWhy ?? null) !== why;
       if (deltaXp !== 0 || newBadges.length || !ledgerSnap.exists || summaryStale) {
         tx.set(ledgerRef, {
           childId, serviceSlug, date, xp: capped, done: autoStatus === "완료",
           quality: comp.quality, qualityRaw: comp.qualityRaw, note: comp.note ?? null,
-          studyItems: study.items, studyNote: study.note, studyEndAt: study.lastEnd,
+          studyItems: study.items, studyNote: study.note, studyEndAt: study.lastEnd, xpWhy: why,
           breakdown: comp.breakdown, computedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
@@ -881,8 +917,9 @@ export async function awardRewards(params: {
                 xp: Number(d.data().xp ?? 0),
                 items: (d.data().studyItems ?? []) as StudyItem[],
                 note: (d.data().studyNote ?? null) as string | null,
+                xpWhy: (d.data().xpWhy ?? null) as string | null,
               })),
-            { slug: serviceSlug, xp: capped, items: study.items, note: study.note },
+            { slug: serviceSlug, xp: capped, items: study.items, note: study.note, xpWhy: why },
           ].filter((s) => s.slug && s.xp > 0),
           // 학습이 실제로 끝난 시각 (스크랩 시각이 아니라) — 없으면 null → 기록 시각으로 폴백
           occurredAt: [

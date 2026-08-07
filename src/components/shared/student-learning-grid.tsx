@@ -401,6 +401,7 @@ export function StudentLearningGrid({
       {Object.values(autoLogs[selectedDate] ?? {}).some(hasAutoResultContent) ? (
         <AutoResultSection
           className="px-4 pb-3"
+          childId={childId}
           today={today}
           logsByDate={[{ date: selectedDate, logs: Object.values(autoLogs[selectedDate]) }]}
         />

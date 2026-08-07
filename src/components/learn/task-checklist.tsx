@@ -241,6 +241,7 @@ export function TaskChecklist({
             {AUTO_VERIFIED_SLUGS.has(task.serviceSlug) && (
               <div className="mx-4 mb-3 empty:hidden">
                 <AutoResultCard
+                  childId={childId}
                   log={autoLogsBySlug[task.serviceSlug]}
                   loading={autoVerifying[task.id]}
                   error={autoError[task.id]}

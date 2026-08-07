@@ -61,7 +61,11 @@ const GROWTH_BADGES = new Set(["x-jump", "x-turnaround", "av-never-give-up", "x-
 export type StudyStat = { name: string; value: string };
 export type StudyItem = { kind: string | null; label: string; stats: StudyStat[] };
 /** 과목 하나 — 그 과목에서 한 학습 세트들(items)과 과목 단위 요약(note). */
-export type StudyEntry = { slug: string; xp: number; items: StudyItem[]; note: string | null };
+export type StudyEntry = {
+  slug: string; xp: number; items: StudyItem[]; note: string | null;
+  /** 그 XP가 어떻게 나왔는지 한 줄 — "점수 95 → +38 · 95점↑ 보너스 +20" */
+  xpWhy?: string | null;
+};
 
 export type FeedInput = {
   childId: string;

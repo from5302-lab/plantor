@@ -68,11 +68,33 @@ export function streakMultiplier(streak: number): number {
 export const QUALITY_ANCHOR = {
   autovocaSpell: { zero: 40, full: 90 },    // 스펠 1회정답률 (실측 중앙 71)
   autovocaTest: { zero: 60, full: 100 },    // 폴백: 테스트 평균
-  classcard: { zero: 60, full: 100 },       // 유닛 평균점수 (실측 중앙 91)
+  classcard: { zero: 80, full: 99 },        // 유닛 평균점수 (실측 P10 81 · 중앙 91 · P90 99)
   classcardListen: { zero: 50, full: 100 }, // 듣기 테스트 점수
   dailykor: { zero: 20, full: 85 },         // xp 달성률 % (실측 중앙 52)
   class5: { zero: 40, full: 90 },           // 카드 1회정답률 (실측 중앙 70)
 };
+
+/**
+ * 점수 구간 보너스 — 완만한 품질 점수(0~40) 위에 문턱을 하나 더 둔다.
+ * "조금만 더 하면 한 칸 올라간다"가 보여야 점수가 목표가 된다.
+ *
+ * 서비스마다 점수 분포가 딴판이라(클래스카드 중앙 91 vs 매일국어 중앙 48)
+ * `90점 이상` 같은 공통 문턱은 한쪽은 절반이 받고 한쪽은 아무도 못 받는다.
+ * 각 서비스에서 **자기 분포의 상위 1/4** 이 +20 을 받도록 실측(완료 139건)으로 잡았다.
+ * 높은 문턱을 앞에 둔다 — 먼저 걸리는 것을 쓴다.
+ */
+export const SCORE_TIERS: Record<string, Array<{ min: number; xp: number }>> = {
+  "classcard-middle": [{ min: 95, xp: 20 }, { min: 90, xp: 10 }],
+  class5: [{ min: 90, xp: 20 }, { min: 80, xp: 10 }],
+  autovoca: [{ min: 90, xp: 20 }, { min: 80, xp: 10 }],
+  dailykor: [{ min: 80, xp: 20 }, { min: 65, xp: 10 }],
+};
+
+/** 그 점수가 닿은 구간 (없으면 null). */
+export function scoreTier(serviceSlug: string, raw: number | null | undefined): { min: number; xp: number } | null {
+  if (raw == null || !Number.isFinite(raw)) return null;
+  return (SCORE_TIERS[serviceSlug] ?? []).find((t) => raw >= t.min) ?? null;
+}
 
 /** 매일국어: 추천 독해속도의 이 배수를 넘으면 지문을 읽지 않은 것으로 보고 Q를 절반으로. */
 export const SPEED_PENALTY_MULTIPLE = 2;

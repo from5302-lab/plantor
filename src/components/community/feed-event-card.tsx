@@ -30,6 +30,8 @@ export type StudyEntry = {
   /** 구버전 이벤트 호환 — items가 생기기 전 기록 */
   labels?: string[];
   note: string | null;
+  /** 그 XP가 어떻게 나왔는지 (서버가 만든 문장 그대로 렌더) */
+  xpWhy?: string | null;
 };
 
 export type FeedEvent = {
@@ -159,6 +161,12 @@ function ServiceRow({ entry, showXp = true }: { entry: StudyEntry; showXp?: bool
           {showXp && <span className="text-[11px] font-semibold text-p-secondary tabular-nums">{entry.xp} XP</span>}
         </span>
       </div>
+
+      {/* 점수에 따른 차등은 오래전부터 있었는데 화면에 그렇게 보인 적이 없다.
+          숫자 옆에 이유가 붙어야 "점수를 잘 받으면 더 받는다"가 전달된다. */}
+      {showXp && entry.xpWhy && (
+        <div className="mt-1 text-[10.5px] text-p-muted tabular-nums">{entry.xpWhy}</div>
+      )}
 
       {items.length > 0 && (
         <div className="flex flex-col gap-1 mt-1.5">
