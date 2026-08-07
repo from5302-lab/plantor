@@ -369,10 +369,14 @@ export function studySummary(
       if (!p?.type) continue;
       const stats: StudyStat[] = [];
       if (p.accuracy) stats.push({ name: "정답률", value: String(p.accuracy) });
-      // 독해속도는 숫자만 싣는다. 추천치(600자/분) 대비 '너무 빠름' 판정은
-      // 개인 화면(/learn)에만 둔다 — 피드는 공개 화면이라 딱지가 남의 집에도 보인다.
+      // 숫자(1,265자/분)는 높은 게 좋은 건지 낮은 게 좋은 건지 알 수가 없다 — 정답률과 반대다.
+      // 매일국어가 스스로 밝힌 추천 속도의 2배를 넘으면 지문을 넘긴 것으로 보고
+      // 리워드에서도 **이미 XP를 절반으로 깎고 있다**. 그 판정을 그대로 적는다(/learn 과 같은 문구).
       const speed = parseInt(String(p.readingSpeed ?? ""), 10);
-      if (Number.isFinite(speed) && speed > 0) stats.push({ name: "독해속도", value: `${comma(speed)}자/분` });
+      if (Number.isFinite(speed) && speed > 0) {
+        const recommended = Number(detail?.recommendedSpeed) || 600;
+        stats.push({ name: "독해속도", value: speed > recommended * SPEED_PENALTY_MULTIPLE ? "너무 빠름" : "적정" });
+      }
       // 중등 리포트는 시계 시각을 주지 않는다(초등은 준다). 대신 걸린 시간을 싣는다.
       const sec = koTimeSec(p.prepTime) + koTimeSec(p.readingTime) + koTimeSec(p.practiceTime);
       if (sec > 0) stats.push({ name: "학습", value: koTimeText(sec) });

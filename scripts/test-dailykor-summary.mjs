@@ -38,7 +38,7 @@ check("[중등] 지문 1개 → 지문줄 + 단계 요약", s1.items, [
     kind: null, label: "비문학 > 과학",
     stats: [
       { name: "정답률", value: "33%" },
-      { name: "독해속도", value: "1,265자/분" },   // 판정("너무 빠름")은 /learn 에만
+      { name: "독해속도", value: "너무 빠름" },     // 1265 > 추천 600 × 2 — 숫자 대신 판정을 적는다
       { name: "학습", value: "5분 20초" },          // 2분18초 + 2분6초 + 56초
     ],
   },
@@ -65,6 +65,9 @@ const s2 = studySummary("dailykor", mh2.units, mh2.detail, mh2);
 check("[중등] 지문 2개 → 1지문·2지문", s2.items.map((i) => i.kind), ["1지문", "2지문"]);
 check("[중등] stepXp 없는 과거 로그 → 요약 줄 없음", s2.items.length, 2);
 check("[중등] 독해훈련 건너뛴 지문도 시간 합산", s2.items[1].stats.at(-1), { name: "학습", value: "1분 34초" });
+// 1435 는 추천(600)의 2배 초과, 1183 은 이하 — 문턱 양쪽을 한 로그에서 본다
+check("[중등] 속도 판정 문턱", s2.items.map((i) => i.stats[1]),
+  [{ name: "독해속도", value: "너무 빠름" }, { name: "독해속도", value: "적정" }]);
 
 // ── 중등: 정답률만 있고 나머지가 없는 아주 오래된 로그 ──────────────────────
 const mhOld = { units: [], detail: { passages: [{ type: "비문학 > 사회", accuracy: "50%" }] } };
