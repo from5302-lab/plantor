@@ -10,7 +10,7 @@
         --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:100%;height:100%;overflow:hidden;background:#f4f8f5;font-family:var(--font)}
-  #cv{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
+  #cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
   #cv:active{cursor:grabbing}
 
   .hud{position:fixed;inset:0;pointer-events:none;color:var(--ink)}
@@ -23,12 +23,13 @@
   .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
   .brand small{color:var(--muted);font-weight:600;font-size:11.5px}
 
-  .where{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  .where{position:absolute;top:60px;left:14px;
          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-         padding:8px 16px;font-size:13px;font-weight:700;backdrop-filter:blur(6px);white-space:nowrap}
+         padding:7px 14px;font-size:12.5px;font-weight:700;backdrop-filter:blur(6px);white-space:nowrap;
+         box-shadow:0 2px 10px rgba(30,60,45,.10)}
   .where b{color:var(--primary)}
 
-  .prompt{position:absolute;bottom:64px;left:50%;transform:translateX(-50%) translateY(8px);
+  .prompt{position:absolute;bottom:70px;left:50%;transform:translateX(-50%) translateY(8px);
           background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
           padding:12px 16px;text-align:center;opacity:0;transition:opacity .18s,transform .18s;
           backdrop-filter:blur(6px);min-width:210px}
@@ -40,6 +41,12 @@
                  padding:8px 14px;border-radius:8px}
   .prompt kbd{background:#e2ece4;color:#35513f;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
 
+  .rot{position:absolute;bottom:16px;right:14px;display:flex;gap:8px}
+  .rot button{width:42px;height:42px;border-radius:50%;background:var(--panel);border:1px solid var(--line);
+              color:#35513f;font-weight:800;font-size:15px;backdrop-filter:blur(6px);
+              box-shadow:0 2px 10px rgba(30,60,45,.12)}
+  .rot button:active{background:var(--primary);color:#fff}
+
   .toast{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
          background:var(--panel);border:1px solid var(--line);border-radius:8px;
          padding:9px 15px;font-size:12.5px;font-weight:700;opacity:0;transition:opacity .25s}
@@ -48,7 +55,15 @@
   #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}
-  @media(max-width:700px){.where{font-size:12px;padding:7px 12px}}
+  @media(max-width:760px){
+    .brand{top:10px;left:10px;padding:7px 10px;font-size:12px;gap:6px}
+    .brand small{display:none}
+    .where{top:50px;left:10px;font-size:12px;padding:6px 11px}
+    .prompt{bottom:76px;min-width:calc(100vw - 28px);left:14px;right:14px;transform:translateY(8px)}
+    .prompt.on{transform:translateY(0)}
+    .rot{bottom:14px;right:10px}
+    .rot button{width:46px;height:46px}
+  }
 </style>
 </head>
 <body>
@@ -61,9 +76,13 @@
   <div class="prompt" id="prompt">
     <h4 id="pTitle">플래닝룸</h4>
     <p id="pSub">시간표 · 일정 관리</p>
-    <button id="pBtn">입장 <kbd>E</kbd></button>
+    <button id="pBtn">입장 <kbd>Space</kbd></button>
   </div>
 
+  <div class="rot">
+    <button id="rotL" aria-label="왼쪽으로 회전">↶</button>
+    <button id="rotR" aria-label="오른쪽으로 회전">↷</button>
+  </div>
   <div class="toast" id="toast"></div>
   <div id="err"></div>
 </div>
@@ -91,7 +110,9 @@ import { joinCampus } from '/campus/lib/net.js';
 
 const cv = document.getElementById('cv');
 const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));   // 모바일 GPU 보호
+const MOBILE = matchMedia('(max-width:760px)').matches || navigator.maxTouchPoints > 1;
+const PR_CAP = MOBILE ? 1.5 : 2;                          // 모바일 GPU 보호
+renderer.setPixelRatio(Math.min(devicePixelRatio, PR_CAP));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -151,10 +172,9 @@ const ROOMS = [
 ];
 const HALL = {id:'hall', name:'복도'};
 const CORRIDOR = {minX:-17, maxX:17, minZ:-12, maxZ:-4};
-const DOOR_W = 3.6, WALL_T = 0.4, WALL_H = 3.4, LOW_H = 1.2;
-// 맵 바깥 경계(북/서)만 높게 세워 배경으로 쓰고, 나머지 벽은 전부 허리 높이로 낮춘다.
-// 카메라가 +x/+z에서 내려다보므로 이렇게 해야 어떤 벽도 플레이어를 가리지 않는다.
-const isBackdrop = s => s.minZ < -21.8 || s.minX < -17.2;
+const DOOR_W = 3.6, WALL_T = 0.4, LOW_H = 1.35;
+// 벽은 전부 허리 높이다. 카메라를 Q/E로 돌릴 수 있으므로, 어느 각도에서도
+// 벽이 플레이어를 가리지 않으려면 높은 배경벽을 두면 안 된다.
 
 // 가구 — 저작 데이터에서 시각·충돌을 함께 생성한다(장식에서 유추 금지)
 const PROPS = [];
@@ -237,18 +257,17 @@ for (const r of ROOMS)
              new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.88).getHex(), 2, 0.01);  // 아주 옅은 톤만
 
 // 벽 — 시각 높이만 여기서 정한다. 충돌은 위에서 이미 만들었으므로 영향 없다.
-const wallMat = lam(0xffffff), wallLowMat = lam(0xf4f8f5);   // 벽은 흰색
+const wallMat = lam(0xf4f8f5);   // 벽은 흰색. 카메라가 회전하므로 전부 허리 높이로 둔다
 for (const s of WALL_SEGS){
-  const tall = isBackdrop(s);
-  const h = tall ? WALL_H : LOW_H;
-  const m = new THREE.Mesh(new THREE.BoxGeometry(s.maxX - s.minX, h, s.maxZ - s.minZ), tall ? wallMat : wallLowMat);
+  const h = LOW_H;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(s.maxX - s.minX, h, s.maxZ - s.minZ), wallMat);
   m.position.set((s.minX+s.maxX)/2, h/2, (s.minZ+s.maxZ)/2);
-  m.castShadow = tall; m.receiveShadow = true;
+  m.receiveShadow = true;
   scene.add(m);
 }
 // 룸 사이 빈 구간을 채우는 순수 장식 블록 (충돌 없음 — 이미 룸 벽으로 막혀 있다)
 for (const gx of [0]) for (const gz of [[-22,-12],[-4,6]]){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(2, LOW_H, gz[1]-gz[0]), wallLowMat);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(2, LOW_H, gz[1]-gz[0]), wallMat);
   m.position.set(gx, LOW_H/2, (gz[0]+gz[1])/2);
   m.receiveShadow = true; scene.add(m);
 }
@@ -280,7 +299,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0xf0f5f1, 0.76));
 const sun = new THREE.DirectionalLight(0xfffdf7, 0.58);
 sun.position.set(14, 24, 14); sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
 Object.assign(sun.shadow.camera, {left:-24, right:24, top:24, bottom:-24, near:1, far:70});
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0012;
@@ -383,7 +402,12 @@ showCount();
 
 // ══ 카메라 ════════════════════════════════════════════════════════
 // 고정 아이소메트릭 프레이밍. 위치와 look-at을 각각 따로 스무딩한다.
-const CAM_DIR = new THREE.Vector3(15, 19.5, 15);
+// 카메라는 수평각(camYaw)으로 돈다. 기본 45°가 기존 아이소메트릭 각도다.
+const CAM_R = 21.2, CAM_H = 19.5;
+let camYaw = Math.PI/4, camYawTo = Math.PI/4;
+const CAM_DIR = new THREE.Vector3();
+const camDirFrom = y => CAM_DIR.set(Math.sin(y)*CAM_R, CAM_H, Math.cos(y)*CAM_R);
+camDirFrom(camYaw);
 let zoom = 1;
 const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
 const camLook = new THREE.Vector3(P.x, 0.9, P.z);
@@ -391,9 +415,13 @@ addEventListener('wheel', e => {
   zoom = THREE.MathUtils.clamp(zoom + Math.sign(e.deltaY)*0.08, 0.34, 1.65);   // 최소값은 내 캐릭터를 들여다볼 수 있는 거리
 }, {passive:true});
 
-// 카메라 기준 이동축 (화면 위 = 화면 안쪽)
-const FWD   = new THREE.Vector3(-CAM_DIR.x, 0, -CAM_DIR.z).normalize();
-const RIGHT = new THREE.Vector3().crossVectors(FWD, new THREE.Vector3(0,1,0)).normalize();
+// 카메라 기준 이동축 (화면 위 = 화면 안쪽). 카메라가 돌면 같이 돈다.
+const FWD = new THREE.Vector3(), RIGHT = new THREE.Vector3();
+function syncAxes(){
+  FWD.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
+  RIGHT.set(Math.cos(camYaw), 0, -Math.sin(camYaw));
+}
+syncAxes();
 
 // ══ 입력 ══════════════════════════════════════════════════════════
 const keys = {};
@@ -401,7 +429,9 @@ const MOVEKEYS = new Set(['arrowup','arrowdown','arrowleft','arrowright','w','a'
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (MOVEKEYS.has(k)){ if (!keys[k]) tap.target = null; keys[k] = true; e.preventDefault(); }
-  if (k === 'e') interact();
+  if (k === 'q') turn(-1);
+  if (k === 'e') turn(1);
+  if (k === ' ' || k === 'enter'){ interact(); e.preventDefault(); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
@@ -478,6 +508,12 @@ function interact(){
 }
 document.getElementById('pBtn').onclick = interact;
 
+// ── 카메라 회전 ────────────────────────────────────────────────
+// 45°씩 끊어 돌린다. 자유 회전은 아이소메트릭 격자가 어긋나 보인다.
+function turn(dir){ camYawTo += dir * Math.PI/4; }
+document.getElementById('rotL').onclick = () => turn(-1);
+document.getElementById('rotR').onclick = () => turn(1);
+
 // 캐릭터 스위처
 // ══ 루프 ══════════════════════════════════════════════════════════
 const SPEED = 4.6;
@@ -485,8 +521,13 @@ const clock = new THREE.Clock();
 const moveVec = new THREE.Vector3(), tmp = new THREE.Vector3();
 
 function resize(){
-  const w = innerWidth, h = innerHeight;
-  if (cv.width !== Math.floor(w * renderer.getPixelRatio()) || cv.height !== Math.floor(h * renderer.getPixelRatio())){
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  // 브라우저를 확대하면 devicePixelRatio가 바뀐다. 픽셀비를 다시 잡지 않으면
+  // 버퍼 크기가 어긋나 화면 옆에 흰 여백이 남는다.
+  const pr = Math.min(devicePixelRatio || 1, PR_CAP);
+  if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr);
+  if (cv.width !== Math.round(w*pr) || cv.height !== Math.round(h*pr)){
     renderer.setSize(w, h, false);
     camera.aspect = w/h; camera.updateProjectionMatrix();
   }
@@ -564,8 +605,16 @@ function frame(){
   // 내 좌표 발행 — 룸이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
   if (net) net.publish(P.x, P.z, P.yaw, moving, inRoom ? inRoom.id : HALL.id);
 
+  // ── 카메라 회전 보간 ──
+  if (Math.abs(camYawTo - camYaw) > 1e-4){
+    camYaw += (camYawTo - camYaw) * Math.min(1, dt * 9);
+    camDirFrom(camYaw); syncAxes();
+  }
+
   // ── 카메라: 위치와 look-at을 각각 스무딩 ──
-  tmp.copy(CAM_DIR).multiplyScalar(zoom).add(player.root.position);
+  // 세로로 긴 화면(모바일)은 가로 시야가 좁다. 거리로 보정해 주변 맥락이 보이게 한다.
+  const fit = Math.min(1.7, Math.max(1, 1.35 / camera.aspect));
+  tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(player.root.position);
   camPos.lerp(tmp, 1 - Math.exp(-6.5 * dt));
   camLook.lerp(tmp.set(P.x, 0.95, P.z), 1 - Math.exp(-9 * dt));
   camera.position.copy(camPos);
