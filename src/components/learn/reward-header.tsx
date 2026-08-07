@@ -90,6 +90,16 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
                   const b = BADGE_BY_CODE.get(code);
                   return b ? <span key={code} className="text-[15px] leading-none" title={b.name}>{b.emoji}</span> : null;
                 })}
+                {/* 아직 아무것도 안 낀 학생 — 자리가 비면 뭘 할 수 있는지 모른다.
+                    딴 뱃지가 있을 때만 권한다. 하나도 없는데 권하면 재촉이 된다. */}
+                {state.equippedBadges.length === 0 && state.badges.length > 0 && (
+                  <button
+                    onClick={() => (onPanel ? onPanel("badges") : setPanel("badges"))}
+                    className="rounded-md bg-[#f0faf1] px-1.5 py-0.5 text-[11px] font-bold text-[#1f7a33] border-none cursor-pointer"
+                  >
+                    뱃지 끼우기
+                  </button>
+                )}
                 <span className="font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
                 {state.streak >= 3 && (
                   <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
@@ -134,6 +144,14 @@ export function RewardHeader({ childId, childName, isDemo = false, readOnly = fa
                   const b = BADGE_BY_CODE.get(code);
                   return b ? <span key={code} className="text-[15px] leading-none" title={b.name}>{b.emoji}</span> : null;
                 })}
+                {state.equippedBadges.length === 0 && state.badges.length > 0 && (
+                  <button
+                    onClick={() => (onPanel ? onPanel("badges") : setPanel("badges"))}
+                    className="rounded-md bg-[#f0faf1] px-1.5 py-0.5 text-[11px] font-bold text-[#1f7a33] border-none cursor-pointer"
+                  >
+                    뱃지 끼우기
+                  </button>
+                )}
                 <span className="text-[13px] font-bold" style={{ color: T.teal }}>Lv.{state.level}</span>
                 {state.streak >= 3 && (
                   <span className="ml-auto shrink-0 inline-flex items-center gap-0.5 rounded-full bg-[#fff4e5] px-1.5 py-0.5 text-[11px] font-bold text-[#a86a00]">
