@@ -10,7 +10,7 @@
 //    ③ 옷(TOPS/BOTTOMS) — 슬롯. 소매·바짓단 길이가 팔다리 재질을 결정한다
 //    ④ 색(PALETTE)  — material.color만 바꾼다. 메시가 늘지 않는다
 // ══════════════════════════════════════════════════════════════════
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
 // ── 공용 재질 ─────────────────────────────────────────────────────
 const ramp = new THREE.DataTexture(new Uint8Array([90, 178, 255]), 3, 1, THREE.RedFormat);

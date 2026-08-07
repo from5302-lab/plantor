@@ -117,6 +117,7 @@ export function Navbar() {
               역할마다 실제로 오가는 곳만 올리고, 계정 동작(내 정보·로그아웃)은 메뉴에 남긴다.
               소개는 아직 회원이 아닌 사람 몫이라 로그인하면 자리를 비운다. */}
           <div className="flex min-[601px]:hidden items-center gap-2.5">
+            <a href="/campus" className="nav-link text-[13px] font-medium text-p-secondary no-underline">캠퍼스</a>
             {!loading && !user && (
               <Link href="/about" className="nav-link text-[13px] font-medium text-p-secondary no-underline">
                 소개
@@ -217,6 +218,9 @@ function DesktopLinks({
 }) {
   return (
     <>
+        {/* 캠퍼스는 Next 라우트지만 three.js 를 SPA 전환으로 들고 다니면 정리가
+            까다롭다. 일반 <a> 로 전체 이동시켜 매번 깨끗하게 시작한다. */}
+        <a href="/campus" className="nav-link text-sm font-medium text-p-secondary no-underline">캠퍼스</a>
       {/* 피드 링크는 두지 않는다 — 로고가 이미 피드로 간다(feedHref).
           소개는 아직 회원이 아닌 사람 몫이라 로그인하면 자리를 비운다(모바일과 동일). */}
       {!loading && !user && (
