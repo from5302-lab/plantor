@@ -238,16 +238,23 @@ const ZONES = ROOMS.map(r => ({
 }));
 
 // ══ ② 시각 레이어 ═════════════════════════════════════════════════
-const lam = (c, map) => new THREE.MeshLambertMaterial({color:c, map:map || null});
+// lift = 자체발광 비율. 조명을 올리지 않고 재질만 밝힌다
+// (조명을 올리면 캐릭터 툰 셰이딩이 흰색으로 포화된다).
+const lam = (c, map, lift = 0) => new THREE.MeshLambertMaterial({
+  color: c, map: map || null,
+  emissive: new THREE.Color(c).multiplyScalar(lift),
+});
+// flat = 조명을 아예 무시한다. 지정한 색 그대로 나온다.
+const flat = (c, map) => new THREE.MeshBasicMaterial({color:c, map:map || null});
 
 // 바닥 — 전체 베이스 한 장 + 룸/복도 타일을 그 위에
 function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
   const w = maxX - minX, d = maxZ - minZ;
   const t = tileTex(1); t.repeat.set(w/rep, d/rep);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lam(color, t));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), flat(color, t));
   m.rotation.x = -Math.PI/2;
   m.position.set((minX+maxX)/2, y, (minZ+maxZ)/2);
-  m.receiveShadow = true; scene.add(m);
+  scene.add(m);
   return m;
 }
 floorPlate(-18, 18, -22.5, 6.5, 0xe9efea, 2, 0);          // 베이스 바닥(룸 사이 여백)
@@ -256,8 +263,17 @@ for (const r of ROOMS)
   floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2,
              new THREE.Color(r.hue).lerp(new THREE.Color(0xffffff), 0.88).getHex(), 2, 0.01);  // 아주 옅은 톤만
 
+// 바닥이 조명을 무시하는 대신 그림자도 못 받는다. 그림자만 그리는 투명 평면을
+// 한 겹 덮어 접지감을 살린다(이게 없으면 아바타가 공중에 뜬 것처럼 보인다).
+const shadowCatcher = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 34).rotateX(-Math.PI/2),
+  new THREE.ShadowMaterial({opacity: 0.15}));
+shadowCatcher.position.set(0, 0.02, -8);
+shadowCatcher.receiveShadow = true;
+scene.add(shadowCatcher);
+
 // 벽 — 시각 높이만 여기서 정한다. 충돌은 위에서 이미 만들었으므로 영향 없다.
-const wallMat = lam(0xf4f8f5);   // 벽은 흰색. 카메라가 회전하므로 전부 허리 높이로 둔다
+const wallMat = lam(0xf4f8f5, null, 0.42);   // 벽은 흰색. 카메라가 회전하므로 전부 허리 높이로 둔다
 for (const s of WALL_SEGS){
   const h = LOW_H;
   const m = new THREE.Mesh(new THREE.BoxGeometry(s.maxX - s.minX, h, s.maxZ - s.minZ), wallMat);
@@ -274,7 +290,7 @@ for (const gx of [0]) for (const gz of [[-22,-12],[-4,6]]){
 
 // 가구
 for (const p of PROPS){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), lam(p.c));
+  const m = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), lam(p.c, null, 0.24));
   m.position.set(p.x, p.h/2, p.z);
   m.castShadow = true; m.receiveShadow = true;
   m.name = p.id; scene.add(m);
