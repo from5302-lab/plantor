@@ -39,8 +39,23 @@ export const DEFAULT_MODEL = 'male-a';
 // 캠퍼스 월드 기준 키(m). 2등신 치비라 성인 1.5m 로 두면 머리가 문틀을 넘는다.
 const TARGET_H = 1.30;
 
-// map.js 가 쓰는 동작 이름 → Kenney 클립 이름
-const CLIP = { idle: 'idle', walk: 'walk', run: 'sprint', sit: 'sit' };
+// map.js 가 쓰는 동작 이름 → Kenney 클립 이름.
+//
+// 팩에는 32종이 들어 있다(전처리 로그 참고). 지금 쓰는 건 아래 여덟이고,
+// 나머지는 쓸 자리가 생기면 여기에 한 줄 추가하면 바로 돈다:
+//   attack-kick-left/right · attack-melee-left/right · die · drive
+//   holding-both/left/right (+ -shoot) · static
+//   wheelchair-sit / -move-forward/back/left/right / -look-left/right
+const CLIP = {
+  idle:'idle', walk:'walk', run:'sprint', sit:'sit',
+  crouch:'crouch', jump:'jump', fall:'fall',
+  pick:'pick-up', wave:'interact-right', point:'interact-left',
+  yes:'emote-yes', no:'emote-no',
+};
+
+// 한 번 재생하고 끝나는 동작(반복하면 안 되는 것들)
+const ONCE = new Set(['jump', 'pick', 'wave', 'point', 'yes', 'no']);
+export const ACTIONS = Object.keys(CLIP);
 
 const cache = new Map();          // model 이름 → {scene, height}
 let CLIPS = null;                 // AnimationClip[] — 전 캐릭터가 공유한다
@@ -132,19 +147,42 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     a.enabled = true;
     actions[clip.name] = a;
   }
-  const rig = { root, model, mixer, actions, cur: null, last: 0, kind: 'kenney', owned, modelName: name };
+  const rig = { root, model, mixer, actions, cur: null, last: 0, lockUntil: 0,
+                kind: 'kenney', owned, modelName: name };
   play(rig, 'idle', 0);
   return rig;
 }
 
-function play(rig, clipName, fade = 0.18){
+function play(rig, act, fade = 0.18){
+  const clipName = CLIP[act] || 'idle';
   if (rig.cur === clipName) return;
   const next = rig.actions[clipName];
   if (!next) return;
   const prev = rig.actions[rig.cur];
-  next.reset().setEffectiveWeight(1).play();
+  next.reset().setEffectiveWeight(1);
+  if (ONCE.has(act)){
+    // 한 번만 재생하고 마지막 프레임에서 멈춘다. 안 그러면 손 흔들기가 무한 반복된다.
+    next.setLoop(THREE.LoopOnce, 1);
+    next.clampWhenFinished = true;
+  } else {
+    next.setLoop(THREE.LoopRepeat, Infinity);
+    next.clampWhenFinished = false;
+  }
+  next.play();
   if (prev && fade > 0){ next.crossFadeFrom(prev, fade, false); }
   rig.cur = clipName;
+}
+
+/**
+ * 한 번짜리 동작을 끼워 넣는다(손 흔들기·줍기 등). 끝나면 이전 동작으로 돌아간다.
+ * poseAvatar 가 매 프레임 기본 동작을 다시 걸기 때문에, 끝날 때까지 잠가 둔다.
+ */
+export function playOnce(rig, act){
+  if (!rig || !CLIP[act]) return;
+  const clip = rig.actions[CLIP[act]];
+  if (!clip) return;
+  play(rig, act, 0.12);
+  rig.lockUntil = performance.now() + clip.getClip().duration * 1000;
 }
 
 /**
@@ -155,7 +193,8 @@ export function poseAvatar(rig, lower = 'idle', upper = 'none', t = 0){
   const now = performance.now();
   const dt = rig.last ? Math.min((now - rig.last) / 1000, 0.06) : 0;
   rig.last = now;
-  play(rig, CLIP[lower] || 'idle');
+  // 한 번짜리 동작이 도는 중엔 기본 동작으로 덮지 않는다
+  if (!rig.lockUntil || now >= rig.lockUntil) play(rig, lower);
   rig.mixer.update(dt);
 }
 

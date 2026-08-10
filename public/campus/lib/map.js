@@ -51,6 +51,9 @@ export async function mountCampus(){
     }
   }
   const { buildAvatar, poseAvatar, disposeAvatar } = Avatar;
+  //  한 번짜리 동작(점프·손흔들기·줍기)은 Kenney 어댑터에만 있다.
+  //  코드 아바타로 폴백했을 땐 조용히 무시된다.
+  const playOnce = Avatar.playOnce || (() => {});
   const IS_GLB = Avatar !== CodeAvatar;
 
   // Kenney 키트(건물·나무) — 못 받으면 예전 프로시저럴 지오메트리로 돌아간다
@@ -815,6 +818,46 @@ export async function mountCampus(){
   meTag.scale.set(2.0, 0.5, 1);
 
   const P = {x: 0, z: 16, yaw: Math.PI, walkT: 0};
+  //  앉기 — 앉아 있는 동안에는 이동 입력을 '일어서기'로 해석한다.
+  //  seat 가 있으면 벤치에 앉은 것이라 일어설 때 자리를 살짝 비켜 준다.
+  let sitting = false, seat = null;
+  function refreshSitBtn(){
+    if (elSit) elSit.textContent = sitting ? '일어서기' : '앉기';
+  }
+  function sitAt(x, z, yaw, s){
+    sitting = true; seat = s || null;
+    P.x = x; P.z = z; P.yaw = yaw;
+    player.root.position.set(x, 0, z);
+    player.root.rotation.y = yaw;
+    tap.target = null;
+    refreshSitBtn();
+  }
+  function standUp(){
+    if (!sitting) return;
+    sitting = false;
+    if (seat){                       // 벤치에서 일어날 땐 앞으로 한 걸음
+      P.z += 0.9; player.root.position.z = P.z;
+      seat = null;
+    }
+    refreshSitBtn();
+  }
+  function toggleSit(){
+    if (switching || uiOpen() || editing) return;
+    if (sitting) standUp();
+    else sitAt(P.x, P.z, P.yaw, null);
+  }
+
+  //  점프·손흔들기는 상태가 아니라 **한 번 재생되는 몸짓**이다.
+  //  걷는 중에도 낼 수 있게 이동을 막지 않는다.
+  let gestureUntil = 0;
+  function gesture(act, ms){
+    if (switching || uiOpen() || editing) return;
+    if (sitting) standUp();
+    playOnce(player, act);
+    gestureUntil = performance.now() + ms;
+  }
+  const doJump = () => gesture('jump', 500);
+  const doWave = () => gesture('wave', 700);
   player.root.position.set(P.x, 0, P.z);
 
   // ── 실제 접속자 ────────────────────────────────────────────────────
@@ -833,7 +876,8 @@ export async function mountCampus(){
     const tag = nameTag(info.name); tag.position.set(0, 3.45, 0); rig.root.add(tag);
     rig.root.visible = false;          // 첫 좌표가 오기 전엔 숨긴다(원점에서 미끄러져 오는 것 방지)
     scene.add(rig.root);
-    remotes.set(uid, {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0, moving:false, walkT:0, first:true});
+    remotes.set(uid, {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0,
+                      act:'idle', moving:false, walkT:0, first:true});
     showCount();
   }
   function dropRemote(uid){
@@ -846,7 +890,11 @@ export async function mountCampus(){
   function poseRemote(uid, p){
     const r = remotes.get(uid);
     if (!r) return;
-    r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw; r.moving = p.moving;
+    const act = p.act || 'idle';
+    // 몸짓은 상태가 아니라 사건이다 — 받은 즉시 한 번 재생하고 이전 상태로 돌아간다
+    if (act === 'jump' || act === 'wave'){ playOnce(r.rig, act); }
+    else { r.act = act; r.moving = act === 'walk' || act === 'run'; }
+    r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw;
     if (r.first){ r.x = p.x; r.z = p.z; r.yaw = p.yaw; r.first = false; r.rig.root.visible = true; }
   }
 
@@ -889,6 +937,7 @@ export async function mountCampus(){
   const elFade = document.getElementById('fade');
 
   function placeAt(x, z, yaw){
+    sitting = false; seat = null;
     P.x = x; P.z = z; P.yaw = yaw; P.walkT = 0;
     player.root.position.set(x, 0, z);
     player.root.rotation.y = yaw;
@@ -949,17 +998,22 @@ export async function mountCampus(){
   // ══ 입력 ══════════════════════════════════════════════════════════
   const keys = {};
   const MOVEKEYS = new Set(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d']);
+  addEventListener('keydown', e => { if (e.key === 'Shift') keys['shift'] = true; });
+  addEventListener('keyup',   e => { if (e.key === 'Shift') keys['shift'] = false; });
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (MOVEKEYS.has(k)){ if (!keys[k]) tap.target = null; keys[k] = true; e.preventDefault(); }
     if (k === 'q') turn(-1);
     if (k === 'e') turn(1);
+    if (k === 'c'){ toggleSit(); e.preventDefault(); }
+    if (k === 'j'){ doJump(); e.preventDefault(); }
+    if (k === 'v'){ doWave(); e.preventDefault(); }
     if (k === ' ' || k === 'enter'){ interact(); e.preventDefault(); }
   });
   addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
   // 보이지 않는 터치 조작: 드래그=조이스틱 / 탭=그 지점으로 이동
-  const stick = {on:false, ox:0, oy:0, vx:0, vy:0, moved:false};
+  const stick = {on:false, ox:0, oy:0, vx:0, vy:0, mag:0, moved:false};
   const tap = {target:null, stuck:0};
   const DEAD = 16;
   const rayc = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -979,8 +1033,8 @@ export async function mountCampus(){
   cv.addEventListener('pointermove', e => {
     if (!stick.on) return;
     const dx = e.clientX - stick.ox, dy = e.clientY - stick.oy, m = Math.hypot(dx, dy);
-    if (m > DEAD){ stick.moved = true; stick.vx = dx/m; stick.vy = dy/m; }
-    else { stick.vx = stick.vy = 0; }
+    if (m > DEAD){ stick.moved = true; stick.vx = dx/m; stick.vy = dy/m; stick.mag = m; }
+    else { stick.vx = stick.vy = 0; stick.mag = 0; }
   });
   function endPointer(e){
     if (!stick.on) return;
@@ -992,10 +1046,10 @@ export async function mountCampus(){
         if (hit){ tap.target = hit; tap.stuck = 0; }
       }
     }
-    stick.on = false; stick.vx = stick.vy = 0;
+    stick.on = false; stick.vx = stick.vy = 0; stick.mag = 0;
   }
   cv.addEventListener('pointerup', endPointer);
-  cv.addEventListener('pointercancel', () => { stick.on = false; stick.vx = stick.vy = 0; });
+  cv.addEventListener('pointercancel', () => { stick.on = false; stick.vx = stick.vy = 0; stick.mag = 0; });
 
   // ══ 충돌 해소 — 축 분리 방식이라 벽을 따라 미끄러진다 ═════════════
   const R = 0.42;
@@ -1018,6 +1072,7 @@ export async function mountCampus(){
   const elBag = document.getElementById('bagPanel'), elShop = document.getElementById('shopPanel');
   const elRoomBtn = document.getElementById('roomBtn'), elEditBar = document.getElementById('editBar');
   const elTalk = document.getElementById('talkPanel');
+  const elSit = document.getElementById('sitBtn'), elJump = document.getElementById('jumpBtn');
   let currentZone = null, toastTimer = 0;
 
   function toast(msg){
@@ -1076,6 +1131,8 @@ export async function mountCampus(){
   // ── 카메라 회전 ────────────────────────────────────────────────
   // 45°씩 끊어 돌린다. 자유 회전은 아이소메트릭 격자가 어긋나 보인다.
   function turn(dir){ camYawTo += dir * Math.PI/4; }
+  if (elSit) elSit.onclick = () => toggleSit();
+  if (elJump) elJump.onclick = () => doJump();
   document.getElementById('rotL').onclick = () => turn(-1);
   document.getElementById('rotR').onclick = () => turn(1);
 
@@ -1397,6 +1454,8 @@ export async function mountCampus(){
 
   // ══ 루프 ══════════════════════════════════════════════════════════
   const SPEED = 4.6;
+  const RUN_SPEED = 7.6;             // 걷기의 1.65배 — sprint 클립 속도와 어울린다
+  const RUN_MAG = 44;                // 조이스틱을 이만큼 밀면 달린다(px)
   const clock = new THREE.Clock();
   const moveVec = new THREE.Vector3(), tmp = new THREE.Vector3();
   const occRay = new THREE.Raycaster(), occDir = new THREE.Vector3();
@@ -1463,17 +1522,25 @@ export async function mountCampus(){
       else moveVec.copy(tmp).normalize();
     }
 
-    const moving = moveVec.lengthSq() > 0.0001;
+    let moving = moveVec.lengthSq() > 0.0001;
+    // 앉은 채로 방향을 넣으면 일어선다 — 앉기를 풀려고 버튼을 찾아 헤매지 않게
+    if (sitting && moving) standUp();
+    if (sitting) moving = false;
+
+    // 달리기: 데스크탑은 Shift, 모바일은 조이스틱을 멀리 밀었을 때.
+    // 별도 버튼을 두지 않는다 — 손가락 하나로 걷기·달리기가 이어져야 한다.
+    const running = moving && (keys['shift'] || stick.mag > RUN_MAG);
     if (moving){
       const before = P.x + P.z;
-      P.x += moveVec.x * SPEED * dt; resolve(P, 'x');
-      P.z += moveVec.z * SPEED * dt; resolve(P, 'z');
+      const sp = running ? RUN_SPEED : SPEED;
+      P.x += moveVec.x * sp * dt; resolve(P, 'x');
+      P.z += moveVec.z * sp * dt; resolve(P, 'z');
       // 탭 이동이 벽에 막혀 제자리면 목적지를 버린다(소프트락 방지)
       if (tap.target){
         tap.stuck = (Math.abs((P.x + P.z) - before) < 0.004) ? tap.stuck + dt : 0;
         if (tap.stuck > 0.45) { tap.target = null; tap.stuck = 0; }
       }
-      P.walkT += dt * SPEED * 1.55;
+      P.walkT += dt * sp * 1.55;
       const want = Math.atan2(moveVec.x, moveVec.z);
       let d = want - P.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));            // 최단 회전
@@ -1481,7 +1548,11 @@ export async function mountCampus(){
     }
     player.root.position.set(P.x, 0, P.z);
     player.root.rotation.y = P.yaw;
-    poseAvatar(player, moving ? 'walk' : 'idle', 'none', moving ? P.walkT/7 : t);
+    const myAct = sitting ? 'sit' : running ? 'run' : moving ? 'walk' : 'idle';
+    // 몸짓이 도는 동안엔 poseAvatar 가 기본 동작으로 덮지 않게 어댑터가 잠근다.
+    // 여기서는 남들에게 보낼 상태만 몸짓으로 바꿔 준다.
+    const wire = performance.now() < gestureUntil ? 'jump' : myAct;
+    poseAvatar(player, myAct, 'none', moving ? P.walkT/7 : t);
 
     for (const n of NPCS) poseAvatar(n.rig, 'idle', 'none', t + n.phase);
 
@@ -1495,8 +1566,8 @@ export async function mountCampus(){
       r.yaw += dy * Math.min(1, dt * 12);
       r.rig.root.position.set(r.x, 0, r.z);
       r.rig.root.rotation.y = r.yaw;
-      if (r.moving) r.walkT += dt * SPEED * 1.55;
-      poseAvatar(r.rig, r.moving ? 'walk' : 'idle', 'none', r.moving ? r.walkT/7 : t);
+      if (r.moving) r.walkT += dt * (r.act === 'run' ? RUN_SPEED : SPEED) * 1.55;
+      poseAvatar(r.rig, r.act || 'idle', 'none', r.moving ? r.walkT/7 : t);
     }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
@@ -1545,7 +1616,7 @@ export async function mountCampus(){
     setZone(editing ? null : inZone);
 
     // 내 좌표 발행 — 채널이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
-    if (net) net.publish(P.x, P.z, P.yaw, moving, channelOf(inZone));
+    if (net) net.publish(P.x, P.z, P.yaw, wire, channelOf(inZone));
 
     // 조감에서는 이름표가 서로 겹쳐 오히려 안 읽힌다 — 멀어지면 감춘다
     const tagsOn = zoom < 1.15;

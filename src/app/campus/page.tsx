@@ -119,6 +119,12 @@ export default function CampusPage() {
           </button>
         </div>
 
+        {/* 몸짓 — 키보드가 없는 손에서도 쓸 수 있어야 한다(C · J 키와 같은 동작) */}
+        <div className="acts-hud">
+          <button id="sitBtn" className="chipbtn" type="button">앉기</button>
+          <button id="jumpBtn" className="chipbtn" type="button">점프</button>
+        </div>
+
         <div className="rot">
           <button id="rotL" aria-label="왼쪽으로 회전">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
