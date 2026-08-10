@@ -28,11 +28,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
-const MODEL_URL = '/campus/models/chibi-base/chibi.glb';
+// 슬림 롱다리 리셰이프판 — 원본(chibi.glb)을 Blender에서 버텍스·본 동시 변형한 것.
+// 원본 파일과 리그 이름·구조가 같아 이 모듈의 포즈 코드가 그대로 돈다.
+const MODEL_URL = '/campus/models/chibi-base/chibi-slim.glb?v=2';
 export const CREDIT = '"Free Pack - Chibi Base Mesh (Rigged)" by DuNguyn Studio (CC-BY-4.0)';
 
-// 캠퍼스 월드 기준 키(m). 기존 코드 아바타가 1.49m 였다.
-const TARGET_H = 1.45;
+// 캠퍼스 월드 기준 키(m). 슬림 체형은 롱다리라 약간 키운다.
+const TARGET_H = 1.52;
 
 const BONE = {
   hips : 'Hips_01',
@@ -188,11 +190,15 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   const GHOST = look.ghost === true;
   const skinMat = GHOST
     ? new THREE.MeshStandardMaterial({
-        color: 0xdff0e6, roughness: 0.85,
-        transparent: true, opacity: 0.28, depthWrite: false,
+        color: 0xf4f5f3, roughness: 0.85,          // 방문자도 화이트 클레이 톤
+        transparent: true, opacity: 0.3, depthWrite: false,
       })
     : new THREE.MeshStandardMaterial({
-        color: look.skin ?? 0xefc8a2, roughness: 0.66,
+        // 기본색은 레퍼런스 그대로의 화이트 클레이 — 색은 커스터마이징(look.skin)이 입힌다
+        color: look.skin ?? 0xf2f1ee, roughness: 0.7,
+        // 실내 조명이 약해 스탠다드 재질이 회색으로 죽는다 — 맵 재질(lam)과 같은 리프트
+        emissive: new THREE.Color(look.skin ?? 0xf2f1ee).multiplyScalar(0.22),
+        flatShading: true,     // 각진 로우폴리 룩 — 슬림 체형 레퍼런스가 패싯 스타일이다
       });
   // SkeletonUtils.clone — 스킨드 메시는 일반 clone() 으로 복제하면 뼈대를 공유해
   // 캐릭터들이 같은 포즈로 움직인다. 전용 clone 이 뼈대까지 새로 만들어 준다.
@@ -221,7 +227,8 @@ export function buildAvatar(look = {}, body = null, opts = {}){
       // 뒷면만 그리는 확대 셸 = 테두리. depthWrite 를 끄고 먼저 그려야
       // 안쪽 반투명 몸이 그 위에 겹쳐 비친다(안 그러면 셸이 몸을 덮어 덩어리가 된다).
       const om = new THREE.MeshBasicMaterial({
-        color: 0x4d6357, side: THREE.BackSide,
+        color: 0x8b9089, side: THREE.BackSide,     // 테두리도 무채색으로
+
         transparent: true, opacity: 0.9, depthWrite: false,
       });
       outlineMats.push(om);
@@ -256,11 +263,6 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     armR : BONE.armR.map(n => prep(find(n))),
   };
 
-  // 동숲 두상 — 머리 뼈를 비균등 스케일로 눌러 광대가 넓고 정수리가 낮은
-  // 실루엣을 만든다. 값이 작아 뼈 축이 월드와 살짝 어긋나도 티가 안 난다.
-  // 얼굴 데칼 치수는 이 스케일 **이후** 월드 좌표에서 재므로 같이 따라온다.
-  J.head.bone.scale.set(1.12, 0.94, 1.06);
-
   // T포즈 → A포즈. 결과를 새 기준 자세로 굳힌다
   const DOWN = Math.PI/2 * 0.86;
   for (const [arm, dir] of [[J.armL, -1], [J.armR, +1]]){
@@ -270,19 +272,31 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   inst.root.updateMatrixWorld(true);
   J.armL[1] = prep(J.armL[1].bone); J.armR[1] = prep(J.armR[1].bone);
 
-  // 얼굴 데칼 — 머리 치수를 스켈레톤에서 실측해서 붙인다
-  const headBone = J.head.bone, topBone = find(BONE.headTop);
-  const pH = new THREE.Vector3(), pT = new THREE.Vector3();
-  headBone.getWorldPosition(pH); topBone.getWorldPosition(pT);
-  const ry = pH.distanceTo(pT) / 2;
-  const center = pH.clone().lerp(pT, 0.5);
+  // 얼굴 데칼 — **정점 실측(HEAD)** 기준으로 붙인다. 뼈 간격(Head→HeadTop) 방식은
+  // 슬림 리셰이프에서 HeadTop 본이 어긋나며 얼굴이 가슴에 붙는 사고를 냈다(실측 확인).
+  // 정점 대역은 스킨 웨이트에서 직접 재므로 본이 이상해도 머리를 벗어나지 않는다.
+  const headBone = J.head.bone;
+  let center, ry, rx, rz;
+  if (HEAD){
+    const s = model.getWorldScale(new THREE.Vector3()).x;     // 정규화 스케일(균등)
+    center = HEAD.center.clone().applyMatrix4(model.matrixWorld);
+    ry = HEAD.ry * s; rx = HEAD.rx * s; rz = HEAD.rz * s;
+  } else {
+    // 실측 실패 시 옛 방식 폴백
+    const topBone = find(BONE.headTop);
+    const pH = new THREE.Vector3(), pT = new THREE.Vector3();
+    headBone.getWorldPosition(pH); topBone.getWorldPosition(pT);
+    ry = pH.distanceTo(pT) / 2;
+    rx = ry*HEAD_RATIO.x; rz = ry*HEAD_RATIO.z;
+    center = pH.clone().lerp(pT, 0.5);
+  }
 
   const faceMat = new THREE.MeshStandardMaterial({
     map: faceTexture(look.expr ?? 'normal', look.eye),
     transparent: true, alphaTest: 0.42, roughness: 0.7,
     side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2,
   });
-  const face = new THREE.Mesh(decalGeo(ry*HEAD_RATIO.x, ry, ry*HEAD_RATIO.z), faceMat);
+  const face = new THREE.Mesh(decalGeo(rx, ry, rz), faceMat);
   const bq = new THREE.Quaternion(), bs = new THREE.Vector3(), mq = new THREE.Quaternion();
   headBone.getWorldQuaternion(bq); headBone.getWorldScale(bs);
   inst.root.getWorldQuaternion(mq);

@@ -549,13 +549,13 @@ export async function mountCampus(){
     body:{height:1.02, head:1.10, girth:1.16, shoulder:1.08, limb:1.08, legLen:0.89, torso:0.94},
     look:{hairStyle:'bald', topStyle:'hood', bottomStyle:'pants', glasses:true,
           brow:'thick', mouth:'flat', blush:'hatch',
-          skin:0xf5d2b6, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a'},
+          skin:0xf2f1ee, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a'},
   };
   // 매점쌤 — GLB 아바타는 지금 skin·표정만 반영하므로 피부톤·표정으로만 구분된다.
   // look 의 나머지 필드는 코드 아바타(?code) 폴백일 때를 위해 채워 둔다.
   const SHOPKEEPER = {
     body: {...TEACHER.body},
-    look: {...TEACHER.look, glasses:false, skin:0xf2c9a8, expr:'happy',
+    look: {...TEACHER.look, glasses:false, skin:0xf7f2e8, expr:'happy',
            top:0x2e7d4f, bottom:0x27563f, shoe:0x223d30, tie:0x1f5c40},
   };
   // 레벨별 고정 NPC. 충쌤은 원장실 사람이라 본관에만 있다.
@@ -592,7 +592,7 @@ export async function mountCampus(){
   // 아니다. GLB 캐릭터에 그대로 쓰면 얼굴까지 회색이 되어 표정이 안 읽힌다.
   // 방문자는 색을 칠하는 대신 **투명 실루엣**으로 간다 — 아직 아무도 아닌 상태다.
   if (IS_GLB && !SAVED)
-    myLook = ME ? {...myLook, skin: 0xefc8a2} : {...myLook, ghost: true};
+    myLook = ME ? {...myLook, skin: 0xf2f1ee} : {...myLook, ghost: true};
   let myBody = SAVED ? {...SAVED.body} : {...BODY_BASE};
 
   applyRoom(await loadRoom());

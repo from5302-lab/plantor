@@ -82,6 +82,16 @@
         ]
       },
       {
+        "comment": "캐릭터 GLB — 개발 중 자주 갈리는데 기본 1시간 캐시에 걸려 옛 모델이 보였다. 코드(lib)와 같은 정책으로 맞춘다",
+        "source": "/campus/models/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "**",
         "headers": [
           {
