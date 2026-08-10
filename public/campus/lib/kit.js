@@ -18,6 +18,7 @@ const BASE = '/campus/models/kenney/kit/';
 // Nature Kit 은 팔레트가 민트 계열이라 City Kit(건물·나무)과 색이 안 맞는다.
 // 두 팩을 섞어 쓰되, 'grass' 재질만 City Kit 잔디색으로 덮어 톤을 통일한다.
 export const GRASS = 0x61cb8b;          // City Kit Suburban 팔레트에서 실측한 잔디색
+export const DIRT  = 0xd8a878;          // 흙길 — 같은 팔레트의 베이지(#f2bf99)를 한 톤 눌렀다
 const loader = new GLTFLoader();
 const cache = new Map();          // 이름 → {scene, size:Vector3}
 

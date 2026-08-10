@@ -14,7 +14,7 @@ import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
-import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS } from '/campus/lib/kit.js';
+import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
 
 export async function mountCampus(){
   // ══════════════════════════════════════════════════════════════════
@@ -56,7 +56,7 @@ export async function mountCampus(){
   let KIT_OK = false;
   try {
     await loadKit(['building-type-p', 'building-type-k', 'building-type-s',
-                   'tree-large', 'tree-small', 'driveway-long', 'fence', 'planter',
+                   'tree-large', 'tree-small', 'fence', 'planter',
                    'flower_purpleA', 'flower_redA', 'flower_yellowA',
                    'plant_bushSmall', 'grass_large',
                    'fountain-round', 'stall-bench']);
@@ -138,7 +138,9 @@ export async function mountCampus(){
     // 예전 값(42/24.5 = 거리 48m)에서는 캐릭터가 점이었다. 마을을 좁히고
     // 카메라를 당겼다 — 거리 25m 면 1.3m 캐릭터가 화면 높이의 1/10 쯤 된다.
     // fog 는 레벨마다 다르다. 실내 값을 야외에 그대로 쓰면 건물이 안개에 잠긴다.
-    outdoor: {id:'outdoor', name:'마을',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:21.0, camH:17.5, fog:[46, 105]},
+    // spawn.yaw 는 **카메라 반대 방향**이어야 뒷모습이 보인다.
+    // 카메라 기본각이 45°(camYaw=π/4)이므로 캐릭터는 그 반대인 -3π/4 를 본다.
+    outdoor: {id:'outdoor', name:'마을',     outdoor:true, spawn:{x:0,   z:0,    yaw:-Math.PI*0.75}, camR:21.0, camH:18.0, fog:[46, 105]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
     union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
@@ -319,22 +321,14 @@ export async function mountCampus(){
   function buildOutdoor(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
-    // 잔디: 1×1 타일을 수천 장 까는 대신 **키트 팔레트의 잔디색**을 큰 판에 쓴다.
-    // 눈에 보이는 결과는 같고 드로우콜은 하나다.
+    // 바닥은 **잔디와 흙길** 둘뿐이다. 포장타일을 깔아 봤더니 도로처럼 읽혀
+    // 마을이 아니라 주차장이 됐다. 색은 키트 팔레트에서 실측한 값을 쓴다.
     plate(0, -4, 400, 400, KIT_OK ? GRASS : 0xbcd4b4, -0.06);
 
-    // 길·광장: City Kit 포장타일을 인스턴싱한다(수백 장이 드로우콜 한 줌).
-    const PAVE_S = 8.0;                                      // 타일 스케일
-    const PT = kitSize('driveway-long');                     // 원본 0.36 × 0.40 (거의 정사각)
-    const TW = PT ? PT.x * PAVE_S : 1.6, TD = PT ? PT.z * PAVE_S : 3.2;
-    const paved = [];
-    const pave = (cx, cz, w, d) => {
-      const nx = Math.max(1, Math.round(w / TW)), nz = Math.max(1, Math.round(d / TD));
-      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
-        paved.push({x: cx - w/2 + (i + 0.5)*TW, z: cz - d/2 + (j + 0.5)*TD});
-    };
-    pave(0,  4, 6, 12);                                      // 중앙 진입로
-    pave(0, -4.5, 22, 5);                                    // 건물 앞 가로축 광장
+    // 흙길 — 판 몇 장이면 된다. 타일 인스턴싱은 이음매가 격자로 보인다.
+    const dirt = (cx, cz, w, d) => plate(cx, cz, w, d, KIT_OK ? DIRT : 0xe0c184, -0.03);
+    dirt(0,  4, 4.2, 14);                                    // 정문 → 광장
+    dirt(0, -4.5, 20, 3.6);                                  // 건물 앞 가로길
 
     for (const b of BUILDINGS){
       // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
@@ -373,21 +367,10 @@ export async function mountCampus(){
 
       // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
       COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1});
-      // 진입로
-      if (KIT_OK) pave(b.x, z1 + 3.2, DOOR_W + 2.4, 6.4);
-      else plate(b.x, z1 + 3.2, DOOR_W + 2.4, 6.4, 0xeef1ec, -0.02);
+      // 진입로 — 문 앞에서 가로길까지 이어 준다
+      dirt(b.x, z1 + 1.6, 3.0, 3.6);
       ZONES.push({kind:'enter', level:b.level, name:b.name, sub:'건물 안으로',
         minX:b.x - DOOR_W/2 - 0.6, maxX:b.x + DOOR_W/2 + 0.6, minZ:z1 + 0.2, maxZ:z1 + 2.6});
-    }
-
-    // 길 타일을 여기서 한 번에 깐다(건물 진입로까지 모은 뒤)
-    if (KIT_OK && paved.length){
-      const g = placeKitInstanced('driveway-long', paved,
-        {scale: PAVE_S, track: m => junk.push(m)});
-      if (g){ g.position.y = 0.015; world.add(g); }
-    } else {
-      plate(0,  8, 12, 26, 0xeef1ec, -0.03);
-      plate(0, -5, 44,  9, 0xeef1ec, -0.03);
     }
 
     for (const p of PROPS.filter(p => p.level === 'outdoor')) addProp(p);

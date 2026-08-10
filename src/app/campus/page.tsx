@@ -11,11 +11,29 @@
  * 모듈을 붙였다 뗀다 — three.js 를 Next 번들에 넣지 않으려는 것이다.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./campus.css";
+import { pickQuip } from "./loading-quips";
 
 export default function CampusPage() {
   const errRef = useRef<HTMLDivElement>(null);
+  // 3D 가 준비될 때까지 덮는 로딩 화면. map.js 가 window.__ready 를 세운다.
+  const [loading, setLoading] = useState(true);
+  const [quip, setQuip] = useState("");
+
+  // 문구는 마운트 뒤에 뽑는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
+  useEffect(() => {
+    setQuip(pickQuip());
+    // 로딩이 길어지면 한 줄만 붙들고 있지 않는다. 두세 개는 읽히게 돌린다.
+    const rotate = setInterval(() => setQuip(prev => pickQuip(prev)), 2600);
+
+    const w = window as unknown as { __ready?: boolean };
+    const done = () => { clearInterval(rotate); setLoading(false); };
+    const poll = setInterval(() => { if (w.__ready) done(); }, 120);
+    // 3D 가 끝내 안 뜨더라도 로딩 화면에 갇히면 안 된다 — 에러 문구를 볼 수 있게 걷는다.
+    const bail = setTimeout(done, 20000);
+    return () => { clearInterval(rotate); clearInterval(poll); clearTimeout(bail); };
+  }, []);
 
   useEffect(() => {
     // three 의 애드온(GLTFLoader 등)은 `import ... from 'three'` 라는 맨 스펙파이어를
@@ -114,6 +132,26 @@ export default function CampusPage() {
       {/* 레벨 전환 암전. HUD 밖에 둔다 — .hud 는 pointer-events:none 이라
           전환 중 조작을 막지 못한다. 여기서 덮어야 실제로 막힌다. */}
       <div className="fade" id="fade" />
+
+      {/* 첫 로딩 — 로고를 중심으로 링이 돌고 아래에 마을 소식 한 줄 */}
+      {loading && (
+        <div className="boot" role="status" aria-live="polite">
+          <div className="boot-mark">
+            <span className="boot-ring" aria-hidden="true" />
+            <svg viewBox="0 0 96 96" width="46" height="46" aria-hidden="true">
+              <path
+                fill="#38a848"
+                d="M 1.75 65.007812 L 27.445312 21.648438 L 55.066406 12.65625 L 90.078125 27.75 L 94.253906 59.871094 L 64.0625 83.316406 Z"
+              />
+              <path
+                fill="#ffffff"
+                d="M 50.8125 68.925781 L 40.554688 68.925781 L 40.554688 29.148438 L 51.988281 29.148438 C 56.453125 29.148438 59.609375 29.367188 61.460938 29.804688 C 63.289062 30.269531 64.828125 31.011719 66.074219 32.03125 C 67.566406 33.269531 68.695312 34.785156 69.453125 36.570312 C 70.261719 38.515625 70.652344 40.539062 70.628906 42.644531 C 70.628906 45.035156 70.234375 47.117188 69.453125 48.890625 C 68.710938 50.664062 67.585938 52.144531 66.074219 53.335938 C 64.875 54.257812 63.535156 54.890625 62.0625 55.234375 C 60.472656 55.617188 58.007812 55.8125 54.664062 55.808594 L 50.796875 55.808594 Z M 50.8125 47.070312 L 52.921875 47.070312 C 55.515625 47.070312 57.34375 46.710938 58.414062 45.992188 C 59.457031 45.269531 59.980469 44.050781 59.980469 42.328125 C 59.980469 40.65625 59.46875 39.46875 58.441406 38.761719 C 57.433594 38.058594 55.625 37.710938 53.011719 37.710938 L 50.8125 37.710938 Z"
+              />
+            </svg>
+          </div>
+          <p className="boot-quip">{quip}</p>
+        </div>
+      )}
     </div>
   );
 }

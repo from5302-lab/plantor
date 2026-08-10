@@ -68,6 +68,20 @@
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}
 
+  /* ── 첫 로딩 화면 ── */
+  .campus-root .boot{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
+       align-items:center;justify-content:center;gap:20px;background:#f4f8f5}
+  .campus-root .boot-mark{position:relative;width:88px;height:88px;display:grid;place-items:center}
+  .campus-root .boot-ring{position:absolute;inset:0;border-radius:50%;
+       border:3px solid rgba(31,122,51,.14);border-top-color:var(--primary);
+       animation:boot-spin 900ms linear infinite}
+  @keyframes boot-spin{to{transform:rotate(360deg)}}
+  .campus-root .boot-quip{font-size:13.5px;font-weight:700;color:var(--muted);
+       min-height:1.4em;text-align:center;padding:0 24px}
+ @media (prefers-reduced-motion: reduce){
+    .campus-root .boot-ring{animation-duration:2.4s}
+  }
+
   /* ── 가방·매점 패널 ── */
   .campus-root .panel{position:absolute;z-index:50;top:60px;right:14px;
        width:min(330px,calc(100vw - 28px));max-height:min(500px,calc(100% - 130px));
