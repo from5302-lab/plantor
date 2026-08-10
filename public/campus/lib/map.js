@@ -54,6 +54,8 @@ export async function mountCampus(){
   //  한 번짜리 동작(점프·손흔들기·줍기)은 Kenney 어댑터에만 있다.
   //  코드 아바타로 폴백했을 땐 조용히 무시된다.
   const playOnce = Avatar.playOnce || (() => {});
+  //  상태(idle/walk/run/sit)가 아니라 한 번 재생되는 몸짓들
+  const GESTURES = new Set(['jump', 'wave', 'pick', 'point', 'yes', 'no']);
   const IS_GLB = Avatar !== CodeAvatar;
 
   // Kenney 키트(건물·나무) — 못 받으면 예전 프로시저럴 지오메트리로 돌아간다
@@ -531,11 +533,28 @@ export async function mountCampus(){
     });
   }
 
+  /**
+   * 앉을 자리를 등록한다. 존은 가구 **주변**에 깔고, 실제로 앉는 위치는 가구 위다.
+   * @param yaw  가구가 놓인 방향. 앉으면 그 방향을 보고 앉는다(등받이에 등을 댄다)
+   * @param h    앉는 높이(m). 캐릭터를 그만큼 띄워야 의자를 뚫고 앉지 않는다
+   * @param span 가구 크기 — 존을 이만큼 넓게 잡는다
+   */
+  function addSeat(x, z, yaw, h, span){
+    const r = span/2 + 0.9;
+    ZONES.push({kind:'seat', name:'앉기', sub:'여기에 앉는다',
+      seat:{x, z, yaw: yaw || 0, h},
+      minX:x - r, maxX:x + r, minZ:z - r, maxZ:z + r});
+  }
+
   // 흔들기 — 오늘 이 나무를 처음 흔들 때만 과일이 떨어진다(자정에 리셋).
   function shakeTree(id){
     const t = fruitTrees.find(t => t.id === id);
     if (!t || !t.fruits.length) return;
     INV.picked.push(id); markInv();
+    // 나무를 향해 돌아서서 미는 동작 — 흔든 사람이 나라는 게 보여야 한다
+    P.yaw = Math.atan2(t.x - P.x, t.z - P.z);
+    player.root.rotation.y = P.yaw;
+    gesture('point', 520);
     t.shakeT = 0.7;
     for (const f of t.fruits){
       // crown 로컬에서 떼어 월드로 옮긴 뒤 떨어뜨린다
@@ -553,18 +572,20 @@ export async function mountCampus(){
   //  실내 고정 가구도 전부 키트 모델이다. 상자로 두면 캐릭터·건물과 톤이 어긋난다.
   //  scale 은 모델 실측 기준(전처리 로그 참고). yaw 는 남향(+z)을 보는 각.
   const PROP_KIT = {
-    'bench-a':  {name:'stall-bench',   fitL:2.6, yaw:0},
-    'bench-b':  {name:'stall-bench',   fitL:2.6, yaw:0},
+    // ⚠ stall-bench 는 **z 축이 긴** 모델이다. yaw 0 으로 두면 남북으로 눕는데
+    //   충돌 상자(prop 의 w=2.4 · d=0.7)는 동서로 누워 있어 벤치를 뚫고 지나갔다.
+    'bench-a':  {name:'stall-bench',   fitL:2.6, yaw:Math.PI/2, seat:0.45},
+    'bench-b':  {name:'stall-bench',   fitL:2.6, yaw:Math.PI/2, seat:0.45},
     'fountain': {name:'fountain-round', fitL:4.2, yaw:0},
     // 학습실
     'class-board': {name:'televisionModern', scale:3.2, yaw:0},
     // 상담실
     'office-desk':  {name:'desk',           scale:2.0, yaw:0},
-    'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0},
+    'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0, seat:0.5},
     'office-shelf': {name:'bookcaseClosedWide', scale:2.2, yaw:Math.PI/2},
     // 휴게실 · 상점
-    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0},
-    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI},
+    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0, seat:0.5},
+    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI, seat:0.5},
     'lounge-table':  {name:'table',         scale:2.0, yaw:0},
     'lounge-vending':{name:'kitchenFridgeLarge', scale:2.0, yaw:Math.PI},
     'shop-counter':  {name:'kitchenBar',    scale:2.4, yaw:0},
@@ -591,6 +612,7 @@ export async function mountCampus(){
         g.name = p.id; world.add(g);
         if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
                                      minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+        if (k.seat) addSeat(p.x, p.z, k.yaw, k.seat, Math.max(p.w, p.d));
         return;
       }
     }
@@ -821,25 +843,23 @@ export async function mountCampus(){
   //  앉기 — 앉아 있는 동안에는 이동 입력을 '일어서기'로 해석한다.
   //  seat 가 있으면 벤치에 앉은 것이라 일어설 때 자리를 살짝 비켜 준다.
   let sitting = false, seat = null;
-  function refreshSitBtn(){
-    if (elSit) elSit.textContent = sitting ? '일어서기' : '앉기';
-  }
   function sitAt(x, z, yaw, s){
     sitting = true; seat = s || null;
     P.x = x; P.z = z; P.yaw = yaw;
-    player.root.position.set(x, 0, z);
+    player.root.position.set(x, seat ? seat.h : 0, z);
     player.root.rotation.y = yaw;
     tap.target = null;
-    refreshSitBtn();
   }
   function standUp(){
     if (!sitting) return;
     sitting = false;
-    if (seat){                       // 벤치에서 일어날 땐 앞으로 한 걸음
-      P.z += 0.9; player.root.position.z = P.z;
+    if (seat){
+      // 가구에서 일어날 땐 가구가 보는 방향으로 한 걸음 나온다 — 안 그러면 안에 낀다
+      P.x += Math.sin(seat.yaw) * 1.1;
+      P.z += Math.cos(seat.yaw) * 1.1;
+      player.root.position.set(P.x, 0, P.z);
       seat = null;
     }
-    refreshSitBtn();
   }
   function toggleSit(){
     if (switching || uiOpen() || editing) return;
@@ -849,14 +869,22 @@ export async function mountCampus(){
 
   //  점프·손흔들기는 상태가 아니라 **한 번 재생되는 몸짓**이다.
   //  걷는 중에도 낼 수 있게 이동을 막지 않는다.
-  let gestureUntil = 0;
+  let gestureUntil = 0, gestureAct = null;
   function gesture(act, ms){
     if (switching || uiOpen() || editing) return;
     if (sitting) standUp();
     playOnce(player, act);
+    gestureAct = act;
     gestureUntil = performance.now() + ms;
   }
-  const doJump = () => gesture('jump', 500);
+  //  점프는 애니메이션만으로는 제자리 뜀뛰기로 안 읽힌다 — 실제로 몸을 띄운다.
+  let jumpT = 0;
+  const JUMP_DUR = 0.5, JUMP_H = 0.7;
+  function doJump(){
+    if (jumpT > 0) return;                 // 공중에서 또 뛰지 않는다
+    gesture('jump', JUMP_DUR * 1000);
+    jumpT = JUMP_DUR;
+  }
   const doWave = () => gesture('wave', 700);
   player.root.position.set(P.x, 0, P.z);
 
@@ -892,7 +920,7 @@ export async function mountCampus(){
     if (!r) return;
     const act = p.act || 'idle';
     // 몸짓은 상태가 아니라 사건이다 — 받은 즉시 한 번 재생하고 이전 상태로 돌아간다
-    if (act === 'jump' || act === 'wave'){ playOnce(r.rig, act); }
+    if (GESTURES.has(act)) playOnce(r.rig, act);
     else { r.act = act; r.moving = act === 'walk' || act === 'run'; }
     r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw;
     if (r.first){ r.x = p.x; r.z = p.z; r.yaw = p.yaw; r.first = false; r.rig.root.visible = true; }
@@ -1072,7 +1100,6 @@ export async function mountCampus(){
   const elBag = document.getElementById('bagPanel'), elShop = document.getElementById('shopPanel');
   const elRoomBtn = document.getElementById('roomBtn'), elEditBar = document.getElementById('editBar');
   const elTalk = document.getElementById('talkPanel');
-  const elSit = document.getElementById('sitBtn'), elJump = document.getElementById('jumpBtn');
   let currentZone = null, toastTimer = 0;
 
   function toast(msg){
@@ -1101,7 +1128,8 @@ export async function mountCampus(){
         z.kind === 'exit' ? '나가기' :
         z.kind === 'tree' ? '흔들기' :
         z.kind === 'shop' ? '열기'   :
-        z.kind === 'npc'  ? '말 걸기' : '입장';
+        z.kind === 'npc'  ? '말 걸기' :
+        z.kind === 'seat' ? '앉기'    : '입장';
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
     // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)
@@ -1114,6 +1142,10 @@ export async function mountCampus(){
     if (currentZone.kind === 'tree')  return shakeTree(currentZone.tree);
     if (currentZone.kind === 'shop')  return openShop();
     if (currentZone.kind === 'npc')   return openTalk();
+    if (currentZone.kind === 'seat'){
+      const st = currentZone.seat;
+      return sitAt(st.x, st.z, st.yaw, st);
+    }
     const room = currentZone.room;
     if (room.go) location.href = room.go;        // 룸 데이터가 이동 대상을 갖는다
     else toast(room.name + ' — 다음 슬라이스에서 구현');
@@ -1131,8 +1163,6 @@ export async function mountCampus(){
   // ── 카메라 회전 ────────────────────────────────────────────────
   // 45°씩 끊어 돌린다. 자유 회전은 아이소메트릭 격자가 어긋나 보인다.
   function turn(dir){ camYawTo += dir * Math.PI/4; }
-  if (elSit) elSit.onclick = () => toggleSit();
-  if (elJump) elJump.onclick = () => doJump();
   document.getElementById('rotL').onclick = () => turn(-1);
   document.getElementById('rotR').onclick = () => turn(1);
 
@@ -1143,7 +1173,7 @@ export async function mountCampus(){
   function rebuildPlayer(){
     disposeAvatar(player);
     player = buildAvatar(myLook, myBody);
-    player.root.position.set(P.x, 0, P.z);
+    player.root.position.set(P.x, sitting && seat ? seat.h : 0, P.z);
     player.root.rotation.y = P.yaw;
     const tag = nameTag(MY_LABEL);
     tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
@@ -1229,6 +1259,7 @@ export async function mountCampus(){
       for (const [k, n] of Object.entries(r.need)) if (countOf(k) < n) return;
       for (const [k, n] of Object.entries(r.need)) take(k, n);
       give(r.make);
+      playOnce(player, 'yes');
       toast(`${r.name} 완성!`);
       refreshBag();
     }
@@ -1247,6 +1278,7 @@ export async function mountCampus(){
       const k = d.buy;
       if (INV.bells < ITEMS[k].buy) return;
       INV.bells -= ITEMS[k].buy; give(k);
+      playOnce(player, 'yes');
       toast(`${ITEMS[k].name} 구입!`);
       refreshShop();
     }
@@ -1290,6 +1322,9 @@ export async function mountCampus(){
 
   function openTalk(){
     elBag.hidden = elShop.hidden = true;
+    // 충쌤에게 인사 — 말을 걸었다는 신호가 화면에도 남는다
+    for (const n of NPCS) if (n.rig) playOnce(n.rig, 'yes');
+    playOnce(player, 'wave');
     const t = talkScript();
     const ti = tierNow();
     const next = ti.next
@@ -1546,12 +1581,16 @@ export async function mountCampus(){
       d = Math.atan2(Math.sin(d), Math.cos(d));            // 최단 회전
       P.yaw += d * Math.min(1, dt * 14);
     }
-    player.root.position.set(P.x, 0, P.z);
+    // 점프 높이 — 위로 솟았다 내려오는 반원. 착지 순간이 또렷하게 sin 을 쓴다
+    if (jumpT > 0) jumpT = Math.max(0, jumpT - dt);
+    const hop = jumpT > 0 ? Math.sin((1 - jumpT / JUMP_DUR) * Math.PI) * JUMP_H : 0;
+    player.root.position.set(P.x, (sitting && seat ? seat.h : 0) + hop, P.z);
     player.root.rotation.y = P.yaw;
     const myAct = sitting ? 'sit' : running ? 'run' : moving ? 'walk' : 'idle';
     // 몸짓이 도는 동안엔 poseAvatar 가 기본 동작으로 덮지 않게 어댑터가 잠근다.
     // 여기서는 남들에게 보낼 상태만 몸짓으로 바꿔 준다.
-    const wire = performance.now() < gestureUntil ? 'jump' : myAct;
+    // 몸짓 중에는 그 몸짓 이름을 보낸다 — 남의 화면에서도 같은 동작이 나온다
+    const wire = performance.now() < gestureUntil ? gestureAct : myAct;
     poseAvatar(player, myAct, 'none', moving ? P.walkT/7 : t);
 
     for (const n of NPCS) poseAvatar(n.rig, 'idle', 'none', t + n.phase);
@@ -1597,6 +1636,11 @@ export async function mountCampus(){
           } else {
             const dx = m.position.x - P.x, dz = m.position.z - P.z;
             if (dx*dx + dz*dz < 1.44){                      // 다가가면 줍는다
+              // 사과 쪽으로 몸을 돌리고 줍는 동작을 낸다. 그냥 사라지면
+              // 주웠다는 사실이 토스트로만 남아 손맛이 없다.
+              P.yaw = Math.atan2(dx, dz);
+              player.root.rotation.y = P.yaw;
+              gesture('pick', 340);
               world.remove(m);
               give('apple');
               toast(`사과 +1 · 모두 ${countOf('apple')}개`);

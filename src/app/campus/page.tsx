@@ -15,15 +15,22 @@ import { useEffect, useRef, useState } from "react";
 import "./campus.css";
 import { pickQuip } from "./loading-quips";
 
+// 키 안내를 펼쳐 뒀는지. 처음 온 사람에겐 펼쳐 보여 주고, 접으면 그 뒤로 접힌 채 연다.
+const KEYS_PREF = "campus.keys.open";
+
 export default function CampusPage() {
   const errRef = useRef<HTMLDivElement>(null);
   // 3D 가 준비될 때까지 덮는 로딩 화면. map.js 가 window.__ready 를 세운다.
   const [loading, setLoading] = useState(true);
   const [stuck, setStuck] = useState(false);
   const [quip, setQuip] = useState("");
+  const [keysOpen, setKeysOpen] = useState(true);
 
   // 문구는 마운트 뒤에 뽑는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
   useEffect(() => {
+    try {
+      if (localStorage.getItem(KEYS_PREF) === "0") setKeysOpen(false);
+    } catch { /* 시크릿 모드 */ }
     setQuip(pickQuip());
     // 로딩이 길어지면 한 줄만 붙들고 있지 않는다. 두세 개는 읽히게 돌린다.
     const rotate = setInterval(() => setQuip(prev => pickQuip(prev)), 2600);
@@ -119,12 +126,7 @@ export default function CampusPage() {
           </button>
         </div>
 
-        {/* 몸짓 — 키보드가 없는 손에서도 쓸 수 있어야 한다(C · J 키와 같은 동작) */}
-        <div className="acts-hud">
-          <button id="sitBtn" className="chipbtn" type="button">앉기</button>
-          <button id="jumpBtn" className="chipbtn" type="button">점프</button>
-        </div>
-
+        {/* 회전 — 데스크탑은 Q/E 로 돌리므로 숨긴다(CSS). 터치에서만 남는다 */}
         <div className="rot">
           <button id="rotL" aria-label="왼쪽으로 회전">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
@@ -141,6 +143,30 @@ export default function CampusPage() {
             </svg>
           </button>
         </div>
+
+        {/* 키 안내 — 버튼을 걷어낸 대신 무엇을 누르면 되는지는 보여야 한다.
+            평소엔 접어 두고(한 번 익히면 계속 볼 이유가 없다) 상태를 기억한다.
+            키보드가 있는 기기에서만 뜬다(CSS). */}
+        <details
+          className="keys"
+          open={keysOpen}
+          onToggle={(e) => {
+            const on = (e.currentTarget as HTMLDetailsElement).open;
+            setKeysOpen(on);
+            try { localStorage.setItem(KEYS_PREF, on ? "1" : "0"); } catch { /* 시크릿 모드 */ }
+          }}
+        >
+          <summary>조작키</summary>
+          <div className="keys-body">
+            <span><kbd>WASD</kbd> 이동</span>
+            <span><kbd>Shift</kbd> 달리기</span>
+            <span><kbd>C</kbd> 앉기</span>
+            <span><kbd>J</kbd> 점프</span>
+            <span><kbd>V</kbd> 인사</span>
+            <span><kbd>Q</kbd><kbd>E</kbd> 회전</span>
+            <span><kbd>Space</kbd> 상호작용</span>
+          </div>
+        </details>
 
         <div className="toast" id="toast" />
         <div id="err" ref={errRef} />

@@ -65,10 +65,43 @@
   /* 터치 기기엔 키보드가 없다 — Space 를 안내하면 거짓말이 된다 */
  @media (pointer: coarse){ .campus-root .prompt kbd{display:none} }
 
-  /* 몸짓 버튼 — 회전 버튼 위에 세로로 붙는다(엄지가 닿는 자리) */
-  .campus-root .acts-hud{position:absolute;bottom:68px;right:16px;display:flex;gap:8px}
-
   .campus-root .rot{position:absolute;bottom:16px;right:14px;display:flex;gap:8px}
+  /* 키보드가 있으면 Q/E 로 돌린다 — 화면에 버튼을 겹쳐 둘 이유가 없다 */
+ @media (pointer: fine){ .campus-root .rot{display:none} }
+
+  /* ── 키 안내 (접이식) ──
+     펼친 목록이 아래 중앙의 '현재 위치'와 겹쳤다. 왼쪽 아래에 고정하고
+     column-reverse 로 **위로** 펼쳐 아래쪽 HUD 를 침범하지 않게 한다. */
+  /* 아래쪽은 '현재 위치'·프롬프트·회전이 이미 쓴다. 좁은 창에서 계속 부딪혀
+     비어 있는 **왼쪽 위**로 옮겼다(툴바는 오른쪽 위라 겹치지 않는다). */
+  .campus-root .keys{position:absolute;top:16px;left:16px;z-index:20;
+       display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  .campus-root .keys > summary{list-style:none;cursor:pointer;
+       display:inline-flex;align-items:center;gap:6px;
+       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+       padding:8px 12px;font-size:11.5px;font-weight:600;color:var(--muted);
+       backdrop-filter:blur(8px);box-shadow:var(--sh-card);
+       transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .keys > summary::-webkit-details-marker{display:none}
+  .campus-root .keys > summary:hover{background:#fff;color:var(--ink)}
+  .campus-root .keys > summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  /* 열림 상태를 화살표로 알린다(아이콘 하나를 CSS 로 회전) */
+  .campus-root .keys > summary::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;
+       border-bottom:1.5px solid currentColor;transform:rotate(-135deg) translate(-1px,-1px);
+       transition:transform 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .keys[open] > summary::after{transform:rotate(45deg) translate(-1px,-1px)}
+  /* 위에서 아래로 펼치므로 화살표 방향도 뒤집는다 */
+  .campus-root .keys > summary::after{transform:rotate(45deg) translate(-1px,-1px)}
+  .campus-root .keys[open] > summary::after{transform:rotate(-135deg) translate(-1px,-1px)}
+  .campus-root .keys-body{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:min(400px,42vw);
+       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+       padding:10px 12px;font-size:11.5px;font-weight:500;color:var(--muted);
+       backdrop-filter:blur(8px);box-shadow:var(--sh-card)}
+  .campus-root .keys-body span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .campus-root .keys kbd{background:#fff;border:1px solid var(--line);border-radius:4px;
+       padding:1px 5px;font:inherit;font-size:10.5px;font-weight:700;color:var(--ink)}
+  /* 터치 기기엔 키보드가 없다 — 안내 대신 회전 버튼이 남는다 */
+ @media (pointer: coarse){ .campus-root .keys{display:none} }
   .campus-root .rot button{width:44px;height:44px;border-radius:var(--r-sm);background:var(--panel);
               border:1px solid var(--line);color:var(--muted);display:grid;place-items:center;
               backdrop-filter:blur(8px);box-shadow:var(--sh-card);
@@ -199,11 +232,11 @@
        font-weight:500}
  @media(max-width:760px){
     .campus-root .tools{top:12px;right:12px;gap:6px}
+    .campus-root .keys{top:12px;left:12px}
     .campus-root .chipbtn{padding:7px 10px;font-size:12px}
     .campus-root .where{bottom:12px;left:12px;transform:none;font-size:11.5px;padding:7px 10px}
     .campus-root .prompt{bottom:68px;min-width:0;left:12px;right:12px;transform:translateY(8px)}
     .campus-root .prompt.on{transform:translateY(0)}
-    .campus-root .acts-hud{bottom:64px;right:12px}
     .campus-root .rot{bottom:12px;right:12px}
     .campus-root .rot button{width:46px;height:46px}
     .campus-root .editbar{bottom:68px;left:12px;right:12px;transform:none;width:auto}
@@ -219,7 +252,6 @@
     .campus-root .panel .pbody{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
     /* 시트가 아래를 덮으므로 하단 HUD 는 비켜 준다 */
     .campus-root:has(.panel:not([hidden])) .where,
-    .campus-root:has(.panel:not([hidden])) .acts-hud,
     .campus-root:has(.panel:not([hidden])) .rot,
     .campus-root:has(.panel:not([hidden])) .prompt{opacity:0;pointer-events:none}
   }
