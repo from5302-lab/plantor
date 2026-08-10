@@ -18,7 +18,18 @@ const BASE = '/campus/models/kenney/kit/';
 // Nature Kit 은 팔레트가 민트 계열이라 City Kit(건물·나무)과 색이 안 맞는다.
 // 두 팩을 섞어 쓰되, 'grass' 재질만 City Kit 잔디색으로 덮어 톤을 통일한다.
 export const GRASS = 0x61cb8b;          // City Kit Suburban 팔레트에서 실측한 잔디색
-export const DIRT  = 0xd8a878;          // 흙길 — 같은 팔레트의 베이지(#f2bf99)를 한 톤 눌렀다
+export const DIRT  = 0xd8a878;          // 흙 — 같은 팔레트의 베이지(#f2bf99)를 한 톤 눌렀다
+
+// Nature/Furniture Kit 은 팔레트가 민트·주황 계열이라 City Kit(건물·캐릭터)과 안 맞는다.
+// 재질 **이름**으로 색을 덮어 한 팔레트로 모은다. 이름은 각 팩이 일관되게 붙여 놨다.
+const RECOLOR = {
+  grass: GRASS, leafsGreen: GRASS, leafsDark: 0x4a9e6b,   // 잎
+  woodBark: 0x9a6b45, woodBarkDark: 0x84593a,             // 나무 줄기
+  wood: 0xdcb98d, dirt: DIRT, dirtDark: 0xbf8d63,         // 목재·흙
+  carpet: 0xd98f7a,                                        // 패브릭
+  // Furniture Kit 벽은 색 없는 기본 재질이라 그대로 두면 새하얗다 — 크림으로 눕힌다
+  _defaultMat: 0xf1eee5, metal: 0xc9d0d2, metalDark: 0x8b9698,
+};
 const loader = new GLTFLoader();
 const cache = new Map();          // 이름 → {scene, size:Vector3}
 
@@ -31,7 +42,13 @@ function prep(scene){
     //   환경맵이 없는 이 씬에서 **새까맣게** 렌더된다(실측). 전부 비금속으로 눕힌다.
     m.metalness = 0;
     m.roughness = 0.9;
-    if (/grass/i.test(m.name || '')) m.color.setHex(GRASS);
+    const rc = RECOLOR[m.name];
+    if (rc !== undefined) m.color.setHex(rc);
+    // 이 씬은 광원이 약하다(캐릭터 툰 셰이딩이 포화되지 않게 일부러 낮췄다).
+    // 텍스처 없는 키트 모델은 그대로 두면 실내에서 흙빛으로 가라앉는다 —
+    // 맵 재질(lam)과 같은 방식으로 자체발광을 조금 얹어 밝기를 맞춘다.
+    // 텍스처가 있는 모델은 이미 밝게 읽히므로 건드리지 않는다(얹으면 색이 뜬다).
+    if (!m.map && m.emissive) m.emissive.copy(m.color).multiplyScalar(0.3);
     if (m.map){
       m.map.magFilter = THREE.NearestFilter;
       m.map.minFilter = THREE.NearestFilter;

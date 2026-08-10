@@ -20,7 +20,8 @@ export const ITEMS = {
   desk:  {name:'책상',      icon:'table',    buy:600, furn:true, tier:1},
   lamp:  {name:'스탠드',    icon:'lamp',     buy:400, furn:true, tier:1},
   shelf: {name:'책장',      icon:'library',  buy:700, furn:true, tier:2},
-  board: {name:'화이트보드', icon:'presentation', buy:500, furn:true, tier:2},
+  board: {name:'텔레비전',  icon:'tv',       buy:500, furn:true, tier:2},
+  bed:   {name:'침대',      icon:'bed',      buy:900, furn:true, tier:2},
   sofa:  {name:'소파',      icon:'sofa',     buy:800, furn:true, tier:3},
 };
 // 가구 이름은 room.js 가 원본이다 — 두 곳이 어긋나면 배치 화면과 상점이 딴소리를 한다

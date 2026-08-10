@@ -57,10 +57,17 @@ export async function mountCampus(){
   let KIT_OK = false;
   try {
     await loadKit(['building-type-p', 'building-type-k', 'building-type-s',
-                   'tree-large', 'tree-small', 'fence', 'planter',
+                   'tree_default', 'tree_oak', 'tree_pineRoundC', 'tree_small',
+                   'fence', 'planter', 'apple',
                    'flower_purpleA', 'flower_redA', 'flower_yellowA',
                    'plant_bushSmall', 'grass_large',
-                   'fountain-round', 'stall-bench']);
+                   'fountain-round', 'stall-bench',
+                   // 실내 — 벽·바닥·가구까지 전부 키트로 세운다
+                   'wall', 'wallDoorway', 'wallWindow', 'floorFull',
+                   'desk', 'chairDesk', 'bookcaseOpen', 'bookcaseClosedWide',
+                   'loungeSofa', 'table', 'rugRectangle', 'rugRound',
+                   'lampSquareFloor', 'pottedPlant', 'televisionModern',
+                   'kitchenBar', 'kitchenFridgeLarge', 'stoolBar', 'bedSingle']);
     KIT_OK = true;
   } catch (e){
     console.warn('[campus] Kenney 키트 로드 실패 — 기본 지오메트리로 갑니다', e);
@@ -239,7 +246,13 @@ export async function mountCampus(){
     for (const o of junk) o.dispose?.();
     junk = [];
     COLLIDERS.length = 0; ZONES.length = 0; OCCLUDERS = [];
+    wallSpots = []; floorSpots = [];
   }
+
+  // 벽 패널을 모아 뒀다가 레벨 끝에서 한 번에 인스턴싱한다(조각마다 드로우콜을 쓰면
+  // 실내 하나에 백 개가 넘는다). 충돌은 조각 단위 AABB 그대로다.
+  let wallSpots = [];
+  const WALL_S = 1.16;                    // Kenney wall 1.0×1.29 → 폭 1.16m · 높이 1.5m
 
   function addWall(x1, z1, x2, z2){
     const seg = {
@@ -248,6 +261,21 @@ export async function mountCampus(){
     };
     if (seg.maxX - seg.minX < 0.01 || seg.maxZ - seg.minZ < 0.01) return;  // 길이 0 조각 버림
     COLLIDERS.push(seg);
+
+    if (KIT_OK){
+      const alongX = (seg.maxX - seg.minX) > (seg.maxZ - seg.minZ);
+      const len = alongX ? seg.maxX - seg.minX : seg.maxZ - seg.minZ;
+      const n = Math.max(1, Math.round(len / WALL_S));
+      const step = len / n;
+      const cx = (seg.minX + seg.maxX)/2, cz = (seg.minZ + seg.maxZ)/2;
+      for (let i = 0; i < n; i++){
+        const t = -len/2 + (i + 0.5)*step;
+        wallSpots.push(alongX
+          ? {x: cx + t, z: cz, yaw: 0, scale: step / 1.0}
+          : {x: cx, z: cz + t, yaw: Math.PI/2, scale: step / 1.0});
+      }
+      return;
+    }
     const m = new THREE.Mesh(
       new THREE.BoxGeometry(seg.maxX - seg.minX, LOW_H, seg.maxZ - seg.minZ), WALL_MAT());
     m.position.set((seg.minX+seg.maxX)/2, LOW_H/2, (seg.minZ+seg.maxZ)/2);
@@ -266,7 +294,19 @@ export async function mountCampus(){
     put(a, d0); put(d1, b);
   }
 
+  // 실내 바닥도 키트 타일로 깐다. 한 판씩 모았다가 레벨 끝에서 인스턴싱한다.
+  let floorSpots = [];
+  const FLOOR_S = 2.0;                    // Kenney floorFull 1×1 → 2m 타일
+
   function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
+    if (KIT_OK){
+      const w = maxX - minX, d = maxZ - minZ;
+      const nx = Math.max(1, Math.round(w / FLOOR_S)), nz = Math.max(1, Math.round(d / FLOOR_S));
+      const sx = w / nx, sz = d / nz;
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
+        floorSpots.push({x: minX + (i + 0.5)*sx, z: minZ + (j + 0.5)*sz, scale: sx, y});
+      return null;
+    }
     const w = maxX - minX, d = maxZ - minZ;
     const t = track(tileTex(1)); t.repeat.set(w/rep, d/rep);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), flat(color, t));
@@ -297,11 +337,12 @@ export async function mountCampus(){
       // Kenney 나무 — 시드 고정으로 크기·방향만 흔들어 심는다(같은 모델 반복이 티 안 나게)
       let s = 3;
       const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      const KINDS = ['tree_default', 'tree_oak', 'tree_pineRoundC', 'tree_small'];
       for (const [x, z] of list){
-        const big = rnd() > 0.4;
-        const g = placeKit(big ? 'tree-large' : 'tree-small',
-          {x, z, yaw: rnd() * Math.PI * 2, fitW: (big ? 3.4 : 2.6) * (0.85 + rnd()*0.3),
-           track: m => junk.push(m)});
+        const k = KINDS[Math.floor(rnd() * KINDS.length)];
+        const g = placeKit(k, {x, z, yaw: rnd() * Math.PI * 2,
+          scale: (k === 'tree_small' ? 3.0 : 3.6) * (0.85 + rnd()*0.3),
+          track: m => junk.push(m)});
         if (g) world.add(g);
       }
       return;
@@ -322,14 +363,8 @@ export async function mountCampus(){
   function buildOutdoor(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
-    // 바닥은 **잔디와 흙길** 둘뿐이다. 포장타일을 깔아 봤더니 도로처럼 읽혀
-    // 마을이 아니라 주차장이 됐다. 색은 키트 팔레트에서 실측한 값을 쓴다.
-    plate(0, -4, 400, 400, KIT_OK ? GRASS : 0xbcd4b4, -0.06);
-
-    // 흙길 — 판 몇 장이면 된다. 타일 인스턴싱은 이음매가 격자로 보인다.
-    const dirt = (cx, cz, w, d) => plate(cx, cz, w, d, KIT_OK ? DIRT : 0xe0c184, -0.03);
-    dirt(0,  4, 4.2, 14);                                    // 정문 → 광장
-    dirt(0, -4.5, 20, 3.6);                                  // 건물 앞 가로길
+    // 바닥은 흙 한 판이다. 색은 키트 팔레트에서 실측한 값.
+    plate(0, -4, 400, 400, KIT_OK ? DIRT : 0xe0c184, -0.06);
 
     for (const b of BUILDINGS){
       // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
@@ -361,15 +396,12 @@ export async function mountCampus(){
         world.add(body, roof, door);
         parts.push(body, roof, door);
       }
-      // 간판은 건물 폭에 맞춘다 — 고정 크기면 작은 집에서 지붕보다 커진다
-      const sign = signAt(b.name, b.x, bh + 0.6, z1 + 0.05, 1, 0x1f7a33,
-                          Math.min(bw * 0.5, 3.0));
-      OCCLUDERS.push({test:parts, meshes:[...parts, sign]});
+      // 간판은 뗐다 — 3D 위에 얹은 캔버스 텍스트라 키트 톤과 겉돌았다.
+      // 어디가 어디인지는 근처에 가면 뜨는 프롬프트가 알려 준다.
+      OCCLUDERS.push({test:parts, meshes:parts});
 
       // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
       COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1});
-      // 진입로 — 문 앞에서 가로길까지 이어 준다
-      dirt(b.x, z1 + 1.6, 3.0, 3.6);
       ZONES.push({kind:'enter', level:b.level, name:b.name, sub:'건물 안으로',
         minX:b.x - DOOR_W/2 - 0.6, maxX:b.x + DOOR_W/2 + 0.6, minZ:z1 + 0.2, maxZ:z1 + 2.6});
     }
@@ -417,27 +449,35 @@ export async function mountCampus(){
 
   function buildFruitTrees(){
     fruitTrees = []; groundFruits = [];
-    const trunkM = lam(0xa9906f, null, 0.25), leafM = lam(0x93c47e, null, 0.30);
-    const fruitM = lam(0xe25d4a, null, 0.4);
-    const gTr = new THREE.CylinderGeometry(0.26, 0.34, 1.7, 8);
-    const gLv = new THREE.SphereGeometry(1.45, 14, 12);
-    const gFr = new THREE.SphereGeometry(0.21, 10, 8);
+    const TREE_S = 3.8, FRUIT_S = 1.6;
     for (const ft of FRUIT_TREES){
       const g = new THREE.Group(); g.position.set(ft.x, 0, ft.z);
-      const tr = new THREE.Mesh(gTr, trunkM); tr.position.y = 0.85;
-      const crown = new THREE.Group(); crown.position.y = 2.6;
-      const lv = new THREE.Mesh(gLv, leafM); lv.scale.set(1, 0.9, 1);
-      crown.add(lv);
+      // 나무 본체는 통째로 하나. 흔들 때는 이 그룹을 기울인다
+      const crown = new THREE.Group(); crown.position.y = 0;
+      const tree = KIT_OK
+        ? placeKit('tree_oak', {scale: TREE_S, track: m => junk.push(m)})
+        : null;
+      if (tree) crown.add(tree);
+      else {
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.34, 1.7, 8), lam(0xa9906f, null, .25));
+        trunk.position.y = 0.85;
+        const lv = new THREE.Mesh(new THREE.SphereGeometry(1.45, 14, 12), lam(0x93c47e, null, .3));
+        lv.position.y = 2.6; lv.scale.set(1, .9, 1);
+        crown.add(trunk, lv);
+      }
       const fruits = [];
       if (!INV.picked.includes(ft.id)){
-        // 과일은 항상 남쪽(+z, 카메라 쪽)에 몰아 단다 — 뒤에 달리면 있는지도 모른다
-        for (const s of [[-0.85, -0.2, 0.85], [0.9, 0.1, 0.65], [0.05, -0.55, 1.1]]){
-          const f = new THREE.Mesh(gFr, fruitM);
-          f.position.set(s[0], s[1], s[2]);
+        // 과일은 남쪽(카메라 쪽)에 몰아 단다 — 뒤에 달리면 있는지도 모른다
+        for (const sp of [[-0.75, 2.3, 0.7], [0.8, 2.6, 0.5], [0.05, 3.0, 0.85]]){
+          const f = KIT_OK
+            ? placeKit('apple', {scale: FRUIT_S, track: m => junk.push(m)})
+            : new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 8), lam(0xe25d4a, null, .4));
+          if (!f) continue;
+          f.position.set(sp[0], sp[1], sp[2]);
           crown.add(f); fruits.push(f);
         }
       }
-      g.add(tr, crown);
+      g.add(crown);
       world.add(g);
       COLLIDERS.push({minX:ft.x-0.5, maxX:ft.x+0.5, minZ:ft.z-0.5, maxZ:ft.z+0.5});
       ZONES.push({kind:'tree', tree:ft.id, name:'과일나무', sub:'흔들면 사과가 떨어진다',
@@ -507,17 +547,43 @@ export async function mountCampus(){
   }
 
   // 키트 모델이 있는 소품은 상자 대신 그 모델로 세운다. 충돌 상자는 저작 데이터 그대로다.
+  //  실내 고정 가구도 전부 키트 모델이다. 상자로 두면 캐릭터·건물과 톤이 어긋난다.
+  //  scale 은 모델 실측 기준(전처리 로그 참고). yaw 는 남향(+z)을 보는 각.
   const PROP_KIT = {
-    'bench-a': {name:'stall-bench', fitL:2.6, yaw:0},
-    'bench-b': {name:'stall-bench', fitL:2.6, yaw:0},
+    'bench-a':  {name:'stall-bench',   fitL:2.6, yaw:0},
+    'bench-b':  {name:'stall-bench',   fitL:2.6, yaw:0},
     'fountain': {name:'fountain-round', fitL:4.2, yaw:0},
+    // 학습실
+    'class-board': {name:'televisionModern', scale:3.2, yaw:0},
+    // 상담실
+    'office-desk':  {name:'desk',           scale:2.0, yaw:0},
+    'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0},
+    'office-shelf': {name:'bookcaseClosedWide', scale:2.2, yaw:Math.PI/2},
+    // 휴게실 · 상점
+    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0},
+    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI},
+    'lounge-table':  {name:'table',         scale:2.0, yaw:0},
+    'lounge-vending':{name:'kitchenFridgeLarge', scale:2.0, yaw:Math.PI},
+    'shop-counter':  {name:'kitchenBar',    scale:2.4, yaw:0},
   };
+  // 책상마다 의자를 한 벌씩 붙인다 — 학습실이 책상만 늘어서면 창고로 보인다
+  const DESK_IDS = /^class-desk-/;
 
   function addProp(p){
+    if (KIT_OK && DESK_IDS.test(p.id)){
+      const d = placeKit('desk', {x:p.x, z:p.z, yaw:0, scale:1.7, track:m => junk.push(m)});
+      const c = placeKit('chairDesk', {x:p.x, z:p.z + 0.85, yaw:Math.PI, scale:1.4,
+                                       track:m => junk.push(m)});
+      if (d) world.add(d);
+      if (c) world.add(c);
+      if (d && p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
+                                        minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+      if (d) return;
+    }
     const k = KIT_OK ? PROP_KIT[p.id] : null;
     if (k){
       const g = placeKit(k.name, {x:p.x, z:p.z, yaw:k.yaw,
-                                  fitL:k.fitL, track:m => junk.push(m)});
+                                  fitL:k.fitL, scale:k.scale, track:m => junk.push(m)});
       if (g){
         g.name = p.id; world.add(g);
         if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
@@ -561,16 +627,18 @@ export async function mountCampus(){
       wallWithDoor('z', x0, z0, z1, null);
       wallWithDoor('z', x1, z0, z1, null);
 
-      const zDoor = r.door === 's' ? z1 : z0, face = r.door === 's' ? 1 : -1;
-      signAt(r.name, r.x, 1.95, zDoor + face * 0.3, face, r.hue);
       ZONES.push({kind:'room', room:r, name:r.name, sub:r.sub,
         minX:x0 + 1, maxX:x1 - 1, minZ:z0 + 1, maxZ:z1 - 1});
     }
 
     for (const f of FILLERS[level] || []){
-      const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, LOW_H, f.d), WALL_MAT());
-      m.position.set(f.x, LOW_H/2, f.z);
-      world.add(m);
+      // 막다른 골목을 메우는 덩어리. 키트 벽과 면이 정확히 맞닿아 z-fighting 줄무늬가
+      // 생겼다 — 키트를 쓸 땐 충돌만 남기고 그리지 않는다. 양옆 룸 벽이 이미 막고 있다.
+      if (!KIT_OK){
+        const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, LOW_H, f.d), WALL_MAT());
+        m.position.set(f.x, LOW_H/2, f.z);
+        world.add(m);
+      }
       COLLIDERS.push({minX:f.x - f.w/2, maxX:f.x + f.w/2, minZ:f.z - f.d/2, maxZ:f.z + f.d/2});
     }
 
@@ -584,6 +652,20 @@ export async function mountCampus(){
     ZONES.push({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
       minX:hall.exitX - DOOR_W/2 - 0.6, maxX:hall.exitX + DOOR_W/2 + 0.6,
       minZ:Math.min(hall.exitZ, hall.exitZ + eSide*2.2), maxZ:Math.max(hall.exitZ, hall.exitZ + eSide*2.2)});
+
+    if (KIT_OK){
+      if (floorSpots.length){
+        const g = placeKitInstanced('floorFull', floorSpots,
+          {scale: 1, track: m => junk.push(m)});
+        if (g) world.add(g);
+      }
+      if (wallSpots.length){
+        // 벽은 세로로도 늘려야 사람 키를 넘지 않는 허리벽이 된다.
+        // placeKitInstanced 는 균등 스케일만 다루므로 그룹 전체를 눌러 높이를 맞춘다.
+        const g = placeKitInstanced('wall', wallSpots, {scale: 1, track: m => junk.push(m)});
+        if (g){ g.scale.y = 1.5 / 1.29; world.add(g); }
+      }
+    }
 
     for (const p of PROPS.filter(p => p.level === level)) addProp(p);
 
@@ -604,6 +686,8 @@ export async function mountCampus(){
   // world 밖에 따로 두고 study 레벨에서만 보인다.
   const roomGroup = new THREE.Group(); scene.add(roomGroup);
   const ROOM_COLLIDERS = [];
+  // 방 가구는 레벨과 수명이 달라 junk 에 못 섞는다(레벨 전환 때 같이 버려진다)
+  let roomJunk = [];
   const FURN_MAT = {};
   const furnMat = t => (FURN_MAT[t] ||= new THREE.MeshLambertMaterial({
     color: FURNITURE[t].c, emissive: new THREE.Color(FURNITURE[t].c).multiplyScalar(0.24)}));
@@ -611,15 +695,23 @@ export async function mountCampus(){
 
   function applyRoom(items){
     myRoom = items;
-    roomGroup.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
     roomGroup.clear();
+    for (const m of roomJunk) m.dispose?.();
+    roomJunk = [];
     ROOM_COLLIDERS.length = 0;
     for (const it of items){
       const f = FURNITURE[it.t];
-      const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, f.h, f.d), furnMat(it.t));
-      m.position.set(it.x, f.h/2, it.z);
-      m.rotation.y = it.r;
-      roomGroup.add(m);
+      if (!f) continue;
+      const g = KIT_OK && f.kit
+        ? placeKit(f.kit, {x:it.x, z:it.z, yaw:it.r, scale:f.s, track:m => roomJunk.push(m)})
+        : null;
+      if (g) roomGroup.add(g);
+      else {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, f.h, f.d), furnMat(it.t));
+        m.position.set(it.x, f.h/2, it.z);
+        m.rotation.y = it.r;
+        roomGroup.add(m);
+      }
       if (f.solid !== false) ROOM_COLLIDERS.push(itemBox(it));
     }
   }
@@ -1429,7 +1521,7 @@ export async function mountCampus(){
             m.position.x += gf.vx * dt;
             m.position.z += gf.vz * dt;
             m.position.y += gf.vy * dt;
-            if (m.position.y <= 0.21){ m.position.y = 0.21; gf.vy = null; }
+            if (m.position.y <= 0.16){ m.position.y = 0.16; gf.vy = null; }
             keep.push(gf);
           } else {
             const dx = m.position.x - P.x, dz = m.position.z - P.z;

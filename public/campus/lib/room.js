@@ -9,16 +9,22 @@
 //  (장식에서 충돌을 유추하지 않는다 — 맵 본체와 같은 규칙).
 // ══════════════════════════════════════════════════════════════════
 
-// w/d = 바닥 크기, h = 높이, c = 색, solid = 통과 불가 여부
+// kit = Kenney Furniture Kit 모델 이름, s = 스케일.
+// w/d = 충돌 상자 크기(모델 실측 × s), h = 높이, solid = 통과 불가 여부.
+// c 는 키트 로드 실패 시 상자로 그릴 때만 쓰는 폴백 색이다.
+//
+// ⚠ w/d 를 바꾸면 이미 저장된 배치의 충돌 상자가 달라진다. 겹쳐도 튕겨 나가진
+//   않지만(배치 검사는 편집 중에만 돈다), 값은 모델과 함께 움직여야 한다.
 export const FURNITURE = {
-  desk:  {name:'책상',     w:1.7, d:0.8, h:0.76, c:0xe3d3b8},
-  chair: {name:'의자',     w:0.6, d:0.6, h:0.92, c:0xd9c3a0},
-  shelf: {name:'책장',     w:1.6, d:0.5, h:1.85, c:0xf2f6f3},
-  board: {name:'화이트보드', w:2.2, d:0.2, h:1.35, c:0xf7fbf7},
-  sofa:  {name:'소파',     w:2.0, d:0.9, h:0.70, c:0x8fc9a8},
-  plant: {name:'화분',     w:0.7, d:0.7, h:1.10, c:0x8fc79a},
-  lamp:  {name:'스탠드',   w:0.4, d:0.4, h:1.40, c:0xf2dfa4},
-  rug:   {name:'러그',     w:2.6, d:1.9, h:0.02, c:0xcfe8d6, solid:false},
+  desk:  {name:'책상',   kit:'desk',            s:2.0, w:1.46, d:0.78, h:0.76, c:0xe3d3b8},
+  chair: {name:'의자',   kit:'chairDesk',       s:1.4, w:0.46, d:0.43, h:0.85, c:0xd9c3a0},
+  shelf: {name:'책장',   kit:'bookcaseOpen',    s:2.0, w:0.80, d:0.50, h:1.76, c:0xf2f6f3},
+  board: {name:'텔레비전', kit:'televisionModern', s:1.6, w:1.09, d:0.21, h:0.72, c:0xf7fbf7},
+  sofa:  {name:'소파',   kit:'loungeSofa',      s:1.8, w:1.76, d:0.74, h:0.83, c:0x8fc9a8},
+  plant: {name:'화분',   kit:'pottedPlant',     s:1.7, w:0.36, d:0.41, h:1.11, c:0x8fc79a},
+  lamp:  {name:'스탠드', kit:'lampSquareFloor', s:1.6, w:0.19, d:0.19, h:1.38, c:0xf2dfa4},
+  rug:   {name:'러그',   kit:'rugRectangle',    s:1.6, w:2.51, d:1.47, h:0.02, c:0xcfe8d6, solid:false},
+  bed:   {name:'침대',   kit:'bedSingle',       s:1.8, w:1.03, d:2.02, h:0.68, c:0xd9c3a0},
 };
 
 // 내 방 배치 가능 범위. 룸 중심은 (x=-7.5, z=1) 이고 벽 안쪽 최대치가 아래 FULL 이다.
