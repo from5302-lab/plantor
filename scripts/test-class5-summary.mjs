@@ -34,6 +34,18 @@ check("[피드] 무비 줄도 같은 규칙", out.items[0].stats, [
   { name: "정답률", value: "100%" }, { name: "", value: "오전 10:49 ~ 오전 11:01" },
 ]);
 
+// 클래스5 리포트의 단계 항목을 그대로 싣는다(2026-08-10) — 사이트에는 보이는데 카드에는 없었다
+const withSteps = [{
+  type: "Movie", unitLabel: "Bluey / Dad Tries to Teach", completed: true, cardFirstTry: 96,
+  steps: ["암기", "무비보기", "쉐도잉", "더빙"], startAt: "15:06", endAt: "15:19",
+}];
+check("[피드] 단계 항목이 하나씩, 정답률 앞에 온다", studySummary("class5", withSteps, null, { units: withSteps }).items[0].stats, [
+  { name: "", value: "암기" }, { name: "", value: "무비보기" },
+  { name: "", value: "쉐도잉" }, { name: "", value: "더빙" },
+  { name: "정답률", value: "96%" },
+  { name: "", value: "오후 3:06 ~ 오후 3:19" },
+]);
+
 // 문법 게임은 백분율이 아니라 raw 점수 — % 를 붙이면 안 된다
 const withGame = [{ type: "Grammar", unitLabel: "Unit 05", completed: true, cardFirstTry: 88, gameScore: 32400 }];
 check("[피드] 게임 점수는 점, 천단위 쉼표", studySummary("class5", withGame, null, { units: withGame }).items[0].stats, [

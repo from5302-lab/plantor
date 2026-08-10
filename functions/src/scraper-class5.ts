@@ -3,6 +3,8 @@
 //   → 재원생 명단(/academy/student)으로 std_user_idx ↔ 이름 매칭.
 // 교사 계정은 클래스카드와 동일(CLASSCARD_ID/TEACHER_PW 재사용).
 
+import { logger } from "firebase-functions";
+
 const BASE = "https://www.class5.co.kr";
 // 카테고리 판정용 세트명 → 카테고리 맵. class5-planner가 배포해 둔 라이브러리 옵션을 재사용.
 const LIBRARY_OPTIONS_URL = "https://class5-planner.web.app/api/library-options";
@@ -22,6 +24,8 @@ export type Class5Unit = {
   durationSec?: number;
   /** 게임형 활동의 raw 점수 (백분율 아님 — 문법 게임은 2~5만점대) */
   gameScore?: number;
+  /** 그 과제에서 한 활동 이름들 — 클래스5 리포트의 단계 카드(단어·무비보기·쉐도잉·더빙)와 같은 항목 */
+  steps?: string[];
   /** 배정된 활동을 하나도 빠짐없이 끝냈는지 */
   allStepsDone?: boolean;
   movieType?: string;
@@ -163,8 +167,47 @@ type Class5UserItem = Class5Item & {
   activity_list?: Class5Activity[];
 };
 
+// activity 코드 → 활동 이름. 클래스5가 리포트를 그릴 때 쓰는 표( www.class5.co.kr/scripts/homer.js )를
+// 그대로 옮겼다. 코드 번호는 교재 종류(movie_type)마다 다른 뜻이라 표를 나눠 둔다.
+const ACT_MOVIE: Record<number, string> = {
+  1: "암기", 2: "무비보기", 3: "어순배열", 4: "딕테이션", 5: "쉐도잉", 6: "문장만들기",
+  7: "더빙", 8: "더빙리허설", 9: "암기", 10: "리콜", 11: "스펠", 12: "두더지 게임", 13: "스크램블",
+};
+const ACT_BOOK: Record<number, string> = {
+  1: "암기", 2: "리콜", 3: "스펠", 4: "문장익히기", 5: "어순배열", 6: "쉐도잉", 7: "문장만들기",
+  8: "본문듣기", 9: "본문익히기", 10: "낭독", 11: "퀴즈게임", 12: "두더지 게임", 13: "스크램블",
+};
+const ACT_WRITE: Record<number, string> = {
+  1: "암기", 2: "리콜", 3: "스펠", 4: "패턴설명", 5: "패턴듣기", 6: "패턴쉐도잉", 7: "패턴스피킹",
+  8: "패턴쓰기", 9: "스크램블", 10: "두더지 게임", 11: "Write My Story", 12: "Read My Story",
+};
+const ACT_GRAMMAR: Record<number, string> = {
+  1: "Words", 2: "Rules", 3: "Check", 4: "Practice", 5: "Upgrade", 6: "Master",
+};
+
+/** 그 과제에서 실제로 한 활동 이름들 (배정 순서 그대로, 중복 제거). */
+function activityNames(movieType: string | undefined, acts: Class5Activity[]): string[] {
+  const t = String(movieType ?? "");
+  const table = t === "book" || t === "read" ? ACT_BOOK
+    : t === "write" ? ACT_WRITE
+    : t === "grammar" ? ACT_GRAMMAR
+    : ACT_MOVIE;                       // phonics·song·movie 는 같은 표를 쓴다
+  const names: string[] = [];
+  const unknown: unknown[] = [];
+  for (const a of acts) {
+    const code = Number(a.activity);
+    // 송(song)만 1번이 '암기'가 아니라 '단어'다
+    const name = t === "song" && code === 1 ? "단어" : table[code];
+    if (!name) { unknown.push(a.activity); continue; }
+    if (!names.includes(name)) names.push(name);
+  }
+  // 표에 없는 코드가 오면 조용히 빠진다 — 클래스5가 활동을 늘렸다는 뜻이라 로그로 남긴다
+  if (unknown.length) logger.warn("[class5] 모르는 activity 코드", { movieType: t, unknown });
+  return names;
+}
+
 /** 과제 1건의 상세 → 품질 지표. 채점하지 않는 활동(더빙 등)은 정답률 계산에서 뺀다. */
-function summarizeUserItem(it: Class5UserItem): Pick<Class5Unit, "cardFirstTry" | "durationSec" | "gameScore" | "allStepsDone" | "movieType" | "startHour" | "startAt" | "endAt"> {
+function summarizeUserItem(it: Class5UserItem): Pick<Class5Unit, "cardFirstTry" | "durationSec" | "gameScore" | "allStepsDone" | "movieType" | "startHour" | "startAt" | "endAt" | "steps"> {
   const acts = it.activity_list ?? [];
   // 정답 카드가 하나도 없는 활동 = 채점 대상이 아님(더빙·쉐도잉) → 제외하지 않으면 정답률이 부당하게 깎인다
   const graded = acts.filter((a) => (a.card_list ?? []).some((c) => String(c.is_correct) === "1"));
@@ -175,8 +218,10 @@ function summarizeUserItem(it: Class5UserItem): Pick<Class5Unit, "cardFirstTry" 
   // 백분율 범위를 벗어나는 score는 게임 raw 점수
   const gameScores = acts.map((a) => Number(a.score)).filter((n) => Number.isFinite(n) && n > 100);
   const ts = norm(it.last_ts);
+  const steps = activityNames(it.movie_type, acts);
   return {
     cardFirstTry: firstTry,
+    steps: steps.length ? steps : undefined,
     durationSec: Number(it.total_duration) || undefined,
     gameScore: gameScores.length ? Math.max(...gameScores) : undefined,
     allStepsDone: it.is_clear === true || String(it.progress) === "100",

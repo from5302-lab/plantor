@@ -410,6 +410,13 @@ export function studySummary(
     for (const u of units) {
       if (!u?.unitLabel) continue;
       const stats: StudyStat[] = [];
+      // 클래스5 리포트의 단계 카드(단어·무비보기·쉐도잉·더빙)와 같은 항목.
+      // 단계별 점수는 싣지 않는다 — 끝내면 전부 100점이라 네 번 적어도 아무 말도 안 된다.
+      // 무엇을 했는지는 항목 이름이 말하고, 얼마나 잘했는지는 아래 정답률이 말한다.
+      // 칩은 줄바꿈이 안 되므로(feed-event-card) 한 줄로 이어 붙이지 않고 항목마다 하나씩 낸다 —
+      // 사이트의 단계 카드 배열과도 그 편이 닮았고, 좁은 화면에서 넘치지 않는다.
+      const steps: string[] = Array.isArray(u?.steps) ? u.steps.map(String).filter(Boolean) : [];
+      for (const s of steps.slice(0, 6)) stats.push({ name: "", value: s });
       const acc = toScore(u?.cardFirstTry);
       if (acc != null) stats.push({ name: "정답률", value: `${acc}%` });
       // 문법 게임은 백분율이 아니라 2~5만점대 raw 점수다 — % 를 붙이면 안 된다
