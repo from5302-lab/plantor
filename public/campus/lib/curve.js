@@ -28,13 +28,22 @@ export function bend(mat){
       // three 의 project_vertex 를 대체한다(인스턴싱·배칭은 안 쓴다).
       // 이후 fog_vertex 가 이 mvPosition 을 그대로 읽어 안개도 맞는다.
       '#include <project_vertex>',
-      // transformed 는 skinning_vertex 를 이미 거친 값이라 스킨드 메시도 그대로 맞다
-      `vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );
+      // transformed 는 skinning_vertex 를 이미 거친 값이라 스킨드 메시도 그대로 맞다.
+      // ⚠ 인스턴싱 분기를 빠뜨리면 InstancedMesh 가 전부 원점에 겹쳐 그려진다.
+      `vec4 mvPosition = vec4( transformed, 1.0 );
+       #ifdef USE_BATCHING
+         mvPosition = batchingMatrix * mvPosition;
+       #endif
+       #ifdef USE_INSTANCING
+         mvPosition = instanceMatrix * mvPosition;
+       #endif
+       mvPosition = modelViewMatrix * mvPosition;
        float d = mvPosition.z - uFocus;
        mvPosition.y -= d * d * uCurve;
        gl_Position = projectionMatrix * mvPosition;`);
   };
-  // 같은 셰이더를 쓰는 머티리얼끼리 프로그램을 공유하게 한다
+  // 같은 셰이더를 쓰는 머티리얼끼리 프로그램을 공유하게 한다.
+  // (스키닝·인스턴싱 여부는 three 가 내부 키에 이미 넣으므로 상수로 충분하다)
   mat.customProgramCacheKey = () => 'campus-curve';
   return mat;
 }

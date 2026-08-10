@@ -45,3 +45,7 @@ functions/lib/
 functions/.next/
 functions/node_modules/
 .firebase/
+
+# Kenney 에셋 라이브러리(수백 MB). 실제로 쓰는 모델만 public/campus/models/ 로 복사한다.
+# 원본은 kenney.nl 에서 언제든 다시 받을 수 있다(CC0).
+assets/kenney/

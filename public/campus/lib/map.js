@@ -13,6 +13,7 @@ import { FURNITURE, itemBox, ROOM_BOUNDS } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
+import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS } from '/campus/lib/kit.js';
 
 export async function mountCampus(){
   // ══════════════════════════════════════════════════════════════════
@@ -49,6 +50,19 @@ export async function mountCampus(){
   }
   const { buildAvatar, poseAvatar, disposeAvatar } = Avatar;
   const IS_GLB = Avatar !== CodeAvatar;
+
+  // Kenney 키트(건물·나무) — 못 받으면 예전 프로시저럴 지오메트리로 돌아간다
+  let KIT_OK = false;
+  try {
+    await loadKit(['building-type-p', 'building-type-k', 'building-type-s',
+                   'tree-large', 'tree-small', 'driveway-long', 'fence', 'planter',
+                   'flower_purpleA', 'flower_redA', 'flower_yellowA',
+                   'plant_bushSmall', 'grass_large',
+                   'fountain-round', 'stall-bench']);
+    KIT_OK = true;
+  } catch (e){
+    console.warn('[campus] Kenney 키트 로드 실패 — 기본 지오메트리로 갑니다', e);
+  }
 
   const cv = document.getElementById('cv');
   const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true});
@@ -160,10 +174,15 @@ export async function mountCampus(){
   // ── 야외 건물 ──────────────────────────────────────────────────────
   // 실내 좌표와 무관한 별도 공간이다. 문은 전부 남향(+z) — 진입 동선을
   // 한 방향으로 통일해야 어느 건물이든 같은 감각으로 들어간다.
+  //  kit = Kenney City Kit Suburban 모델. 못 받으면 예전 상자 건물로 돌아간다.
+  //  kitYaw = 모델 정면이 남쪽(+z)을 보게 돌리는 각.
   const BUILDINGS = [
-    {level:'main',  name:'본관',     x:  0, z:-12, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8},
-    {level:'study', name:'자습동',   x:-14, z: -1, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4},
-    {level:'union', name:'학생회관', x: 14, z: -1, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694},
+    {level:'main',  name:'본관',     x:  0, z:-12, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8,
+     kit:'building-type-p', kitYaw:0, fitH:8.0},
+    {level:'study', name:'자습동',   x:-14, z: -1, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
+     kit:'building-type-k', kitYaw:0, fitH:7.4},
+    {level:'union', name:'학생회관', x: 14, z: -1, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
+     kit:'building-type-s', kitYaw:0, fitH:7.2},
   ];
 
   // ── 가구 ───────────────────────────────────────────────────────────
@@ -271,6 +290,19 @@ export async function mountCampus(){
     return s;
   }
   function trees(list){
+    if (KIT_OK){
+      // Kenney 나무 — 시드 고정으로 크기·방향만 흔들어 심는다(같은 모델 반복이 티 안 나게)
+      let s = 3;
+      const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      for (const [x, z] of list){
+        const big = rnd() > 0.4;
+        const g = placeKit(big ? 'tree-large' : 'tree-small',
+          {x, z, yaw: rnd() * Math.PI * 2, fitW: (big ? 3.4 : 2.6) * (0.85 + rnd()*0.3),
+           track: m => junk.push(m)});
+        if (g) world.add(g);
+      }
+      return;
+    }
     const trunk = lam(0xb8ab97, null, 0.25), leaf = lam(0xa9bfa6, null, 0.3);
     // 지오메트리는 나무 전체가 공유한다 — 16그루가 각자 만들면 그만큼 낭비다
     const gTr = new THREE.CylinderGeometry(0.22, 0.3, 1.5, 8);
@@ -287,31 +319,73 @@ export async function mountCampus(){
   function buildOutdoor(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
-    plate(0, -4, 400, 400, 0xbcd4b4, -0.06);                 // 잔디 — 끝이 안 보이게 넓게
-    plate(0,  8, 12, 26, 0xeef1ec, -0.03);                   // 중앙 진입로
-    plate(0, -5, 44,  9, 0xeef1ec, -0.03);                   // 건물 앞 가로축 광장
+    // 잔디: 1×1 타일을 수천 장 까는 대신 **키트 팔레트의 잔디색**을 큰 판에 쓴다.
+    // 눈에 보이는 결과는 같고 드로우콜은 하나다.
+    plate(0, -4, 400, 400, KIT_OK ? GRASS : 0xbcd4b4, -0.06);
+
+    // 길·광장: City Kit 포장타일을 인스턴싱한다(수백 장이 드로우콜 한 줌).
+    const PAVE_S = 8.0;                                      // 타일 스케일
+    const PT = kitSize('driveway-long');                     // 원본 0.36 × 0.40 (거의 정사각)
+    const TW = PT ? PT.x * PAVE_S : 1.6, TD = PT ? PT.z * PAVE_S : 3.2;
+    const paved = [];
+    const pave = (cx, cz, w, d) => {
+      const nx = Math.max(1, Math.round(w / TW)), nz = Math.max(1, Math.round(d / TD));
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
+        paved.push({x: cx - w/2 + (i + 0.5)*TW, z: cz - d/2 + (j + 0.5)*TD});
+    };
+    pave(0,  8, 12, 26);                                     // 중앙 진입로
+    pave(0, -5, 44,  9);                                     // 건물 앞 가로축 광장
 
     for (const b of BUILDINGS){
-      const x0 = b.x - b.w/2, x1 = b.x + b.w/2, z0 = b.z - b.d/2, z1 = b.z + b.d/2;
-      // 건물 하나 = 가림 판정 단위. 몸통이 가려지면 문·간판까지 같이 비쳐야 한다
-      // (따로 놀면 투명해진 건물 앞에 문짝만 떠 있는 그림이 된다).
-      const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lam(b.c, null, 0.30));
-      body.position.set(b.x, b.h/2, b.z);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 1.2, 0.5, b.d + 1.2), lam(b.roof, null, 0.26));
-      roof.position.set(b.x, b.h + 0.25, b.z);
-      // 문 — 남쪽 면에 박아 넣은 판. 들어가는 곳이 눈에 보여야 한다
-      const door = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, 2.3), flat(0x5d7d68));
-      door.position.set(b.x, 1.15, z1 + 0.02);
-      world.add(body, roof, door);
-      const sign = signAt(b.name, b.x, 3.1, z1 + 0.05, 1);
-      OCCLUDERS.push({test:[body, roof], meshes:[body, roof, door, sign]});
+      // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
+      // 높이를 맞춘 뒤 **실제 크기에서** 충돌·존·간판 위치를 도로 계산한다.
+      let bw = b.w, bd = b.d, bh = b.h, kscale = null;
+      const ks = KIT_OK && b.kit ? kitSize(b.kit) : null;
+      if (ks){
+        kscale = b.fitH / ks.y;
+        bw = ks.x * kscale; bd = ks.z * kscale; bh = b.fitH;
+      }
+      const x0 = b.x - bw/2, x1 = b.x + bw/2, z0 = b.z - bd/2, z1 = b.z + bd/2;
+      // 건물 하나 = 가림 판정 단위. 몸통이 가려지면 간판까지 같이 비쳐야 한다
+      // (따로 놀면 투명해진 건물 앞에 간판만 떠 있는 그림이 된다).
+      const parts = [];
+      const kit = kscale
+        ? placeKit(b.kit, {x:b.x, z:b.z, yaw:b.kitYaw, scale:kscale, track:m => junk.push(m)})
+        : null;
+      if (kit){
+        world.add(kit);
+        kit.traverse(o => { if (o.isMesh) parts.push(o); });
+      } else {
+        // 폴백 — 키트를 못 받았을 때의 상자 건물
+        const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), lam(b.c, null, 0.30));
+        body.position.set(b.x, bh/2, b.z);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(bw + 1.2, 0.5, bd + 1.2), lam(b.roof, null, 0.26));
+        roof.position.set(b.x, bh + 0.25, b.z);
+        const door = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, 2.3), flat(0x5d7d68));
+        door.position.set(b.x, 1.15, z1 + 0.02);
+        world.add(body, roof, door);
+        parts.push(body, roof, door);
+      }
+      const sign = signAt(b.name, b.x, bh + 1.0, z1 + 0.05, 1);
+      OCCLUDERS.push({test:parts, meshes:[...parts, sign]});
 
       // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
       COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1});
       // 진입로
-      plate(b.x, z1 + 3.2, DOOR_W + 2.4, 6.4, 0xeef1ec, -0.02);
+      if (KIT_OK) pave(b.x, z1 + 3.2, DOOR_W + 2.4, 6.4);
+      else plate(b.x, z1 + 3.2, DOOR_W + 2.4, 6.4, 0xeef1ec, -0.02);
       ZONES.push({kind:'enter', level:b.level, name:b.name, sub:'건물 안으로',
         minX:b.x - DOOR_W/2 - 0.6, maxX:b.x + DOOR_W/2 + 0.6, minZ:z1 + 0.2, maxZ:z1 + 2.6});
+    }
+
+    // 길 타일을 여기서 한 번에 깐다(건물 진입로까지 모은 뒤)
+    if (KIT_OK && paved.length){
+      const g = placeKitInstanced('driveway-long', paved,
+        {scale: PAVE_S, track: m => junk.push(m)});
+      if (g){ g.position.y = 0.015; world.add(g); }
+    } else {
+      plate(0,  8, 12, 26, 0xeef1ec, -0.03);
+      plate(0, -5, 44,  9, 0xeef1ec, -0.03);
     }
 
     for (const p of PROPS.filter(p => p.level === 'outdoor')) addProp(p);
@@ -324,14 +398,28 @@ export async function mountCampus(){
     ]);
     buildFruitTrees();
     buildFlowers();
-    buildClouds();
 
-    // 정문 기둥 — 남쪽 끝. 여기가 캠퍼스 입구라는 표시
-    for (const gx of [-6.6, 6.6]){
-      const g = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 1.1), lam(0xe6e2d6, null, 0.28));
-      g.position.set(gx, 1.5, 20);
-      world.add(g);
-      COLLIDERS.push({minX:gx-0.55, maxX:gx+0.55, minZ:19.45, maxZ:20.55});
+    // 정문 — 남쪽 끝. 여기가 캠퍼스 입구라는 표시.
+    // 진입로(폭 12) 양옆으로 울타리를 세우고 가운데는 비운다.
+    if (KIT_OK){
+      const FS = 8.0;                                        // 울타리 스케일
+      const FZ = kitSize('fence');                           // 원본 0.48 × 0.08
+      const FW = FZ ? FZ.x * FS : 3.8;                       // 한 칸이 덮는 미터
+      const spots = [];
+      for (const side of [-1, 1])
+        for (let i = 0; i < 4; i++)
+          spots.push({x: side * (7 + (i + 0.5)*FW), z: 20});
+      const g = placeKitInstanced('fence', spots, {scale: FS, track: m => junk.push(m)});
+      if (g) world.add(g);
+      for (const sp of spots)
+        COLLIDERS.push({minX:sp.x - FW/2, maxX:sp.x + FW/2, minZ:19.7, maxZ:20.3});
+    } else {
+      for (const gx of [-6.6, 6.6]){
+        const g = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 1.1), lam(0xe6e2d6, null, 0.28));
+        g.position.set(gx, 1.5, 20);
+        world.add(g);
+        COLLIDERS.push({minX:gx-0.55, maxX:gx+0.55, minZ:19.45, maxZ:20.55});
+      }
     }
   }
 
@@ -339,7 +427,6 @@ export async function mountCampus(){
   // 레벨 로컬 상태 — clearLevel 이 메시를 지우므로 야외를 지을 때마다 다시 채운다.
   let fruitTrees = [];      // {id, crown, fruits[], shakeT, x, z}
   let groundFruits = [];    // {mesh, vx, vy, vz}  떨어져서 주울 수 있는 과일
-  let clouds = [];          // {g, speed}
 
   function buildFruitTrees(){
     fruitTrees = []; groundFruits = [];
@@ -376,36 +463,42 @@ export async function mountCampus(){
     // 시드 고정 난수 — 들를 때마다 꽃밭이 다른 곳에 피면 세계가 아니라 배경화면이 된다
     let s = 7;
     const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+
+    // 광장·진입로를 비켜 잔디에만 심는다
+    const spots = [];
+    for (let i = 0; i < 150; i++){
+      const a = rnd()*Math.PI*2, r = 10 + rnd()*26;
+      const x = Math.cos(a)*r, z = Math.sin(a)*r - 3;
+      if (Math.abs(x) < 8 && z > -12) continue;
+      if (Math.abs(z + 5) < 6 && Math.abs(x) < 24) continue;
+      spots.push({x, z, yaw: rnd()*Math.PI*2, scale: 0.8 + rnd()*0.6});
+    }
+
+    if (KIT_OK){
+      // 종류별로 나눠 인스턴싱한다(모델이 다르면 같은 배치로 못 묶는다)
+      const kinds = ['flower_redA', 'flower_yellowA', 'flower_purpleA',
+                     'grass_large', 'plant_bushSmall'];
+      const buckets = kinds.map(() => []);
+      spots.forEach((sp, i) => buckets[i % kinds.length].push(sp));
+      kinds.forEach((k, i) => {
+        // 꽃은 작게, 풀·덤불은 조금 크게
+        const base = k.startsWith('flower') ? 3.2 : 4.2;
+        const g = placeKitInstanced(k, buckets[i], {scale: base, track: m => junk.push(m)});
+        if (g) world.add(g);
+      });
+      return;
+    }
+
     const stemM = lam(0x74a862, null, 0.28);
     const headMs = [0xf2b8c6, 0xf5e07f, 0xffffff, 0xc9a9e8].map(c => lam(c, null, 0.4));
     const gSt = new THREE.CylinderGeometry(0.035, 0.035, 0.34, 5);
     const gHd = new THREE.SphereGeometry(0.13, 8, 6);
-    for (let i = 0; i < 40; i++){
-      const a = rnd()*Math.PI*2, r = 12 + rnd()*22;
-      const x = Math.cos(a)*r, z = Math.sin(a)*r - 3;
-      if (Math.abs(x) < 8 && z > -12) continue;         // 광장·진입로는 비워 둔다
-      const f = new THREE.Group(); f.position.set(x, 0, z);
+    spots.forEach((sp, i) => {
+      const f = new THREE.Group(); f.position.set(sp.x, 0, sp.z);
       const st = new THREE.Mesh(gSt, stemM); st.position.y = 0.17;
       const hd = new THREE.Mesh(gHd, headMs[i % headMs.length]); hd.position.y = 0.38;
       f.add(st, hd); world.add(f);
-    }
-  }
-
-  function buildClouds(){
-    clouds = [];
-    for (let i = 0; i < 6; i++){
-      const g = new THREE.Group();
-      const m = flat(0xffffff);
-      m.transparent = true; m.opacity = 0.9; m.fog = false;
-      for (let j = 0; j < 3; j++){
-        const p = new THREE.Mesh(track(new THREE.SphereGeometry(1.6 - j*0.35, 10, 8)), m);
-        p.position.set(j*1.7 - 1.7, (j%2)*0.25, 0); p.scale.y = 0.55;
-        g.add(p);
-      }
-      g.position.set(-50 + i*18, 17 + (i%3)*2.5, -34 + (i*11)%52);
-      world.add(g);
-      clouds.push({g, speed: 0.5 + (i%3)*0.22});
-    }
+    });
   }
 
   // 흔들기 — 오늘 이 나무를 처음 흔들 때만 과일이 떨어진다(자정에 리셋).
@@ -426,7 +519,25 @@ export async function mountCampus(){
     toast('나무를 흔들었다! 떨어진 사과를 밟아 줍자');
   }
 
+  // 키트 모델이 있는 소품은 상자 대신 그 모델로 세운다. 충돌 상자는 저작 데이터 그대로다.
+  const PROP_KIT = {
+    'bench-a': {name:'stall-bench', fitL:2.6, yaw:0},
+    'bench-b': {name:'stall-bench', fitL:2.6, yaw:0},
+    'fountain': {name:'fountain-round', fitL:4.2, yaw:0},
+  };
+
   function addProp(p){
+    const k = KIT_OK ? PROP_KIT[p.id] : null;
+    if (k){
+      const g = placeKit(k.name, {x:p.x, z:p.z, yaw:k.yaw,
+                                  fitL:k.fitL, track:m => junk.push(m)});
+      if (g){
+        g.name = p.id; world.add(g);
+        if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
+                                     minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+        return;
+      }
+    }
     // 분수는 상자로 두면 광장 한복판의 회색 판때기로 읽힌다. 원기둥이라야
     // 분수로 보인다. 충돌은 어차피 AABB 라 모양과 무관하다.
     const geo = p.round
@@ -1223,10 +1334,6 @@ export async function mountCampus(){
     FOCUS.value = tmp.copy(player.root.position).setY(0.9)
                      .applyMatrix4(camera.matrixWorldInverse).z;
     if (level === 'outdoor'){
-      for (const c of clouds){
-        c.g.position.x += c.speed * dt;
-        if (c.g.position.x > 55) c.g.position.x = -55;
-      }
       for (const ft of fruitTrees){
         if (ft.shakeT > 0){
           ft.shakeT = Math.max(0, ft.shakeT - dt);
