@@ -424,27 +424,87 @@ export async function mountCampus(){
     buildFruitTrees();
     buildFlowers();
 
-    // 정문 — 남쪽 끝. 여기가 캠퍼스 입구라는 표시.
-    // 진입로(폭 12) 양옆으로 울타리를 세우고 가운데는 비운다.
-    if (KIT_OK){
-      const FS = 8.0;                                        // 울타리 스케일
-      const FZ = kitSize('fence');                           // 원본 0.48 × 0.08
-      const FW = FZ ? FZ.x * FS : 3.8;                       // 한 칸이 덮는 미터
-      const spots = [];
-      for (const side of [-1, 1])
-        for (let i = 0; i < 3; i++)
-          spots.push({x: side * (3.6 + (i + 0.5)*FW), z: 11});
-      const g = placeKitInstanced('fence', spots, {scale: FS, track: m => junk.push(m)});
-      if (g) world.add(g);
-      for (const sp of spots)
-        COLLIDERS.push({minX:sp.x - FW/2, maxX:sp.x + FW/2, minZ:10.7, maxZ:11.3});
-    } else {
-      for (const gx of [-4.2, 4.2]){
-        const g = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 1.1), lam(0xe6e2d6, null, 0.28));
-        g.position.set(gx, 1.5, 14);
-        world.add(g);
-        COLLIDERS.push({minX:gx-0.55, maxX:gx+0.55, minZ:13.45, maxZ:14.55});
+    buildFence();
+  }
+
+  // ── 캠퍼스 울타리 ──────────────────────────────────────────────────
+  //  경계가 없으면 캠퍼스 밖으로 끝없이 걸어 나간다(실측: 8초 달려 60m,
+  //  지면 판 밖까지). 보이지 않는 벽으로 막으면 왜 못 나가는지 알 수 없으니
+  //  **눈에 보이는 울타리**로 두르고 그 자리에 충돌을 놓는다.
+  //  ⚠ 남쪽에 정문 틈을 냈더니 그리로 계속 걸어 나갔다(z=28 까지 확인).
+  //    밖에 갈 곳이 생기기 전까지는 **완전히 닫는다** — 보이는 구멍을 보이지 않는
+  //    벽으로 막는 것보다, 아예 안 뚫려 있는 편이 정직하다.
+  //    대신 남쪽 한가운데에 화분 두 개를 세워 정문처럼 읽히게 한다.
+  const YARD = {minX:-21, maxX:21, minZ:-19, maxZ:11};
+
+  function buildFence(){
+    const FZ = KIT_OK ? kitSize('fence') : null;           // 원본 폭 0.48
+    const FW = 3.84;                                       // 한 칸이 덮는 미터(목표 폭)
+    const spots = [];
+
+    // 축에 나란한 한 줄을 FW 간격으로 채운다
+    const run = (axis, fixed, from, to) => {
+      const a = Math.min(from, to), b = Math.max(from, to);
+      const n = Math.max(1, Math.round((b - a) / FW));
+      const step = (b - a) / n;
+      for (let i = 0; i < n; i++){
+        const t = a + (i + 0.5) * step;
+        // ⚠ placeKitInstanced 는 sp.scale 에 base 를 **곱한다**. 여기서 이미
+        //   목표 폭에 맞춘 배수를 넣으므로 base 는 1 이어야 한다.
+        //   (base 를 8 로 두면 8배로 더 곱해져 울타리가 담벼락이 된다)
+        const sc = step / FZ.x;
+        spots.push(axis === 'x'
+          ? {x: t, z: fixed, yaw: 0,         scale: sc}
+          : {x: fixed, z: t, yaw: Math.PI/2, scale: sc});
       }
+    };
+
+    if (KIT_OK){
+      run('x', YARD.maxZ, YARD.minX, YARD.maxX);            // 남
+      run('x', YARD.minZ, YARD.minX, YARD.maxX);            // 북
+      run('z', YARD.minX, YARD.minZ, YARD.maxZ);            // 서
+      run('z', YARD.maxX, YARD.minZ, YARD.maxZ);            // 동
+      const g = placeKitInstanced('fence', spots, {scale: 1, track: m => junk.push(m)});
+      if (g) world.add(g);
+
+      // 정문 표시 — 남쪽 한가운데 화분 두 개. 여기가 앞쪽이라는 신호다
+      for (const gx of [-4.6, 4.6]){
+        const pot = placeKit('planter', {x: gx, z: YARD.maxZ - 1.6, yaw: 0,
+                                         scale: 4.0, track: m => junk.push(m)});
+        if (pot) world.add(pot);
+        COLLIDERS.push({minX:gx - 0.8, maxX:gx + 0.8,
+                        minZ:YARD.maxZ - 2.2, maxZ:YARD.maxZ - 1.0});
+      }
+    }
+
+    // 충돌은 키트 유무와 상관없이 놓는다 — 모델이 없어도 밖으로 나가면 안 된다
+    const T = 0.6;                                          // 울타리 두께(충돌용)
+    const wall = (minX, maxX, minZ, maxZ) => COLLIDERS.push({minX, maxX, minZ, maxZ});
+    wall(YARD.minX, YARD.maxX,  YARD.maxZ - T/2, YARD.maxZ + T/2);   // 남
+    wall(YARD.minX, YARD.maxX,  YARD.minZ - T/2, YARD.minZ + T/2);   // 북
+    wall(YARD.minX - T/2, YARD.minX + T/2, YARD.minZ, YARD.maxZ);    // 서
+    wall(YARD.maxX - T/2, YARD.maxX + T/2, YARD.minZ, YARD.maxZ);    // 동
+
+    // 울타리 너머 — 나무를 한 겹 둘러 '끝'이 허허벌판으로 안 보이게 한다.
+    // 시드 고정이라 들를 때마다 같은 자리에 선다.
+    if (!KIT_OK) return;
+    let sd = 11;
+    const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const KINDS = ['tree_default', 'tree_oak', 'tree_pineRoundC'];
+    const ring = [];
+    for (let x = YARD.minX - 3; x <= YARD.maxX + 3; x += 4.5){
+      ring.push([x, YARD.minZ - 3 - rnd()*3]);
+      ring.push([x, YARD.maxZ + 3 + rnd()*3]);
+    }
+    for (let z = YARD.minZ - 1; z <= YARD.maxZ + 1; z += 4.5){
+      ring.push([YARD.minX - 3 - rnd()*3, z]);
+      ring.push([YARD.maxX + 3 + rnd()*3, z]);
+    }
+    for (const [x, z] of ring){
+      const k = KINDS[Math.floor(rnd() * KINDS.length)];
+      const g = placeKit(k, {x, z, yaw: rnd()*Math.PI*2,
+        scale: 3.6 * (0.85 + rnd()*0.35), track: m => junk.push(m)});
+      if (g) world.add(g);
     }
   }
 
