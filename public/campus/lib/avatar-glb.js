@@ -192,15 +192,15 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   // 캐릭터도 지형과 **같은** 곡면 변형을 탄다. 안 그러면 발밑 땅만 내려앉아 공중에 뜬다
   const skinMat = GHOST
     ? bend(new THREE.MeshStandardMaterial({
-        color: 0xdcdedb, roughness: 0.85,          // 무채색 회백 — 불투명
-        emissive: new THREE.Color(0xdcdedb).multiplyScalar(0.2),
+        color: 0xf2f2f0, roughness: 0.8,           // 화이트 클레이 — 레퍼런스 톤
+        emissive: new THREE.Color(0xf2f2f0).multiplyScalar(0.26),
         flatShading: true,
       }))
     : bend(new THREE.MeshStandardMaterial({
         // 기본색은 레퍼런스 그대로의 화이트 클레이 — 색은 커스터마이징(look.skin)이 입힌다
         color: look.skin ?? 0xf2f1ee, roughness: 0.7,
         // 실내 조명이 약해 스탠다드 재질이 회색으로 죽는다 — 맵 재질(lam)과 같은 리프트
-        emissive: new THREE.Color(look.skin ?? 0xf2f1ee).multiplyScalar(0.22),
+        emissive: new THREE.Color(look.skin ?? 0xf2f1ee).multiplyScalar(0.26),
         flatShading: true,     // 각진 로우폴리 룩 — 슬림 체형 레퍼런스가 패싯 스타일이다
       }));
   // SkeletonUtils.clone — 스킨드 메시는 일반 clone() 으로 복제하면 뼈대를 공유해
