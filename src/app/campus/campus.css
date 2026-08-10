@@ -57,6 +57,13 @@
          padding:9px 15px;font-size:12.5px;font-weight:700;opacity:0;transition:opacity .25s}
   .campus-root .toast.on{opacity:1}
 
+  /* 레벨 전환 암전. 기본은 pointer-events:none 이라 평소엔 클릭을 안 막고,
+     .on 인 동안에만 조작을 삼킨다(전환 중 탭이 들어가면 새 레벨에서 엉뚱한 곳으로 걷는다). */
+  .campus-root .fade{position:absolute;inset:0;z-index:60;background:#eef3ee;
+        opacity:0;pointer-events:none;transition:opacity .22s ease}
+  .campus-root .fade.on{opacity:1;pointer-events:auto}
+ @media (prefers-reduced-motion: reduce){ .campus-root .fade{transition:none} }
+
   .campus-root #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}

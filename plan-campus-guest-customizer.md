@@ -1,7 +1,13 @@
 # 캠퍼스 — 방문자 모드 · 꾸미기 실시간 미리보기 · 이미지 선택지
 
-> 상태: **검토 대기** (승인 전 구현 없음)
+> 상태: **승인됨 — 구현 중** (2026-08-08)
 > 대상 파일: `public/campus/lib/{avatar,customizer,map,store}.js`
+>
+> 승인 내용 (§5 검토 결과)
+> 1. 게스트 외형 → **무채색 "미설정" 룩** (결정 ① 그대로)
+> 2. 게스트 실시간 → **이번 범위에서 뺀다** (결정 ③ 그대로)
+> 3. 썸네일 색 정책 → **대기**. Task 4 는 이 결정이 날 때까지 보류하고,
+>    의존하지 않는 Task 1·2·3·5 를 먼저 완성한다.
 
 ---
 
@@ -90,31 +96,34 @@
 
 ## 3. 구현 계획
 
-### Task 1 — `avatar.js`: 게스트 룩과 무채색 얼굴
-- [ ] `faceTexture()` 에 `look.blush === 'none'` 분기 추가 (볼터치 생략)
-- [ ] `GUEST_LOOK` export 추가 — 연회색 피부/머리/옷/신발, `hairStyle:'crop'`, `topStyle:'longtee'`, `bottomStyle:'pants'`, `blush:'none'`, 회색 눈
+### Task 1 [완료] — `avatar.js`: 게스트 룩과 무채색 얼굴
+- [완료] `faceTexture()` 에 `look.blush === 'none'` 분기 추가 (볼터치 생략)
+- [완료] `GUEST_LOOK` export 추가 — 연회색 피부/머리/옷/신발, `hairStyle:'crop'`, `topStyle:'longtee'`, `bottomStyle:'pants'`, `blush:'none'`, 회색 눈
 - **검증**: `node --check public/campus/lib/avatar.js`
 
-### Task 2 — `map.js`: 방문자
-- [ ] `const SAVED = ME ? await loadCharacter() : null;`
-- [ ] `ME` 없으면 `myLook = {...GUEST_LOOK}` (기존 `DEFAULT_LOOK` 폴백은 로그인 계정용으로 유지)
-- [ ] 이름표 `'나'` → `'방문자'` (두 곳: [map.js:324](public/campus/lib/map.js:324), [map.js:507](public/campus/lib/map.js:507))
+### Task 2 [완료] — `map.js`: 방문자
+- [완료] `const SAVED = ME ? await loadCharacter() : null;`
+- [완료] `ME` 없으면 `myLook = {...GUEST_LOOK}` (기존 `DEFAULT_LOOK` 폴백은 로그인 계정용으로 유지)
+- [완료] 이름표 `'나'` → `'방문자'` (두 곳: [map.js:324](public/campus/lib/map.js:324), [map.js:507](public/campus/lib/map.js:507))
   → 문자열이 세 군데로 흩어지므로 `const MY_LABEL = ME ? ME.name : '방문자';` 하나로 모은다
 - **검증**: `node --check`, 배포 후 로그아웃 상태로 `/campus` 확인
 
-### Task 3 — `customizer.js`: 실시간 3D 미리보기
-- [ ] `three.js` · `buildAvatar` · `disposeAvatar` · `poseAvatar` · `topY`/`heightM` import
-- [ ] `<canvas class="cz-pv">` 추가. `WebGLRenderer({alpha:true, antialias:true})`, DPR 상한 2
-- [ ] 조명은 맵과 같은 톤(반구광 + 방향광 1)으로 맞춘다 — 프리뷰와 실제가 다른 색으로 보이면 안 된다
-- [ ] `PerspectiveCamera` 프레이밍을 `topY(body) * 0.75 * body.height` 로 계산 — 키를 바꿔도 전신이 화면에 꽉 찬다
-- [ ] `poseAvatar(rig,'idle','none',t)` 유휴 애니메이션
-- [ ] 드래그(포인터)로 좌우 회전. 기본 각도는 정면에서 살짝 튼 15°
-- [ ] `onChange` → 프리뷰 아바타만 rebuild (dispose 후 재생성)
-- [ ] rAF 루프는 **모달이 열려 있을 때만** 돈다. 닫히면 정지
-- [ ] `close()` 에서 렌더러·아바타 정리 (컨텍스트 누수 방지)
-- [ ] 파일 상단 주석의 "렌더러를 두 개 돌리지 않아도 되고" 를 새 근거로 교체
+### Task 3 [완료] — `customizer.js`: 실시간 3D 미리보기
+- [완료] `three.js` · `buildAvatar` · `disposeAvatar` · `poseAvatar` · `topY`/`heightM` import
+- [완료] `<canvas class="cz-pv">` 추가. `WebGLRenderer({alpha:true, antialias:true})`, DPR 상한 2
+- [완료] 조명은 맵과 같은 톤(반구광 + 방향광 1)으로 맞춘다 — 프리뷰와 실제가 다른 색으로 보이면 안 된다
+- [완료] `PerspectiveCamera` 프레이밍을 `topY(body) * 0.75 * body.height` 로 계산 — 키를 바꿔도 전신이 화면에 꽉 찬다
+- [완료] `poseAvatar(rig,'idle','none',t)` 유휴 애니메이션
+- [완료] 드래그(포인터)로 좌우 회전. 기본 각도는 정면에서 살짝 튼 15°
+- [완료] `onChange` → 프리뷰 아바타만 rebuild (dispose 후 재생성)
+- [완료] rAF 루프는 **모달이 열려 있을 때만** 돈다. 닫히면 정지
+- [완료] ~~`close()` 에서 렌더러·아바타 정리~~ → **계획과 다르게 구현함**: `close()` 는 rAF 루프만 멈추고
+  WebGL 컨텍스트는 마운트 때 만든 걸 계속 쓴다. 이 모달은 페이지당 한 번만 마운트되므로
+  누수의 위험은 '열 때마다 컨텍스트를 새로 만드는 것' 쪽에 있다(브라우저 컨텍스트 상한 ~16).
+  아바타 rig 도 유지했다가 다음 `open()` 때 교체한다
+- [완료] 파일 상단 주석의 "렌더러를 두 개 돌리지 않아도 되고" 를 새 근거로 교체
 
-### Task 4 — `customizer.js`: 이미지 선택지
+### Task 4 (보류 — §5-3 결정 대기) — `customizer.js`: 이미지 선택지
 - [ ] `thumb(kind, id, look, body)` — 프리뷰 렌더러를 빌려 1프레임 렌더 후 `toDataURL()`
   - 헤어 10 → 머리 클로즈업 / 상의 4 → 상반신 / 하의 3 → 하반신
   - `buildAvatar(..., {outline:false})` 로 굽는다. 96px 썸네일에 아웃라인은 안 보이는데 메시만 두 배가 된다
@@ -122,19 +131,24 @@
 - [ ] 모달을 열 때 한 번에 다 굽지 않는다 — 텍스트 라벨만 있는 칩을 먼저 그리고, `setTimeout(0)` 으로 몇 개씩 나눠 채운다. 17개 전신 빌드를 한 프레임에 몰면 모달이 열리다 멈춘다
 - [ ] 칩 CSS: 이미지 위 / 이름 아래, 3~4열 그리드. 선택 상태(`.on`)는 지금의 초록 배경 유지
 
-### Task 5 — 레이아웃
-- [ ] `.cz` 폭 `min(420px,100%)` → `min(720px,100%)`
-- [ ] ≥560px: 좌 프리뷰(고정) | 우 컨트롤(스크롤) 2단
-- [ ] <560px: 상단 프리뷰(약 32vh 고정) + 하단 탭·컨트롤 스크롤
-- [ ] 기존 미디어쿼리(`max-width:520px`) 와 겹치지 않게 정리
+### Task 5 [완료] — 레이아웃
+- [완료] `.cz` 폭 `min(420px,100%)` → `min(760px,100%)`, 높이 `min(88vh,760px)`
+- [완료] ≥560px: 좌 프리뷰(268px 고정) | 우 컨트롤(스크롤) 2단
+- [완료] <560px: 상단 프리뷰(30vh 고정) + 하단 탭·컨트롤 스크롤
+- [완료] 기존 미디어쿼리(`max-width:520px`) 와 겹치지 않게 정리
 
 ### Task 6 — 검증
 로컬 서버는 쓰지 않는다.
-- [ ] `node --check` — `avatar.js` `customizer.js` `map.js`
-- [ ] `npx eslint` · `npm run build` — 앱 라우트 쪽 회귀 없음 확인
-- [ ] 배포 후 `https://plantor.web.app/campus` 에서:
+- [완료] `node --check` (ESM 이라 `.mjs` 로 복사해 검사) — `avatar.js` `customizer.js` `map.js` 전부 통과
+- [완료] `avatar.js` 의 export 와 `customizer.js`·`map.js` 의 named import 대조 — 미해결 0건
+- [완료] `npx eslint public/campus/lib/` — 경고 3건, **전부 변경 전에도 있던 것**
+  (HEAD 사본을 따로 린트해 동일함을 확인). 새로 생긴 지적 없음
+- [완료] `npm run build` — 정적 export 성공, `/campus` 포함 전 라우트 프리렌더.
+  `out/campus/lib/customizer.js` 에 새 코드 반영 확인
+- [완료] 모달 템플릿 `<div>` 27 / `</div>` 27 균형 확인 (중첩을 두 단계 늘렸으므로)
+- [ ] **배포 후** `https://plantor.web.app/campus` 육안 확인 ← 남은 것
   - 로그아웃 상태 → 회색 캐릭터 + "방문자" 이름표 + 꾸미기 버튼 없음
-  - 로그인 상태 → 꾸미기 모달에서 프리뷰가 즉시 반응, 썸네일 17개가 실제 모델과 일치
+  - 로그인 상태 → 꾸미기 모달 좌측 프리뷰가 즉시 반응, 드래그 회전
   - 모달을 닫으면 맵 아바타에 반영, 콘솔에 WebGL 경고 없음
 
 ---

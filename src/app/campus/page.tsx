@@ -18,6 +18,21 @@ export default function CampusPage() {
   const errRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // three 의 애드온(GLTFLoader 등)은 `import ... from 'three'` 라는 맨 스펙파이어를
+    // 쓴다. 그걸 풀어 주는 importmap 을 맵 모듈보다 **먼저** 꽂아야 한다.
+    // 이미 붙어 있으면 다시 넣지 않는다(브라우저는 import map 을 하나만 받는다).
+    if (!document.querySelector('script[type="importmap"]')) {
+      const im = document.createElement("script");
+      im.type = "importmap";
+      im.textContent = JSON.stringify({
+        imports: {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        },
+      });
+      document.head.appendChild(im);
+    }
+
     // 번들러를 거치지 않도록 <script type="module"> 로 직접 붙인다.
     // (webpack 이 절대경로 동적 import 를 해석하려 들면 정적 export 에서 깨진다)
     const el = document.createElement("script");
@@ -59,7 +74,9 @@ export default function CampusPage() {
           <h4 id="pTitle">개인 자습실</h4>
           <p id="pSub">플래닝 · 자습 인증</p>
           <button id="pBtn">
-            입장 <kbd>Space</kbd>
+            {/* 동작 이름은 맵이 바꿔 쓴다(입장 / 나가기). 텍스트 노드째 다루면
+                JSX 공백 처리에 따라 엉뚱한 자식을 잡으므로 span 으로 고정한다 */}
+            <span id="pAct">입장</span> <kbd>Space</kbd>
           </button>
         </div>
 
@@ -83,6 +100,10 @@ export default function CampusPage() {
         <div className="toast" id="toast" />
         <div id="err" ref={errRef} />
       </div>
+
+      {/* 레벨 전환 암전. HUD 밖에 둔다 — .hud 는 pointer-events:none 이라
+          전환 중 조작을 막지 못한다. 여기서 덮어야 실제로 막힌다. */}
+      <div className="fade" id="fade" />
     </div>
   );
 }
