@@ -9,7 +9,7 @@ import { recordPurchaseFeed } from "./feed-events";
 // 포인트 차감은 클라이언트를 믿을 수 없으므로 전부 서버에서 처리한다.
 
 /** 호출자 → 본인 children 문서. 남의 계정은 건드릴 수 없다. */
-async function resolveChild(auth: { uid: string; token: Record<string, unknown> } | undefined) {
+export async function resolveChild(auth: { uid: string; token: Record<string, unknown> } | undefined) {
   if (!auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   const userSnap = await db.collection("users").doc(auth.uid).get();
   let plantorId = String(userSnap.data()?.plantor_id ?? "").toLowerCase();

@@ -154,6 +154,21 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // familyMail: 부모↔자녀 편지. 보낸 사람과 받는 사람 **둘만** 읽는다.
+    //   children/{childId}/{sub=**} 아래에 두지 않은 이유: 그 경로는 가족 전체 읽기라
+    //   형제가 남의 편지를 읽는다. allow 는 덧셈이라 더 좁은 경로를 아래에 써도 좁혀지지 않는다.
+    //   대신 문서에 parentUid·childUid 를 박아 uid 와 직접 비교한다 — get() 0회.
+    //   쓰기는 콜러블(sendFamilyMail·openFamilyMail)만: 선물이 포인트라 클라이언트를 믿을 수 없다.
+    //   조회는 반드시 parentUid 또는 childUid 동등 조건으로 좁혀야 통과한다.
+    // ─────────────────────────────────────────────────────────
+    match /familyMail/{mailId} {
+      allow read: if isAdmin()
+        || (request.auth != null && (request.auth.uid == resource.data.parentUid
+                                  || request.auth.uid == resource.data.childUid));
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // attendanceSessions: 학생 본인 생성/읽기/수정, 운영자 전체
     // ─────────────────────────────────────────────────────────
     match /attendanceSessions/{sessionId} {

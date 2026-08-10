@@ -67,6 +67,25 @@ const listTc = (name, expectation, uid, path, mocks, token = {}) => ({
   functionMocks: mocks,
 });
 
+/**
+ * familyMail 케이스 — 규칙이 문서의 parentUid·childUid 를 uid 와 직접 비교한다.
+ * 여기서 확인할 것은 "형제가 남의 편지를 못 읽는가" 다. children 하위에 뒀다면 읽혔다.
+ */
+const mailTc = (name, expectation, uid, data, method = "get") => ({
+  _name: name,
+  expectation,
+  request: {
+    auth: { uid, token: { email: `${uid}@plantor.app` } },
+    path: DOC("familyMail/m1"),
+    method,
+    time: new Date().toISOString(),
+  },
+  resource: { data },
+});
+
+const MAIL = { parentUid: PARENT, childUid: STUDENT, familyId: MYFAM, childId: "c1" };
+const SIBLING = "uid_sibling";
+
 const cases = [
   tc("학생 → 내 가족 자녀", "ALLOW", STUDENT, "children/c1", MYFAM, [userMock(STUDENT, MYFAM)]),
   tc("학생 → 남의 자녀", "DENY", STUDENT, "children/c9", OTHERFAM, [userMock(STUDENT, MYFAM)]),
@@ -88,6 +107,13 @@ const cases = [
      [userMock(PARENT, MYFAM, "parent")]),
   listTc("운영자 → children 목록", "ALLOW", ADMIN, "children/c1",
      [userMock(ADMIN, null, "admin")], { admin: true }),
+
+  // ── 가족 편지함 ──────────────────────────────────────────────────────────
+  mailTc("부모 → 내가 보낸 편지", "ALLOW", PARENT, MAIL),
+  mailTc("받는 자녀 → 나에게 온 편지", "ALLOW", STUDENT, MAIL),
+  mailTc("형제 → 남의 편지", "DENY", SIBLING, MAIL),
+  mailTc("자녀 → 편지 직접 쓰기", "DENY", STUDENT, MAIL, "create"),
+  mailTc("부모 → 편지 직접 고치기", "DENY", PARENT, MAIL, "update"),
 ];
 
 const body = {

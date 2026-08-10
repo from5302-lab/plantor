@@ -29,6 +29,7 @@ import { ConsentModal } from "./consent-modal";
 import { AttendanceWidget } from "./attendance-widget";
 import { ScreenshotModal } from "./screenshot-modal";
 import { RewardHeader } from "./reward-header";
+import { FamilyMailBox } from "./family-mail-box";
 
 // 자동 인증(Classcard 스크래핑)을 사용하는 서비스 slug 목록
 const AUTO_VERIFIED_SLUGS = new Set(["classcard-middle", "autovoca", "dailykor"]);
@@ -466,6 +467,9 @@ export function LearnDashboard({
         {!embedded && (
           <RewardHeader childId={childId} childName={childName} isDemo={isDemo} readOnly={readOnly} />
         )}
+
+        {/* 가족 편지함 — 본인 화면에서만. 미리보기·데모는 남의 uid 라 편지가 없다. */}
+        {!embedded && !isDemo && !readOnly && childId && <FamilyMailBox uid={userId} />}
 
         {/* 날짜 헤더 — 날짜는 맥락이지 주인공이 아니다.
             38px 대문자로 두면 화면에서 제일 큰 게 '오늘이 며칠인지'가 된다.

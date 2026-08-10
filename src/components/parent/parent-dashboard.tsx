@@ -15,6 +15,8 @@ import { REASONS_6HDL } from "@/lib/types";
 import type { LearningLog } from "@/lib/types";
 import { todayStr, getWeekDates, calcStreak, taskLabel } from "@/lib/learn-utils";
 import { AutoResultSection } from "@/components/learn/auto-result-card";
+import { useFamilyMail } from "@/lib/hooks/useFamilyMail";
+import { FamilyMailModal } from "./family-mail-modal";
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -56,6 +58,9 @@ export function ParentDashboard({ userId }: { userId: string }) {
   const [childDataMap, setChildDataMap] = useState<Record<string, ChildData>>({});
   const [ready, setReady] = useState(false);
   const [expandedScreenshot, setExpandedScreenshot] = useState<string | null>(null);
+  // 가족 편지함 — 구독은 여기 하나만 열고 자녀별로 걸러 모달에 넘긴다
+  const { items: mail } = useFamilyMail(userId, "parent");
+  const [mailChild, setMailChild] = useState<Child | null>(null);
 
   const today = todayStr();
   const weekDates = getWeekDates();
@@ -398,6 +403,32 @@ export function ParentDashboard({ userId }: { userId: string }) {
                   logsByDate={[{ date: today, logs: todayAuto }]}
                 />
 
+                {/* 편지 — 학습 현황을 보고 난 자리에서 바로 한마디 건넨다.
+                    이 화면에서 부모가 할 수 있는 유일한 '주는' 행동이라 카드 맨 아래에 둔다. */}
+                {(() => {
+                  const childMail = mail.filter((m) => m.childId === child.id);
+                  const replies = childMail.filter((m) => m.dir === "toParent" && !m.read).length;
+                  return (
+                    <div className="px-[18px] pb-3.5">
+                      <button
+                        onClick={() => setMailChild(child)}
+                        className="w-full rounded-xl py-2.5 text-[13px] font-bold border-none cursor-pointer flex items-center justify-center gap-1.5"
+                        style={{ background: "rgba(0,0,0,0.04)", color: "#3d3a37" }}
+                      >
+                        💌 편지 쓰기
+                        {replies > 0 && (
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-[11px] font-bold text-white"
+                            style={{ background: "#1f7a33" }}
+                          >
+                            답장 {replies}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {/* 인증샷 확대 */}
                 {(() => {
                   const expandedShot = todayShots.find((l) => l.id === expandedScreenshot && l.screenshotUrl);
@@ -427,6 +458,15 @@ export function ParentDashboard({ userId }: { userId: string }) {
           인증샷은 제출일로부터 90일간 보관됩니다. 학습 완료 시 카톡으로 알림이 발송됩니다.
         </div>
       </div>
+
+      {mailChild && (
+        <FamilyMailModal
+          childId={mailChild.id}
+          childName={mailChild.name}
+          mail={mail.filter((m) => m.childId === mailChild.id)}
+          onClose={() => setMailChild(null)}
+        />
+      )}
 
       {/* 인증샷 전체화면 오버레이 */}
       {expandedScreenshot && (() => {
