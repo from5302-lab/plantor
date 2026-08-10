@@ -12,6 +12,7 @@ import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadInv, saveInv, whe
 import { FURNITURE, itemBox, ROOM_BOUNDS } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { joinCampus } from '/campus/lib/net.js';
+import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
 
 export async function mountCampus(){
   // ══════════════════════════════════════════════════════════════════
@@ -98,27 +99,6 @@ export async function mountCampus(){
     return s;
   }
 
-  // ── 곡면 월드 (동물의 숲 지평선) ──────────────────────────────────
-  // 카메라에서 멀수록 버텍스를 아래로 내린다. GPU에서만 굽히고 좌표계·충돌·존은
-  // 평평한 그대로다. 야외에서만 켠다 — 실내에서 굽으면 방바닥이 그릇이 된다.
-  // 값은 프레임 루프에서 레벨에 맞춰 램프시킨다(전환 순간 세계가 꿀렁이지 않게).
-  const CURVE = { value: 0 };
-  const CURVE_K = 0.0016;
-  function bend(mat){
-    mat.onBeforeCompile = sh => {
-      sh.uniforms.uCurve = CURVE;
-      sh.vertexShader = 'uniform float uCurve;\n' + sh.vertexShader.replace(
-        '#include <project_vertex>',
-        // three의 project_vertex 를 통째로 대체한다(인스턴싱·배칭은 안 쓴다).
-        // 이후 fog_vertex 가 이 mvPosition 을 그대로 읽으므로 안개도 맞는다.
-        `vec4 mvPosition = vec4( transformed, 1.0 );
-         mvPosition = modelViewMatrix * mvPosition;
-         mvPosition.y -= mvPosition.z * mvPosition.z * uCurve;
-         gl_Position = projectionMatrix * mvPosition;`);
-    };
-    return mat;
-  }
-
   // lift = 자체발광 비율. 조명을 올리지 않고 재질만 밝힌다
   // (조명을 올리면 캐릭터 툰 셰이딩이 흰색으로 포화된다).
   const lam = (c, map, lift = 0) => track(bend(new THREE.MeshLambertMaterial({
@@ -144,7 +124,7 @@ export async function mountCampus(){
     // 건물이 전부 저 멀리 점으로 보인다).
     // fog 는 레벨마다 다르다. 실내 값(44~84)을 야외에 그대로 쓰면 카메라가
     // 두 배 멀어진 만큼 건물이 통째로 안개에 잠겨 하얗게 날아간다.
-    outdoor: {id:'outdoor', name:'캠퍼스',   outdoor:true, spawn:{x:0,   z:9,    yaw:Math.PI}, camR:42.0, camH:24.5, fog:[105, 235]},
+    outdoor: {id:'outdoor', name:'캠퍼스',   outdoor:true, spawn:{x:0,   z:9,    yaw:Math.PI}, camR:42.0, camH:24.5, fog:[78, 165]},
     main:    {id:'main',    name:'본관',     spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:21.8, camH:14.2, fog:[44, 84]},
     study:   {id:'study',   name:'자습동',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:21.8, camH:14.2, fog:[44, 84]},
     union:   {id:'union',   name:'학생회관', spawn:{x: 7.5, z:-4.6, yaw:0},       camR:21.8, camH:14.2, fog:[44, 84]},
@@ -307,7 +287,7 @@ export async function mountCampus(){
   function buildOutdoor(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
-    plate(0, -4, 130, 130, 0xbcd4b4, -0.06);                 // 잔디
+    plate(0, -4, 400, 400, 0xbcd4b4, -0.06);                 // 잔디 — 끝이 안 보이게 넓게
     plate(0,  8, 12, 26, 0xeef1ec, -0.03);                   // 중앙 진입로
     plate(0, -5, 44,  9, 0xeef1ec, -0.03);                   // 건물 앞 가로축 광장
 
@@ -1239,6 +1219,9 @@ export async function mountCampus(){
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
     CURVE.value += ((level === 'outdoor' ? CURVE_K : 0) - CURVE.value) * Math.min(1, dt*4);
+    // 굽힘 기준점 = 플레이어의 뷰공간 깊이. 여기서 변형량이 0 이라 발이 땅에 붙는다
+    FOCUS.value = tmp.copy(player.root.position).setY(0.9)
+                     .applyMatrix4(camera.matrixWorldInverse).z;
     if (level === 'outdoor'){
       for (const c of clouds){
         c.g.position.x += c.speed * dt;

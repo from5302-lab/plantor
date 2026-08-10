@@ -27,6 +27,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { bend } from '/campus/lib/curve.js';
 
 // 슬림 롱다리 리셰이프판 — 원본(chibi.glb)을 Blender에서 버텍스·본 동시 변형한 것.
 // 원본 파일과 리그 이름·구조가 같아 이 모듈의 포즈 코드가 그대로 돈다.
@@ -184,22 +185,24 @@ const turn = (j, axis, a) => { _q.setFromAxisAngle(axis, a); j.bone.quaternion.c
 export function buildAvatar(look = {}, body = null, opts = {}){
   if (!TPL) throw new Error('preload() 를 먼저 호출해야 합니다');
 
-  // 방문자(비로그인)는 투명 실루엣이다. 색을 칠하면 '누군가'가 되어 버리는데,
-  // 아직 아무도 아닌 상태라 비쳐 보이는 쪽이 맞는 표현이다.
-  // 채우기를 거의 지우고 테두리(뒷면 확대 셸)로만 형태를 남긴다.
+  // 방문자(비로그인)는 **무채색**이지만 불투명이다.
+  // 반투명으로 두면 뒤통수를 볼 때 얼굴 데칼이 몸을 뚫고 비친다.
+  // '아직 아무도 아닌 상태'는 색을 빼는 것으로 충분히 표현된다.
   const GHOST = look.ghost === true;
+  // 캐릭터도 지형과 **같은** 곡면 변형을 탄다. 안 그러면 발밑 땅만 내려앉아 공중에 뜬다
   const skinMat = GHOST
-    ? new THREE.MeshStandardMaterial({
-        color: 0xf4f5f3, roughness: 0.85,          // 방문자도 화이트 클레이 톤
-        transparent: true, opacity: 0.3, depthWrite: false,
-      })
-    : new THREE.MeshStandardMaterial({
+    ? bend(new THREE.MeshStandardMaterial({
+        color: 0xdcdedb, roughness: 0.85,          // 무채색 회백 — 불투명
+        emissive: new THREE.Color(0xdcdedb).multiplyScalar(0.2),
+        flatShading: true,
+      }))
+    : bend(new THREE.MeshStandardMaterial({
         // 기본색은 레퍼런스 그대로의 화이트 클레이 — 색은 커스터마이징(look.skin)이 입힌다
         color: look.skin ?? 0xf2f1ee, roughness: 0.7,
         // 실내 조명이 약해 스탠다드 재질이 회색으로 죽는다 — 맵 재질(lam)과 같은 리프트
         emissive: new THREE.Color(look.skin ?? 0xf2f1ee).multiplyScalar(0.22),
         flatShading: true,     // 각진 로우폴리 룩 — 슬림 체형 레퍼런스가 패싯 스타일이다
-      });
+      }));
   // SkeletonUtils.clone — 스킨드 메시는 일반 clone() 으로 복제하면 뼈대를 공유해
   // 캐릭터들이 같은 포즈로 움직인다. 전용 clone 이 뼈대까지 새로 만들어 준다.
   const model = cloneSkinned(TPL);
@@ -221,26 +224,6 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   // 테두리 — 같은 메시를 살짝 키워 뒷면만 그린다(툰 아웃라인과 같은 수법).
   // 스킨드 메시라 뼈대를 공유해야 몸을 따라 움직인다.
   const outlineMats = [];
-  if (GHOST){
-    for (const m of inst.meshes){
-      if (!m.visible) continue;
-      // 뒷면만 그리는 확대 셸 = 테두리. depthWrite 를 끄고 먼저 그려야
-      // 안쪽 반투명 몸이 그 위에 겹쳐 비친다(안 그러면 셸이 몸을 덮어 덩어리가 된다).
-      const om = new THREE.MeshBasicMaterial({
-        color: 0x8b9089, side: THREE.BackSide,     // 테두리도 무채색으로
-
-        transparent: true, opacity: 0.9, depthWrite: false,
-      });
-      outlineMats.push(om);
-      const o = new THREE.SkinnedMesh(m.geometry, om);
-      o.bind(m.skeleton, m.bindMatrix);      // 같은 뼈대를 그대로 쓴다
-      o.frustumCulled = false;
-      o.scale.setScalar(1.028);
-      o.renderOrder = -1;                    // 몸보다 먼저
-      m.renderOrder = 0;
-      m.parent.add(o);
-    }
-  }
 
   // 크기·바닥 맞추기
   model.updateMatrixWorld(true);
@@ -291,11 +274,14 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     center = pH.clone().lerp(pT, 0.5);
   }
 
-  const faceMat = new THREE.MeshStandardMaterial({
+  // transparent 를 끄고 alphaTest 만 쓴다 — 투명 패스로 넘어가면 깊이 정렬이 느슨해져
+  // 뒤통수를 볼 때 얼굴이 머리를 뚫고 비친다. 알파컷은 불투명 패스라 깊이가 정확하다.
+  // 앞면만 그리는 것도 같은 이유다.
+  const faceMat = bend(new THREE.MeshStandardMaterial({
     map: faceTexture(look.expr ?? 'normal', look.eye),
-    transparent: true, alphaTest: 0.42, roughness: 0.7,
-    side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2,
-  });
+    transparent: false, alphaTest: 0.42, roughness: 0.7,
+    side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: -2,
+  }));
   const face = new THREE.Mesh(decalGeo(rx, ry, rz), faceMat);
   const bq = new THREE.Quaternion(), bs = new THREE.Vector3(), mq = new THREE.Quaternion();
   headBone.getWorldQuaternion(bq); headBone.getWorldScale(bs);
