@@ -17,6 +17,7 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
 import { sanitizeRoom, DEFAULT_ROOM } from './room.js';
+import { ITEMS, sanitizeInv, sanitizeBells, dayKey } from './items.js';
 
 const app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -112,6 +113,59 @@ export async function loadRoom(){
     if (r && r.length) return r;
   } catch (e){ console.warn('[campus] 방 배치를 읽지 못했습니다', e); }
   return DEFAULT_ROOM.slice();
+}
+
+// ── 인벤토리·벨·채집 기록 ──────────────────────────────────────────
+//  로그인: users/{uid}.campus.{inv, bells, picked}
+//  게스트: localStorage — 방문자도 줍고 사고팔 수는 있다(계정으로 승격은 안 한다.
+//  캐릭터와 달리 아이템은 게스트→계정 이전 시 복제 수단이 되므로 옮기지 않는다).
+const INV_KEY = 'mp.inv.v1';
+// picked 는 {d:'YYYY-MM-DD', ids:[treeId]} 한 덩어리다. 날짜가 오늘이 아니면 빈 것으로
+// 친다(자정 리셋). 날짜별 맵으로 두면 merge 저장 때 옛 날짜가 계속 쌓인다.
+const pickedToday = p => (p && p.d === dayKey() && Array.isArray(p.ids)) ? p.ids : [];
+const invRead = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(INV_KEY)) || {};
+    return {inv: sanitizeInv(d.inv), bells: sanitizeBells(d.bells), picked: pickedToday(d.picked)};
+  } catch { return {inv:{}, bells:0, picked:[]}; }
+};
+const invWrite = (inv, bells, picked) => {
+  try {
+    localStorage.setItem(INV_KEY, JSON.stringify(
+      {v:1, inv, bells, picked:{d: dayKey(), ids: picked}}));
+    return true;
+  } catch { return false; }
+};
+
+/** 인벤·벨·오늘 흔든 나무를 한 번에 읽는다. */
+export async function loadInv(){
+  const me = await whenReady();
+  if (!me) return invRead();
+  try {
+    const c = (await getDoc(doc(db, 'users', me.uid))).data()?.campus || {};
+    return {inv: sanitizeInv(c.inv), bells: sanitizeBells(c.bells), picked: pickedToday(c.picked)};
+  } catch (e){ console.warn('[campus] 인벤토리를 읽지 못했습니다', e); }
+  return {inv:{}, bells:0, picked:[]};
+}
+
+/** 인벤·벨·채집 기록 저장. picked 는 오늘 날짜 키로만 남긴다(어제 기록은 버린다). */
+export async function saveInv(inv, bells, picked){
+  const me = await whenReady();
+  if (!me){
+    return invWrite(inv, bells, picked)
+      ? {ok:true, where:'guest'}
+      : {ok:false, where:'guest', error:'브라우저가 저장을 막고 있습니다.'};
+  }
+  try {
+    // 전 품목을 0까지 명시해서 쓴다 — merge 는 맵을 합치기만 해서, 수량이 0이 되며
+    // 키가 빠진 아이템은 서버에 옛 수량이 남아 다음 로드 때 되살아난다.
+    const full = {};
+    for (const k in ITEMS) full[k] = Math.floor(inv[k]) > 0 ? Math.floor(inv[k]) : 0;
+    await setDoc(doc(db, 'users', me.uid),
+      {campus: {inv: full, bells, picked: {d: dayKey(), ids: picked}, updatedAt: serverTimestamp()}},
+      {merge:true});
+    return {ok:true, where:'account'};
+  } catch (e){ return {ok:false, where:'account', error: e?.code || String(e)}; }
 }
 
 export async function saveRoom(items){

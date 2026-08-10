@@ -67,6 +67,49 @@
   .campus-root #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
        background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
        max-width:80vw;line-height:1.7}
+
+  /* ── 가방·매점 패널 ── */
+  .campus-root .panel{position:absolute;z-index:50;top:60px;right:14px;
+       width:min(330px,calc(100vw - 28px));max-height:min(500px,calc(100% - 130px));
+       display:flex;flex-direction:column;overflow:hidden;
+       background:var(--panel);border:1px solid var(--line);border-radius:12px;
+       backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(30,60,45,.16)}
+  .campus-root .panel[hidden]{display:none}
+  .campus-root .panel .phead{display:flex;align-items:center;gap:8px;padding:12px 14px;
+       border-bottom:1px solid var(--line);font-weight:800;font-size:13.5px}
+  .campus-root .panel .phead b{color:var(--primary)}
+  .campus-root .sp{flex:1}
+  .campus-root .panel .x{border:none;background:none;cursor:pointer;font:inherit;font-size:14px;
+       color:var(--muted);padding:2px 6px;border-radius:6px}
+  .campus-root .panel .x:hover{background:#eef3ee}
+  .campus-root .panel .pbody{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .campus-root .psec{font-size:11px;font-weight:800;color:var(--muted);margin:6px 2px 0;
+       text-transform:uppercase;letter-spacing:.04em}
+  .campus-root .prow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+       background:#fff;border:1px solid var(--line);font-size:12.5px;font-weight:700}
+  .campus-root .prow .nm{flex:1;min-width:0}
+  .campus-root .prow .ct{color:var(--muted);font-weight:800;font-variant-numeric:tabular-nums}
+  .campus-root .prow button,.campus-root .editbar .acts button{border:none;border-radius:6px;
+       background:var(--primary);color:#fff;font:inherit;font-size:11.5px;font-weight:800;
+       padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .campus-root .prow button:disabled,.campus-root .editbar .acts button:disabled{
+       background:#c9d6cc;cursor:default}
+  .campus-root .prow button.ghostb,.campus-root .editbar .acts button.ghostb{
+       background:#eef3ee;color:#35513f}
+  .campus-root .pempty{font-size:12px;color:var(--muted);text-align:center;padding:14px 0;font-weight:600}
+
+  /* ── 방 꾸미기 툴바 ── */
+  .campus-root .editbar{position:absolute;z-index:50;left:50%;bottom:78px;transform:translateX(-50%);
+       width:min(560px,calc(100vw - 20px));
+       background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;
+       backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(30,60,45,.16)}
+  .campus-root .editbar[hidden]{display:none}
+  .campus-root .editbar .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+  .campus-root .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 11px;
+       font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;color:var(--ink)}
+  .campus-root .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .campus-root .editbar .acts{display:flex;gap:6px;align-items:center}
+  .campus-root .editbar .hint{font-size:11px;color:var(--muted);margin-top:7px;text-align:center;font-weight:600}
  @media(max-width:760px){
     .campus-root .tools{top:10px;right:10px}
     .campus-root .tools button{padding:6px 10px;font-size:11.5px}

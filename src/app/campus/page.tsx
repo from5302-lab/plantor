@@ -63,8 +63,17 @@ export default function CampusPage() {
       <div className="hud">
         <div className="tools">
           <span id="count" hidden />
+          <button id="roomBtn" hidden>방 꾸미기</button>
           <button id="dressBtn" hidden>꾸미기</button>
+          <button id="bagBtn">
+            🎒 <b id="bagBells">0</b>벨
+          </button>
         </div>
+
+        {/* 가방·매점 패널과 방 꾸미기 툴바 — 내용은 맵(map.js)이 그때그때 그린다 */}
+        <div className="panel" id="bagPanel" hidden />
+        <div className="panel" id="shopPanel" hidden />
+        <div className="editbar" id="editBar" hidden />
 
         <div className="where" id="where">
           현재 위치 · <b>복도</b>

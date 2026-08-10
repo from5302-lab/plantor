@@ -256,6 +256,11 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     armR : BONE.armR.map(n => prep(find(n))),
   };
 
+  // 동숲 두상 — 머리 뼈를 비균등 스케일로 눌러 광대가 넓고 정수리가 낮은
+  // 실루엣을 만든다. 값이 작아 뼈 축이 월드와 살짝 어긋나도 티가 안 난다.
+  // 얼굴 데칼 치수는 이 스케일 **이후** 월드 좌표에서 재므로 같이 따라온다.
+  J.head.bone.scale.set(1.12, 0.94, 1.06);
+
   // T포즈 → A포즈. 결과를 새 기준 자세로 굳힌다
   const DOWN = Math.PI/2 * 0.86;
   for (const [arm, dir] of [[J.armL, -1], [J.armR, +1]]){
