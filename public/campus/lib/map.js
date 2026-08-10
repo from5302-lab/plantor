@@ -220,8 +220,9 @@ export async function mountCampus(){
   prop('union', 'lounge-table', 5.0, 0.8, 2.6, 1.3, 0.46, 0xe9eeea);
   prop('union', 'lounge-vending', 12.6, -1.2, 1.0, 1.6, 1.8, 0x7fae95);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
-  prop('outdoor', 'bench-a', -4.6, 2.5, 2.4, 0.7, 0.45, 0xd9cdb4);
-  prop('outdoor', 'bench-b',  4.6, 2.5, 2.4, 0.7, 0.45, 0xd9cdb4);
+  // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
+  prop('outdoor', 'bench-a', -4.6, 2.5, 1.8, 0.55, 0.44, 0xd9cdb4);
+  prop('outdoor', 'bench-b',  4.6, 2.5, 1.8, 0.55, 0.44, 0xd9cdb4);
   prop('outdoor', 'fountain', 0, 6.5, 2.8, 2.8, 0.55, 0xbdd8d2, true, true);
   // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
   prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
@@ -574,18 +575,21 @@ export async function mountCampus(){
   const PROP_KIT = {
     // ⚠ stall-bench 는 **z 축이 긴** 모델이다. yaw 0 으로 두면 남북으로 눕는데
     //   충돌 상자(prop 의 w=2.4 · d=0.7)는 동서로 누워 있어 벤치를 뚫고 지나갔다.
-    'bench-a':  {name:'stall-bench',   fitL:2.6, yaw:Math.PI/2, seat:0.45},
-    'bench-b':  {name:'stall-bench',   fitL:2.6, yaw:Math.PI/2, seat:0.45},
+    //  seat = 앉는 면 높이(m). 모델을 실측해 넣는다 — 어림하면 파묻히거나 뜬다.
+    //  seatYaw = 앉았을 때 보는 방향. 벤치는 긴 축과 **직각**으로 앉아야 다리가
+    //  옆으로 빠진다(같은 방향이면 벤치를 타고 앉은 그림이 된다).
+    'bench-a':  {name:'stall-bench',   fitL:1.8, yaw:Math.PI/2, seat:0.44, seatYaw:0},
+    'bench-b':  {name:'stall-bench',   fitL:1.8, yaw:Math.PI/2, seat:0.44, seatYaw:0},
     'fountain': {name:'fountain-round', fitL:4.2, yaw:0},
     // 학습실
     'class-board': {name:'televisionModern', scale:3.2, yaw:0},
     // 상담실
     'office-desk':  {name:'desk',           scale:2.0, yaw:0},
-    'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0, seat:0.5},
+    'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0, seat:0.48},
     'office-shelf': {name:'bookcaseClosedWide', scale:2.2, yaw:Math.PI/2},
     // 휴게실 · 상점
-    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0, seat:0.5},
-    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI, seat:0.5},
+    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0, seat:0.48},
+    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI, seat:0.48},
     'lounge-table':  {name:'table',         scale:2.0, yaw:0},
     'lounge-vending':{name:'kitchenFridgeLarge', scale:2.0, yaw:Math.PI},
     'shop-counter':  {name:'kitchenBar',    scale:2.4, yaw:0},
@@ -612,7 +616,7 @@ export async function mountCampus(){
         g.name = p.id; world.add(g);
         if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
                                      minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
-        if (k.seat) addSeat(p.x, p.z, k.yaw, k.seat, Math.max(p.w, p.d));
+        if (k.seat) addSeat(p.x, p.z, k.seatYaw ?? k.yaw, k.seat, Math.max(p.w, p.d));
         return;
       }
     }
@@ -843,10 +847,13 @@ export async function mountCampus(){
   //  앉기 — 앉아 있는 동안에는 이동 입력을 '일어서기'로 해석한다.
   //  seat 가 있으면 벤치에 앉은 것이라 일어설 때 자리를 살짝 비켜 준다.
   let sitting = false, seat = null;
+  //  Kenney sit 포즈는 루트보다 0.094 유닛(캠퍼스 기준 약 0.18m) 아래까지 내려간다.
+  //  루트를 앉는 면 높이에 그대로 두면 엉덩이가 면 아래로 파묻힌다 — 그만큼 올린다.
+  const SIT_LIFT = 0.14;
   function sitAt(x, z, yaw, s){
     sitting = true; seat = s || null;
     P.x = x; P.z = z; P.yaw = yaw;
-    player.root.position.set(x, seat ? seat.h : 0, z);
+    player.root.position.set(x, seat ? seat.h + SIT_LIFT : 0, z);
     player.root.rotation.y = yaw;
     tap.target = null;
   }
@@ -1173,7 +1180,7 @@ export async function mountCampus(){
   function rebuildPlayer(){
     disposeAvatar(player);
     player = buildAvatar(myLook, myBody);
-    player.root.position.set(P.x, sitting && seat ? seat.h : 0, P.z);
+    player.root.position.set(P.x, sitting && seat ? seat.h + SIT_LIFT : 0, P.z);
     player.root.rotation.y = P.yaw;
     const tag = nameTag(MY_LABEL);
     tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
@@ -1584,7 +1591,7 @@ export async function mountCampus(){
     // 점프 높이 — 위로 솟았다 내려오는 반원. 착지 순간이 또렷하게 sin 을 쓴다
     if (jumpT > 0) jumpT = Math.max(0, jumpT - dt);
     const hop = jumpT > 0 ? Math.sin((1 - jumpT / JUMP_DUR) * Math.PI) * JUMP_H : 0;
-    player.root.position.set(P.x, (sitting && seat ? seat.h : 0) + hop, P.z);
+    player.root.position.set(P.x, (sitting && seat ? seat.h + SIT_LIFT : 0) + hop, P.z);
     player.root.rotation.y = P.yaw;
     const myAct = sitting ? 'sit' : running ? 'run' : moving ? 'walk' : 'idle';
     // 몸짓이 도는 동안엔 poseAvatar 가 기본 동작으로 덮지 않게 어댑터가 잠근다.
