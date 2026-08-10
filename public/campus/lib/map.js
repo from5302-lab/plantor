@@ -12,6 +12,7 @@ import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadInv, saveInv, whe
 import { FURNITURE, itemBox, roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
+import { icon } from '/campus/lib/icons.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
 import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
@@ -128,7 +129,7 @@ export async function mountCampus(){
   // ⚠ id 는 저장·네트워크 경로에 쓰인다. 바꾸지 말 것.
   //   (name 은 화면 표기 전용이라 언제든 고쳐도 된다)
   //
-  //  outdoor ── 마을. 첫 화면. 건물 셋이 한 화면에 다 들어온다.
+  //  outdoor ── 캠퍼스. 첫 화면. 건물 셋이 한 화면에 다 들어온다.
   //    ├ main   학습센터 : 학습실 · 상담실(충쌤)
   //    ├ study  우리집   : 내 방 — 포인트로 넓어지는 꾸미기 공간
   //    └ union  상점     : 매장 — 팔고 사기
@@ -140,7 +141,7 @@ export async function mountCampus(){
     // fog 는 레벨마다 다르다. 실내 값을 야외에 그대로 쓰면 건물이 안개에 잠긴다.
     // spawn.yaw 는 **카메라 반대 방향**이어야 뒷모습이 보인다.
     // 카메라 기본각이 45°(camYaw=π/4)이므로 캐릭터는 그 반대인 -3π/4 를 본다.
-    outdoor: {id:'outdoor', name:'마을',     outdoor:true, spawn:{x:0,   z:0,    yaw:-Math.PI*0.75}, camR:21.0, camH:18.0, fog:[46, 105]},
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:-Math.PI*0.75}, camR:21.0, camH:18.0, fog:[46, 105]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
     union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
@@ -704,7 +705,7 @@ export async function mountCampus(){
   function award(n, why){
     if (n <= 0) return;
     INV.bells += n; INV.earned += n; markInv();
-    toast(`⭐ ${why} +${n.toLocaleString()}포인트`);
+    toast(`${why} +${n.toLocaleString()}포인트`);
   }
   function give(k, n = 1){ INV.inv[k] = countOf(k) + n; markInv(); }
   function take(k, n = 1){
@@ -1018,9 +1019,11 @@ export async function mountCampus(){
   const uiOpen = () => !elBag.hidden || !elShop.hidden || !elTalk.hidden;
   const esc = s => String(s);
   const itemRow = (k, right) =>
-    `<div class="prow"><span class="nm">${ITEMS[k].icon} ${esc(ITEMS[k].name)}</span>${right}</div>`;
+    `<div class="prow"><span class="ig">${icon(ITEMS[k].icon, 17)}</span>` +
+    `<span class="nm">${esc(ITEMS[k].name)}</span>${right}</div>`;
 
   function refreshBag(){
+    // 숫자와 단위를 붙여 쓰면 0P 가 알파벳 OP 로 읽힌다. 단위는 따로 조판한다.
     elBagBells.textContent = INV.bells.toLocaleString();
     if (elBag.hidden) return;
     const have = Object.keys(ITEMS).filter(k => countOf(k) > 0);
@@ -1031,8 +1034,9 @@ export async function mountCampus(){
       return itemRow(r.make, `<button data-craft="${r.id}" ${ok ? '' : 'disabled'}>조합 · ${need}</button>`);
     });
     elBag.innerHTML =
-      `<div class="phead">🎒 가방<span class="sp"></span><b>${INV.bells.toLocaleString()}P</b>` +
-      `<button class="x" data-close aria-label="닫기">✕</button></div>` +
+      `<div class="phead">${icon('backpack', 16)} 가방<span class="sp"></span>` +
+      `<b>${INV.bells.toLocaleString()}<i>P</i></b>` +
+      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody">` +
       (rows.length ? rows.join('') : `<div class="pempty">비어 있어요 — 야외 과일나무를 흔들어 보세요</div>`) +
       `<div class="psec">조합</div>` + crafts.join('') +
@@ -1049,14 +1053,15 @@ export async function mountCampus(){
       const need = ITEMS[k].tier ?? 0;
       if (need > ti.index){
         const at = ROOM_TIERS[need];
-        return itemRow(k, `<span class="ct">🔒 누적 ${at.need.toLocaleString()}P</span>`);
+        return itemRow(k, `<span class="ct lock">${icon('lock', 13)} 누적 ${at.need.toLocaleString()}P</span>`);
       }
       return itemRow(k, `<button data-buy="${k}" ${INV.bells >= ITEMS[k].buy ? '' : 'disabled'}>` +
         `${ITEMS[k].buy}P</button>`);
     });
     elShop.innerHTML =
-      `<div class="phead">🏪 상점<span class="sp"></span><b>${INV.bells.toLocaleString()}P</b>` +
-      `<button class="x" data-close aria-label="닫기">✕</button></div>` +
+      `<div class="phead">${icon('store', 16)} 상점<span class="sp"></span>` +
+      `<b>${INV.bells.toLocaleString()}<i>P</i></b>` +
+      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody">` +
       `<div class="psec">팔기</div>` +
       (sells.length ? sells.join('') : `<div class="pempty">팔 물건이 없어요</div>`) +
@@ -1075,7 +1080,7 @@ export async function mountCampus(){
       for (const [k, n] of Object.entries(r.need)) if (countOf(k) < n) return;
       for (const [k, n] of Object.entries(r.need)) take(k, n);
       give(r.make);
-      toast(`${ITEMS[r.make].icon} ${r.name} 완성!`);
+      toast(`${r.name} 완성!`);
       refreshBag();
     }
   });
@@ -1093,7 +1098,7 @@ export async function mountCampus(){
       const k = d.buy;
       if (INV.bells < ITEMS[k].buy) return;
       INV.bells -= ITEMS[k].buy; give(k);
-      toast(`${ITEMS[k].icon} ${ITEMS[k].name} 구입!`);
+      toast(`${ITEMS[k].name} 구입!`);
       refreshShop();
     }
   });
@@ -1143,8 +1148,8 @@ export async function mountCampus(){
         ` — ${ti.next.need.toLocaleString()}P 모으면 ${ti.next.name}으로 넓어져요</div>`
       : `<div class="pempty">누적 ${INV.earned.toLocaleString()}P · ${ti.name} (최대)</div>`;
     elTalk.innerHTML =
-      `<div class="phead">🧑‍🏫 ${esc(t.title)}<span class="sp"></span>` +
-      `<button class="x" data-close aria-label="닫기">✕</button></div>` +
+      `<div class="phead">${icon('user-round', 16)} ${esc(t.title)}<span class="sp"></span>` +
+      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody">` +
       t.lines.map(l => `<p class="say">${esc(l)}</p>`).join('') +
       (ME ? next : '') +
@@ -1189,7 +1194,7 @@ export async function mountCampus(){
   function refreshEditBar(){
     const chips = Object.keys(ITEMS).filter(k => ITEMS[k].furn && countOf(k) > 0)
       .map(k => `<button class="chip ${placeType === k ? 'on' : ''}" data-place="${k}">` +
-                `${ITEMS[k].icon} ${ITEMS[k].name} ×${countOf(k)}</button>`);
+                `${icon(ITEMS[k].icon, 15)} ${ITEMS[k].name} <b>×${countOf(k)}</b></button>`);
     elEditBar.innerHTML =
       `<div class="chips">` +
       (chips.length ? chips.join('') : `<span class="pempty">가구가 없어요 — 매점에서 살 수 있어요</span>`) +
@@ -1431,7 +1436,7 @@ export async function mountCampus(){
             if (dx*dx + dz*dz < 1.44){                      // 다가가면 줍는다
               world.remove(m);
               give('apple');
-              toast(`🍎 사과 +1 · 모두 ${countOf('apple')}개`);
+              toast(`사과 +1 · 모두 ${countOf('apple')}개`);
             } else keep.push(gf);
           }
         }

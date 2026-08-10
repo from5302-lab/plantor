@@ -9,17 +9,19 @@ import { FURNITURE } from '/campus/lib/room.js';
 
 //  tier = 이 물건이 상점에 풀리는 누적 포인트 구간(ROOM_TIERS 인덱스).
 //  방이 넓어질수록 살 수 있는 것도 늘어난다.
+//  icon = Lucide 이름(icons.js). 이모지는 쓰지 않는다 — 플랫폼마다 그림이 달라지고
+//  굵기가 UI 와 따로 놀아 '만들다 만' 인상을 준다(러그가 초록 네모로 보였다).
 export const ITEMS = {
-  apple: {name:'사과',     icon:'🍎', sell:100},
-  juice: {name:'사과주스', icon:'🧃', sell:400},
-  chair: {name:'의자',     icon:'🪑', buy:300,  furn:true, tier:0},
-  plant: {name:'화분',     icon:'🪴', buy:300,  furn:true, tier:0},
-  rug:   {name:'러그',     icon:'🟩', buy:500,  furn:true, tier:0},
-  desk:  {name:'책상',     icon:'🪵', buy:600,  furn:true, tier:1},
-  lamp:  {name:'스탠드',   icon:'💡', buy:400,  furn:true, tier:1},
-  shelf: {name:'책장',     icon:'📚', buy:700,  furn:true, tier:2},
-  board: {name:'화이트보드', icon:'🖍️', buy:500, furn:true, tier:2},
-  sofa:  {name:'소파',     icon:'🛋️', buy:800,  furn:true, tier:3},
+  apple: {name:'사과',      icon:'apple',    sell:100},
+  juice: {name:'사과주스',  icon:'cup-soda', sell:400},
+  chair: {name:'의자',      icon:'armchair', buy:300, furn:true, tier:0},
+  plant: {name:'화분',      icon:'sprout',   buy:300, furn:true, tier:0},
+  rug:   {name:'러그',      icon:'rectangle-horizontal', buy:500, furn:true, tier:0},
+  desk:  {name:'책상',      icon:'table',    buy:600, furn:true, tier:1},
+  lamp:  {name:'스탠드',    icon:'lamp',     buy:400, furn:true, tier:1},
+  shelf: {name:'책장',      icon:'library',  buy:700, furn:true, tier:2},
+  board: {name:'화이트보드', icon:'presentation', buy:500, furn:true, tier:2},
+  sofa:  {name:'소파',      icon:'sofa',     buy:800, furn:true, tier:3},
 };
 // 가구 이름은 room.js 가 원본이다 — 두 곳이 어긋나면 배치 화면과 상점이 딴소리를 한다
 for (const k in ITEMS) if (ITEMS[k].furn) ITEMS[k].name = FURNITURE[k].name;

@@ -2,8 +2,15 @@
    ⚠ 전역으로 새면 안 된다 — 정적 HTML 시절의 `*{margin:0;padding:0}` 리셋이
    그대로 딸려와 네비바의 Tailwind 패딩까지 지웠다. 모든 규칙을
    .campus-root 안으로 가둔다. */
-.campus-root{--panel:rgba(255,255,255,.94);--ink:#1d2a22;--muted:#6b7f72;--line:#d5e2d8;
-        --primary:#1f7a33;--radius:10px;
+.campus-root{--panel:rgba(255,255,255,.96);--ink:#1d2a22;--muted:#54685c;--line:rgba(0,0,0,.09);
+        --primary:#1f7a33;--primary-soft:#f0faf1;
+        /* 라운딩은 두 단계만 쓴다 — 요소마다 제각각이면 그것만으로 싸 보인다 */
+        --r-sm:8px;--r-md:12px;
+        /* DESIGN.md 의 다층 소프트 그림자. 한 겹 진한 그림자가 올드함의 표식이다 */
+        --sh-card:0 .175px 1.04px rgba(0,0,0,.01), 0 .8px 2.93px rgba(0,0,0,.02),
+                  0 2.025px 7.85px rgba(0,0,0,.027), 0 4px 18px rgba(0,0,0,.04);
+        --sh-panel:0 1px 2px rgba(0,0,0,.02), 0 4px 10px rgba(0,0,0,.03),
+                   0 12px 28px rgba(0,0,0,.05), 0 24px 52px rgba(0,0,0,.05);
         --font:"Pretendard","Apple SD Gothic Neo","Segoe UI",system-ui,-apple-system,sans-serif;}
   .campus-root{position:relative;height:calc(100dvh - 57px);overflow:hidden;background:#f4f8f5;font-family:var(--font)}
   .campus-root #cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
@@ -12,50 +19,70 @@
   .campus-root .hud{position:absolute;inset:0;pointer-events:none;color:var(--ink)}
   .campus-root .hud > *{pointer-events:auto}
 
-  .campus-root .tools{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px}
-  .campus-root .tools #count{font-size:11.5px;font-weight:800;color:#3a4a40;padding:9px 12px;border-radius:8px;
-        background:rgba(255,255,255,.94);box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06)}
+  /* 상단 도구는 **상태·보조 동작**이다. 여기까지 초록으로 칠하면 화면에 CTA 가 넷이 되어
+     정작 중요한 행동(입장·구매)이 묻힌다. 강한 초록은 뷰포트당 하나로 묶는다. */
+  .campus-root .tools{position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:8px}
+  .campus-root .tools #count{font-size:12px;font-weight:600;color:var(--muted);padding:8px 12px;
+        border-radius:var(--r-sm);background:var(--panel);border:1px solid var(--line);
+        box-shadow:var(--sh-card);backdrop-filter:blur(8px)}
   .campus-root .tools #count[hidden]{display:none}
-  .campus-root .tools button{padding:9px 14px;border:none;border-radius:8px;font:inherit;font-size:12.5px;
-        font-weight:800;cursor:pointer;text-decoration:none;white-space:nowrap;
-        box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
-        transition:filter 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .tools button:hover{filter:brightness(1.06)}
-  .campus-root .tools button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-  .campus-root .tools button{background:var(--primary);color:#fff}
+  .campus-root .chipbtn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;
+        border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);
+        color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+        white-space:nowrap;backdrop-filter:blur(8px);box-shadow:var(--sh-card);
+        transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .chipbtn:hover{background:#fff}
+  .campus-root .chipbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .chipbtn b{font-weight:700;font-variant-numeric:tabular-nums;color:var(--primary)}
+  /* 단위는 숫자에서 떼어 조판한다 — 붙이면 "0P" 가 알파벳 OP 로 읽힌다 */
+  /* flex gap 이 숫자와 단위 사이에도 들어가 "2,400  P" 로 벌어진다. 단위만 당겨 붙인다 */
+  .campus-root .chipbtn i{font-style:normal;font-size:11px;font-weight:600;
+        color:var(--muted);margin-left:-4px}
 
   .campus-root .where{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
-         background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-         padding:7px 14px;font-size:12.5px;font-weight:700;backdrop-filter:blur(6px);white-space:nowrap;
-         box-shadow:0 2px 10px rgba(30,60,45,.10)}
-  .campus-root .where b{color:var(--primary)}
+         background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+         padding:8px 12px;font-size:12px;font-weight:600;color:var(--muted);
+         backdrop-filter:blur(8px);white-space:nowrap;box-shadow:var(--sh-card)}
+  .campus-root .where b{color:var(--ink);font-weight:700}
 
-  .campus-root .prompt{position:absolute;bottom:78px;left:50%;transform:translateX(-50%) translateY(8px);
-          background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-          padding:12px 16px;text-align:center;opacity:0;transition:opacity .18s,transform .18s;
-          backdrop-filter:blur(6px);min-width:210px}
+  .campus-root .prompt{position:absolute;bottom:64px;left:50%;transform:translateX(-50%) translateY(8px);
+          background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);
+          padding:16px;text-align:center;opacity:0;
+          transition:opacity 250ms cubic-bezier(.16,1,.3,1), transform 250ms cubic-bezier(.16,1,.3,1);
+          backdrop-filter:blur(8px);min-width:216px;box-shadow:var(--sh-panel)}
   .campus-root .prompt.on{opacity:1;transform:translateX(-50%) translateY(0)}
-  .campus-root .prompt h4{font-size:14.5px;font-weight:800}
-  .campus-root .prompt p{font-size:11.5px;color:var(--muted);margin-top:3px}
-  .campus-root .prompt button{margin-top:9px;width:100%;font-family:inherit;cursor:pointer;border:none;
-                 background:var(--primary);color:#fff;font-weight:700;font-size:12.5px;
-                 padding:8px 14px;border-radius:8px}
-  .campus-root .prompt kbd{background:#e2ece4;color:#35513f;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700}
+  .campus-root .prompt h4{font-size:15px;font-weight:700;letter-spacing:-.01em}
+  .campus-root .prompt p{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
+  /* 화면에서 유일한 solid 초록 — 지금 할 수 있는 행동은 이것 하나라는 신호다 */
+  .campus-root .prompt button{margin-top:12px;width:100%;font-family:inherit;cursor:pointer;border:none;
+                 background:var(--primary);color:#fff;font-weight:700;font-size:13px;
+                 padding:10px 16px;border-radius:var(--r-sm);
+                 transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .prompt button:hover{background:#1a6a2c}
+  .campus-root .prompt button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .prompt kbd{background:rgba(255,255,255,.22);color:#fff;border-radius:4px;
+         padding:2px 6px;font-size:11px;font-weight:600;margin-left:4px}
+  /* 터치 기기엔 키보드가 없다 — Space 를 안내하면 거짓말이 된다 */
+ @media (pointer: coarse){ .campus-root .prompt kbd{display:none} }
 
   .campus-root .rot{position:absolute;bottom:16px;right:14px;display:flex;gap:8px}
-  .campus-root .rot button{width:44px;height:44px;border-radius:8px;background:var(--panel);border:1px solid var(--line);
-              color:#3a4a40;display:grid;place-items:center;backdrop-filter:blur(6px);
-              box-shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+  .campus-root .rot button{width:44px;height:44px;border-radius:var(--r-sm);background:var(--panel);
+              border:1px solid var(--line);color:var(--muted);display:grid;place-items:center;
+              backdrop-filter:blur(8px);box-shadow:var(--sh-card);
               transition:background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1)}
   .campus-root .rot button:hover{background:#f2f6f3}
-  .campus-root .rot button:active{background:var(--primary);color:#fff}
+  .campus-root .rot button:active{background:var(--primary-soft);color:var(--primary)}
   .campus-root .rot button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
  @media (prefers-reduced-motion: reduce){ .campus-root .rot button{transition:none} }
 
-  .campus-root .toast{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
-         background:var(--panel);border:1px solid var(--line);border-radius:8px;
-         padding:9px 15px;font-size:12.5px;font-weight:700;opacity:0;transition:opacity .25s}
-  .campus-root .toast.on{opacity:1}
+  /* 아래쪽은 프롬프트·에딧바·현재위치가 이미 쓴다. 겹치지 않게 위로 올린다. */
+  .campus-root .toast{position:absolute;top:16px;left:50%;transform:translateX(-50%) translateY(-6px);
+         background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+         padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--ink);
+         backdrop-filter:blur(8px);box-shadow:var(--sh-card);white-space:nowrap;
+         opacity:0;pointer-events:none;
+         transition:opacity 250ms cubic-bezier(.16,1,.3,1), transform 250ms cubic-bezier(.16,1,.3,1)}
+  .campus-root .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
   /* 레벨 전환 암전. 기본은 pointer-events:none 이라 평소엔 클릭을 안 막고,
      .on 인 동안에만 조작을 삼킨다(전환 중 탭이 들어가면 새 레벨에서 엉뚱한 곳으로 걷는다). */
@@ -76,65 +103,118 @@
        border:3px solid rgba(31,122,51,.14);border-top-color:var(--primary);
        animation:boot-spin 900ms linear infinite}
   @keyframes boot-spin{to{transform:rotate(360deg)}}
-  .campus-root .boot-quip{font-size:13.5px;font-weight:700;color:var(--muted);
+  .campus-root .boot-quip{font-size:13.5px;font-weight:600;color:var(--muted);
        min-height:1.4em;text-align:center;padding:0 24px}
+  .campus-root .boot-fail{display:flex;flex-direction:column;align-items:center;gap:8px;
+       max-width:34ch;text-align:center}
+  .campus-root .boot-fail .boot-quip{color:var(--ink);font-weight:700}
+  .campus-root .boot-sub{font-size:12.5px;color:var(--muted);line-height:1.6;font-weight:500}
+  .campus-root .boot-retry{margin-top:8px;border:none;border-radius:var(--r-sm);
+       background:var(--primary);color:#fff;font:inherit;font-size:13px;font-weight:700;
+       padding:10px 20px;cursor:pointer}
+  .campus-root .boot-retry:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
  @media (prefers-reduced-motion: reduce){
     .campus-root .boot-ring{animation-duration:2.4s}
   }
 
   /* ── 가방·매점 패널 ── */
-  .campus-root .panel{position:absolute;z-index:50;top:60px;right:14px;
-       width:min(330px,calc(100vw - 28px));max-height:min(500px,calc(100% - 130px));
+  .campus-root .panel{position:absolute;z-index:50;top:64px;right:16px;
+       width:320px;max-height:calc(100% - 160px);
        display:flex;flex-direction:column;overflow:hidden;
-       background:var(--panel);border:1px solid var(--line);border-radius:12px;
-       backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(30,60,45,.16)}
+       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);
+       backdrop-filter:blur(10px);box-shadow:var(--sh-panel)}
   .campus-root .panel[hidden]{display:none}
-  .campus-root .panel .phead{display:flex;align-items:center;gap:8px;padding:12px 14px;
-       border-bottom:1px solid var(--line);font-weight:800;font-size:13.5px}
-  .campus-root .panel .phead b{color:var(--primary)}
+  .campus-root .panel .phead{display:flex;align-items:center;gap:8px;padding:14px 16px;
+       border-bottom:1px solid var(--line);font-weight:700;font-size:14px;letter-spacing:-.01em}
+  .campus-root .panel .phead b{color:var(--primary);font-variant-numeric:tabular-nums}
+  .campus-root .panel .phead b i{font-style:normal;font-size:11px;font-weight:600;
+       color:var(--muted);margin-left:1px}
+  .campus-root .ic{flex:none;vertical-align:-.15em}
   .campus-root .sp{flex:1}
-  .campus-root .panel .x{border:none;background:none;cursor:pointer;font:inherit;font-size:14px;
-       color:var(--muted);padding:2px 6px;border-radius:6px}
-  .campus-root .panel .x:hover{background:#eef3ee}
-  .campus-root .panel .pbody{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
-  .campus-root .psec{font-size:11px;font-weight:800;color:var(--muted);margin:6px 2px 0;
-       text-transform:uppercase;letter-spacing:.04em}
-  .campus-root .prow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
-       background:#fff;border:1px solid var(--line);font-size:12.5px;font-weight:700}
+  .campus-root .panel .x{border:none;background:none;cursor:pointer;color:var(--muted);
+       width:28px;height:28px;display:grid;place-items:center;border-radius:var(--r-sm)}
+  .campus-root .panel .x:hover{background:rgba(0,0,0,.05);color:var(--ink)}
+  .campus-root .panel .x:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .panel .pbody{overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;
+       overscroll-behavior:contain}
+  /* 섹션 라벨은 위 그룹과 떨어뜨려야 근접성으로 묶인다(그룹 사이 > 그룹 내부) */
+  .campus-root .psec{font-size:11.5px;font-weight:700;color:var(--muted);margin:12px 2px 2px;
+       letter-spacing:0}
+  .campus-root .psec:first-child{margin-top:0}
+  .campus-root .prow{display:flex;align-items:center;gap:10px;padding:10px 12px;
+       border-radius:var(--r-sm);background:#fff;border:1px solid var(--line);
+       font-size:13px;font-weight:600;color:var(--ink)}
+  .campus-root .prow .ig{display:grid;place-items:center;width:24px;height:24px;flex:none;
+       border-radius:6px;background:var(--primary-soft);color:var(--primary)}
   .campus-root .prow .nm{flex:1;min-width:0}
-  .campus-root .prow .ct{color:var(--muted);font-weight:800;font-variant-numeric:tabular-nums}
-  .campus-root .prow button,.campus-root .editbar .acts button{border:none;border-radius:6px;
-       background:var(--primary);color:#fff;font:inherit;font-size:11.5px;font-weight:800;
-       padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .campus-root .prow .ct{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+  .campus-root .prow .ct.lock{display:inline-flex;align-items:center;gap:4px;font-size:11.5px}
+  /* 목록 안 버튼은 **보조**다. 열 개가 전부 solid 초록이면 강조가 사라진다 —
+     테두리+초록 글씨로 두고, solid 초록은 프롬프트(주 행동) 하나만 쓴다. */
+  .campus-root .prow button,.campus-root .editbar .acts button{
+       border:1px solid rgba(31,122,51,.28);border-radius:6px;background:#fff;
+       color:var(--primary);font:inherit;font-size:12px;font-weight:700;
+       padding:6px 10px;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums;
+       transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .prow button:hover,.campus-root .editbar .acts button:hover{
+       background:var(--primary-soft)}
+  .campus-root .prow button:focus-visible,.campus-root .editbar .acts button:focus-visible{
+       outline:2px solid var(--primary);outline-offset:2px}
   .campus-root .prow button:disabled,.campus-root .editbar .acts button:disabled{
-       background:#c9d6cc;cursor:default}
+       border-color:var(--line);color:#9aa8a0;background:#fff;cursor:default}
   .campus-root .prow button.ghostb,.campus-root .editbar .acts button.ghostb{
-       background:#eef3ee;color:#35513f}
-  .campus-root .say{font-size:13px;line-height:1.75;color:var(--ink);font-weight:600;
-       background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+       border-color:var(--line);color:var(--muted)}
+  .campus-root .say{font-size:13px;line-height:1.7;color:var(--ink);font-weight:500;
+       background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:12px}
   .campus-root .panel .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-  .campus-root .panel .acts button{border:none;border-radius:6px;background:var(--primary);
-       color:#fff;font:inherit;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer}
-  .campus-root .pempty{font-size:12px;color:var(--muted);text-align:center;padding:14px 0;font-weight:600}
+  .campus-root .panel .acts button{border:1px solid rgba(31,122,51,.28);border-radius:6px;
+       background:#fff;color:var(--primary);font:inherit;font-size:12px;font-weight:700;
+       padding:8px 12px;cursor:pointer;transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .panel .acts button:hover{background:var(--primary-soft)}
+  .campus-root .panel .acts button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .pempty{font-size:12.5px;color:var(--muted);text-align:center;padding:16px 8px;
+       font-weight:500;line-height:1.6}
 
   /* ── 방 꾸미기 툴바 ── */
-  .campus-root .editbar{position:absolute;z-index:50;left:50%;bottom:78px;transform:translateX(-50%);
-       width:min(560px,calc(100vw - 20px));
-       background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;
-       backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(30,60,45,.16)}
+  .campus-root .editbar{position:absolute;z-index:50;left:50%;bottom:64px;transform:translateX(-50%);
+       width:min(560px,calc(100vw - 24px));
+       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:12px;
+       backdrop-filter:blur(10px);box-shadow:var(--sh-panel)}
   .campus-root .editbar[hidden]{display:none}
   .campus-root .editbar .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
-  .campus-root .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 11px;
-       font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;color:var(--ink)}
+  .campus-root .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+       background:#fff;border-radius:var(--r-sm);padding:8px 12px;font:inherit;font-size:12px;
+       font-weight:600;cursor:pointer;white-space:nowrap;color:var(--ink);
+       transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .chip b{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .campus-root .chip:hover{background:var(--primary-soft)}
+  .campus-root .chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .campus-root .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .campus-root .chip.on b{color:rgba(255,255,255,.75)}
   .campus-root .editbar .acts{display:flex;gap:6px;align-items:center}
-  .campus-root .editbar .hint{font-size:11px;color:var(--muted);margin-top:7px;text-align:center;font-weight:600}
+  .campus-root .editbar .hint{font-size:11.5px;color:var(--muted);margin-top:8px;text-align:center;
+       font-weight:500}
  @media(max-width:760px){
-    .campus-root .tools{top:10px;right:10px}
-    .campus-root .tools button{padding:6px 10px;font-size:11.5px}
-    .campus-root .where{bottom:14px;font-size:12px;padding:6px 11px}
-    .campus-root .prompt{bottom:70px;min-width:0;left:14px;right:14px;transform:translateY(8px)}
+    .campus-root .tools{top:12px;right:12px;gap:6px}
+    .campus-root .chipbtn{padding:7px 10px;font-size:12px}
+    .campus-root .where{bottom:12px;left:12px;transform:none;font-size:11.5px;padding:7px 10px}
+    .campus-root .prompt{bottom:68px;min-width:0;left:12px;right:12px;transform:translateY(8px)}
     .campus-root .prompt.on{transform:translateY(0)}
-    .campus-root .rot{bottom:14px;right:10px}
+    .campus-root .rot{bottom:12px;right:12px}
     .campus-root .rot button{width:46px;height:46px}
+    .campus-root .editbar{bottom:68px;left:12px;right:12px;transform:none;width:auto}
+
+    /* 패널을 오른쪽 상단 카드로 두면 화면을 거의 다 덮어 3D 가 안 보인다.
+       손이 닿는 아래쪽 시트로 내리고 높이를 절반으로 묶는다. */
+    .campus-root .panel{top:auto;bottom:0;left:0;right:0;width:auto;
+         max-height:min(58%, 460px);border-radius:16px 16px 0 0;
+         border-left:none;border-right:none;border-bottom:none;padding-top:8px}
+    /* 시트라는 걸 알리는 그래버. 없으면 화면을 덮은 카드로만 읽힌다 */
+    .campus-root .panel::before{content:"";width:36px;height:4px;border-radius:2px;
+         background:rgba(0,0,0,.14);margin:0 auto 4px}
+    .campus-root .panel .pbody{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+    /* 시트가 아래를 덮으므로 하단 HUD 는 비켜 준다 */
+    .campus-root:has(.panel:not([hidden])) .where,
+    .campus-root:has(.panel:not([hidden])) .rot,
+    .campus-root:has(.panel:not([hidden])) .prompt{opacity:0;pointer-events:none}
   }

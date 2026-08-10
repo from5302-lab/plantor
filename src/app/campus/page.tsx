@@ -19,6 +19,7 @@ export default function CampusPage() {
   const errRef = useRef<HTMLDivElement>(null);
   // 3D 가 준비될 때까지 덮는 로딩 화면. map.js 가 window.__ready 를 세운다.
   const [loading, setLoading] = useState(true);
+  const [stuck, setStuck] = useState(false);
   const [quip, setQuip] = useState("");
 
   // 문구는 마운트 뒤에 뽑는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
@@ -28,10 +29,11 @@ export default function CampusPage() {
     const rotate = setInterval(() => setQuip(prev => pickQuip(prev)), 2600);
 
     const w = window as unknown as { __ready?: boolean };
-    const done = () => { clearInterval(rotate); setLoading(false); };
+    const done = () => { clearInterval(rotate); clearInterval(poll); setLoading(false); };
     const poll = setInterval(() => { if (w.__ready) done(); }, 120);
-    // 3D 가 끝내 안 뜨더라도 로딩 화면에 갇히면 안 된다 — 에러 문구를 볼 수 있게 걷는다.
-    const bail = setTimeout(done, 20000);
+    // 3D 가 끝내 안 뜨는 환경(구형 기기·WebGL 차단)이 있다. 로딩 화면을 그냥 걷으면
+    // 빈 초록 화면만 남아 무엇이 잘못됐는지 알 수 없다 — 실패 상태로 바꿔 준다.
+    const bail = setTimeout(() => { clearInterval(rotate); setStuck(true); }, 15000);
     return () => { clearInterval(rotate); clearInterval(poll); clearTimeout(bail); };
   }, []);
 
@@ -81,10 +83,19 @@ export default function CampusPage() {
       <div className="hud">
         <div className="tools">
           <span id="count" hidden />
-          <button id="roomBtn" hidden>방 꾸미기</button>
-          <button id="dressBtn" hidden>꾸미기</button>
-          <button id="bagBtn">
-            🎒 <b id="bagBells">0</b>P
+          <button id="roomBtn" className="chipbtn" hidden>방 꾸미기</button>
+          <button id="dressBtn" className="chipbtn" hidden>꾸미기</button>
+          {/* 포인트는 CTA 가 아니라 상태 표시다 — 초록 채움을 쓰지 않는다.
+              숫자와 단위를 붙여 쓰면 "0P" 가 알파벳 OP 로 읽혀서 떼어 조판한다. */}
+          <button id="bagBtn" className="chipbtn" aria-label="가방 열기">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+              <path d="M8 10h8" /><path d="M8 18h8" />
+              <path d="M8 22v-6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6" />
+              <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+            </svg>
+            <b id="bagBells">0</b><i>P</i>
           </button>
         </div>
 
@@ -149,7 +160,17 @@ export default function CampusPage() {
               />
             </svg>
           </div>
-          <p className="boot-quip">{quip}</p>
+          {stuck ? (
+            <div className="boot-fail">
+              <p className="boot-quip">3D 화면을 띄우지 못했어요.</p>
+              <p className="boot-sub">브라우저가 3D(WebGL)를 지원하지 않거나 꺼져 있을 수 있어요.</p>
+              <button type="button" className="boot-retry" onClick={() => location.reload()}>
+                다시 시도
+              </button>
+            </div>
+          ) : (
+            <p className="boot-quip">{quip}</p>
+          )}
         </div>
       )}
     </div>
