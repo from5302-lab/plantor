@@ -7,17 +7,19 @@
 // ══════════════════════════════════════════════════════════════════
 import { FURNITURE } from '/campus/lib/room.js';
 
+//  tier = 이 물건이 상점에 풀리는 누적 포인트 구간(ROOM_TIERS 인덱스).
+//  방이 넓어질수록 살 수 있는 것도 늘어난다.
 export const ITEMS = {
   apple: {name:'사과',     icon:'🍎', sell:100},
   juice: {name:'사과주스', icon:'🧃', sell:400},
-  desk:  {name:'책상',     icon:'🪵', buy:600,  furn:true},
-  chair: {name:'의자',     icon:'🪑', buy:300,  furn:true},
-  shelf: {name:'책장',     icon:'📚', buy:700,  furn:true},
-  board: {name:'화이트보드', icon:'🖍️', buy:500, furn:true},
-  sofa:  {name:'소파',     icon:'🛋️', buy:800,  furn:true},
-  plant: {name:'화분',     icon:'🪴', buy:300,  furn:true},
-  lamp:  {name:'스탠드',   icon:'💡', buy:400,  furn:true},
-  rug:   {name:'러그',     icon:'🟩', buy:500,  furn:true},
+  chair: {name:'의자',     icon:'🪑', buy:300,  furn:true, tier:0},
+  plant: {name:'화분',     icon:'🪴', buy:300,  furn:true, tier:0},
+  rug:   {name:'러그',     icon:'🟩', buy:500,  furn:true, tier:0},
+  desk:  {name:'책상',     icon:'🪵', buy:600,  furn:true, tier:1},
+  lamp:  {name:'스탠드',   icon:'💡', buy:400,  furn:true, tier:1},
+  shelf: {name:'책장',     icon:'📚', buy:700,  furn:true, tier:2},
+  board: {name:'화이트보드', icon:'🖍️', buy:500, furn:true, tier:2},
+  sofa:  {name:'소파',     icon:'🛋️', buy:800,  furn:true, tier:3},
 };
 // 가구 이름은 room.js 가 원본이다 — 두 곳이 어긋나면 배치 화면과 상점이 딴소리를 한다
 for (const k in ITEMS) if (ITEMS[k].furn) ITEMS[k].name = FURNITURE[k].name;
@@ -38,6 +40,12 @@ export function sanitizeInv(raw){
   }
   return out;
 }
+/** 누적 포인트 — 쓰더라도 줄지 않는다. 방 확장·상점 해금의 기준이다. */
+export function sanitizeEarned(raw){
+  const n = Math.floor(+raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 99_999_999) : 0;
+}
+
 export function sanitizeBells(raw){
   const n = Math.floor(+raw);
   return Number.isFinite(n) && n > 0 ? Math.min(n, 9_999_999) : 0;
@@ -45,9 +53,10 @@ export function sanitizeBells(raw){
 
 // ── 과일나무 ────────────────────────────────────────────────────────
 //  야외 나무 목록(map.js) 중 이 좌표의 나무가 과일나무다. id 는 저장 키.
+// 좁아진 마을 안. 광장·건물·진입로를 비켜 잔디에만 둔다.
 export const FRUIT_TREES = [
-  {id:'ft-a', x:-20, z:12}, {id:'ft-b', x:12, z:15}, {id:'ft-c', x:-30, z:14},
-  {id:'ft-d', x:26, z:20},  {id:'ft-e', x:-13, z:-27}, {id:'ft-f', x:24, z:-26},
+  {id:'ft-a', x:-11, z: 6}, {id:'ft-b', x: 11, z: 6}, {id:'ft-c', x:-13, z:-1},
+  {id:'ft-d', x: 13, z:-2}, {id:'ft-e', x:-11, z:-13}, {id:'ft-f', x: 11, z:-13},
 ];
 export const FRUITS_PER_TREE = 3;
 

@@ -96,6 +96,11 @@
        background:#c9d6cc;cursor:default}
   .campus-root .prow button.ghostb,.campus-root .editbar .acts button.ghostb{
        background:#eef3ee;color:#35513f}
+  .campus-root .say{font-size:13px;line-height:1.75;color:var(--ink);font-weight:600;
+       background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .campus-root .panel .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .campus-root .panel .acts button{border:none;border-radius:6px;background:var(--primary);
+       color:#fff;font:inherit;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer}
   .campus-root .pempty{font-size:12px;color:var(--muted);text-align:center;padding:14px 0;font-weight:600}
 
   /* ── 방 꾸미기 툴바 ── */

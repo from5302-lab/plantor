@@ -9,8 +9,9 @@ import { DEFAULT_LOOK, GUEST_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
 import { mountCustomizer } from '/campus/lib/customizer.js';
 import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadInv, saveInv, whenReady }
   from '/campus/lib/store.js';
-import { FURNITURE, itemBox, ROOM_BOUNDS } from '/campus/lib/room.js';
+import { FURNITURE, itemBox, roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
+import { ROOM_TIERS } from '/campus/lib/room.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
 import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS } from '/campus/lib/kit.js';
@@ -127,29 +128,28 @@ export async function mountCampus(){
   // ⚠ id 는 저장·네트워크 경로에 쓰인다. 바꾸지 말 것.
   //   (name 은 화면 표기 전용이라 언제든 고쳐도 된다)
   //
-  //  outdoor ── 캠퍼스 야외. 첫 화면.
-  //    ├ main   본관     : 교실 · 원장실
-  //    ├ study  자습동   : 개인 자습실
-  //    └ union  학생회관 : 휴게실
+  //  outdoor ── 마을. 첫 화면. 건물 셋이 한 화면에 다 들어온다.
+  //    ├ main   학습센터 : 학습실 · 상담실(충쌤)
+  //    ├ study  우리집   : 내 방 — 포인트로 넓어지는 꾸미기 공간
+  //    └ union  상점     : 매장 — 팔고 사기
 
   const LEVELS = {
-    // 야외는 건물 세 채가 한 화면에 들어와야 '캠퍼스'로 읽힌다. 그래서 카메라가
-    // 실내보다 멀고, 스폰도 정문이 아니라 광장 한복판이다(정문에서 시작하면
-    // 건물이 전부 저 멀리 점으로 보인다).
-    // fog 는 레벨마다 다르다. 실내 값(44~84)을 야외에 그대로 쓰면 카메라가
-    // 두 배 멀어진 만큼 건물이 통째로 안개에 잠겨 하얗게 날아간다.
-    outdoor: {id:'outdoor', name:'캠퍼스',   outdoor:true, spawn:{x:0,   z:9,    yaw:Math.PI}, camR:42.0, camH:24.5, fog:[78, 165]},
-    main:    {id:'main',    name:'본관',     spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:21.8, camH:14.2, fog:[44, 84]},
-    study:   {id:'study',   name:'자습동',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:21.8, camH:14.2, fog:[44, 84]},
-    union:   {id:'union',   name:'학생회관', spawn:{x: 7.5, z:-4.6, yaw:0},       camR:21.8, camH:14.2, fog:[44, 84]},
+    // 건물 셋이 한 화면에 들어오되 **캐릭터가 읽힐 만큼** 가까워야 한다.
+    // 예전 값(42/24.5 = 거리 48m)에서는 캐릭터가 점이었다. 마을을 좁히고
+    // 카메라를 당겼다 — 거리 25m 면 1.3m 캐릭터가 화면 높이의 1/10 쯤 된다.
+    // fog 는 레벨마다 다르다. 실내 값을 야외에 그대로 쓰면 건물이 안개에 잠긴다.
+    outdoor: {id:'outdoor', name:'마을',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:21.0, camH:17.5, fog:[46, 105]},
+    main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
+    study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
+    union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
   };
 
   const ROOMS = [
-    {id:'class',  level:'main',  name:'교실',       sub:'클래스카드 · 오토보카 · 매일국어', x:-7.5, z:-13.5, w:13, d:8, door:'s', hue:0x1f7a33},
-    {id:'office', level:'main',  name:'원장실',     sub:'입회 상담 · 레벨 테스트',         x: 7.5, z:-13.5, w:13, d:8, door:'s', hue:0x1f7a33},
-    {id:'study',  level:'study', name:'개인 자습실', sub:'플래닝 · 자습 인증',              x:-7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33,
-     personal:true, go:'/campus/planning-room'},
-    {id:'lounge', level:'union', name:'휴게실',     sub:'쉬는 시간 · 잡담',                x: 7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33},
+    {id:'class',  level:'main',  name:'학습실',   sub:'클래스카드 · 오토보카 · 매일국어', x:-7.5, z:-13.5, w:13, d:8, door:'s', hue:0x1f7a33},
+    {id:'office', level:'main',  name:'상담실',   sub:'충쌤에게 물어보기',                x: 7.5, z:-13.5, w:13, d:8, door:'s', hue:0x1f7a33},
+    {id:'study',  level:'study', name:'내 방',    sub:'포인트로 넓히고 꾸미기',           x:-7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33,
+     personal:true},
+    {id:'lounge', level:'union', name:'매장',     sub:'팔고 사기',                        x: 7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33},
   ];
 
   // 실내 현관/복도. 여기서 건물 밖으로 나간다.
@@ -177,12 +177,12 @@ export async function mountCampus(){
   //  kit = Kenney City Kit Suburban 모델. 못 받으면 예전 상자 건물로 돌아간다.
   //  kitYaw = 모델 정면이 남쪽(+z)을 보게 돌리는 각.
   const BUILDINGS = [
-    {level:'main',  name:'본관',     x:  0, z:-12, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8,
-     kit:'building-type-p', kitYaw:0, fitH:8.0},
-    {level:'study', name:'자습동',   x:-14, z: -1, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
-     kit:'building-type-k', kitYaw:0, fitH:7.4},
-    {level:'union', name:'학생회관', x: 14, z: -1, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
-     kit:'building-type-s', kitYaw:0, fitH:7.2},
+    {level:'main',  name:'학습센터', x:  0, z:-9.5, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8,
+     kit:'building-type-p', kitYaw:0, fitH:5.4},
+    {level:'study', name:'우리집',   x:-8.5, z:-2, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
+     kit:'building-type-k', kitYaw:0, fitH:4.4},
+    {level:'union', name:'상점',     x: 8.5, z:-2, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
+     kit:'building-type-s', kitYaw:0, fitH:4.4},
   ];
 
   // ── 가구 ───────────────────────────────────────────────────────────
@@ -205,9 +205,9 @@ export async function mountCampus(){
   prop('union', 'lounge-table', 5.0, 0.8, 2.6, 1.3, 0.46, 0xe9eeea);
   prop('union', 'lounge-vending', 12.6, -1.2, 1.0, 1.6, 1.8, 0x7fae95);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
-  prop('outdoor', 'bench-a', -7, 7,  2.6, 0.7, 0.45, 0xd9cdb4);
-  prop('outdoor', 'bench-b',  7, 7,  2.6, 0.7, 0.45, 0xd9cdb4);
-  prop('outdoor', 'fountain', 0, 2,  3.6, 3.6, 0.55, 0xbdd8d2, true, true);
+  prop('outdoor', 'bench-a', -4.6, 2.5, 2.4, 0.7, 0.45, 0xd9cdb4);
+  prop('outdoor', 'bench-b',  4.6, 2.5, 2.4, 0.7, 0.45, 0xd9cdb4);
+  prop('outdoor', 'fountain', 0, 6.5, 2.8, 2.8, 0.55, 0xbdd8d2, true, true);
   // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
   prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
 
@@ -279,9 +279,9 @@ export async function mountCampus(){
     world.add(m);
     return m;
   }
-  function signAt(text, x, y, z, faceZ, hue = 0x1f7a33){
+  function signAt(text, x, y, z, faceZ, hue = 0x1f7a33, w = 4.4){
     const s = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.4, 1.1),
+      new THREE.PlaneGeometry(w, w/4),
       track(bend(new THREE.MeshBasicMaterial({
         map: track(labelTexture(text, '#' + hue.toString(16).padStart(6,'0'))), transparent:true}))));
     s.position.set(x, y, z);
@@ -333,8 +333,8 @@ export async function mountCampus(){
       for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
         paved.push({x: cx - w/2 + (i + 0.5)*TW, z: cz - d/2 + (j + 0.5)*TD});
     };
-    pave(0,  8, 12, 26);                                     // 중앙 진입로
-    pave(0, -5, 44,  9);                                     // 건물 앞 가로축 광장
+    pave(0,  4, 6, 12);                                      // 중앙 진입로
+    pave(0, -4.5, 22, 5);                                    // 건물 앞 가로축 광장
 
     for (const b of BUILDINGS){
       // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
@@ -366,7 +366,9 @@ export async function mountCampus(){
         world.add(body, roof, door);
         parts.push(body, roof, door);
       }
-      const sign = signAt(b.name, b.x, bh + 1.0, z1 + 0.05, 1);
+      // 간판은 건물 폭에 맞춘다 — 고정 크기면 작은 집에서 지붕보다 커진다
+      const sign = signAt(b.name, b.x, bh + 0.6, z1 + 0.05, 1, 0x1f7a33,
+                          Math.min(bw * 0.5, 3.0));
       OCCLUDERS.push({test:parts, meshes:[...parts, sign]});
 
       // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
@@ -391,10 +393,11 @@ export async function mountCampus(){
     for (const p of PROPS.filter(p => p.level === 'outdoor')) addProp(p);
 
     // 과일나무 자리(FRUIT_TREES)는 일반 나무 목록에서 뺐다 — 같은 자리에 두 그루가 겹친다
+    // 남쪽(카메라 쪽) 앞줄에는 큰 나무를 두지 않는다 — 마을을 통째로 가린다
     trees([
-      [-32,-24],[-24,-26],[0,-27],[13,-27],[32,-24],
-      [-34,-10],[34,-10],[-34, 4],[34, 4],[30, 14],
-      [-12, 15],[20, 12],[-26, 20],[0, 24],
+      [-15,-14],[-7,-16],[7,-16],[15,-14],
+      [-16,-6],[16,-6],[-17, 2],[17, 2],
+      [-18, 9],[18, 9],
     ]);
     buildFruitTrees();
     buildFlowers();
@@ -407,18 +410,18 @@ export async function mountCampus(){
       const FW = FZ ? FZ.x * FS : 3.8;                       // 한 칸이 덮는 미터
       const spots = [];
       for (const side of [-1, 1])
-        for (let i = 0; i < 4; i++)
-          spots.push({x: side * (7 + (i + 0.5)*FW), z: 20});
+        for (let i = 0; i < 3; i++)
+          spots.push({x: side * (3.6 + (i + 0.5)*FW), z: 11});
       const g = placeKitInstanced('fence', spots, {scale: FS, track: m => junk.push(m)});
       if (g) world.add(g);
       for (const sp of spots)
-        COLLIDERS.push({minX:sp.x - FW/2, maxX:sp.x + FW/2, minZ:19.7, maxZ:20.3});
+        COLLIDERS.push({minX:sp.x - FW/2, maxX:sp.x + FW/2, minZ:10.7, maxZ:11.3});
     } else {
-      for (const gx of [-6.6, 6.6]){
+      for (const gx of [-4.2, 4.2]){
         const g = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.0, 1.1), lam(0xe6e2d6, null, 0.28));
-        g.position.set(gx, 1.5, 20);
+        g.position.set(gx, 1.5, 14);
         world.add(g);
-        COLLIDERS.push({minX:gx-0.55, maxX:gx+0.55, minZ:19.45, maxZ:20.55});
+        COLLIDERS.push({minX:gx-0.55, maxX:gx+0.55, minZ:13.45, maxZ:14.55});
       }
     }
   }
@@ -600,6 +603,11 @@ export async function mountCampus(){
 
     for (const p of PROPS.filter(p => p.level === level)) addProp(p);
 
+    // 충쌤 존 — 상담실 안쪽이라 룸 존보다 앞에 둬야 잡힌다
+    if (level === 'main'){
+      ZONES.unshift({kind:'npc', npc:'teacher', name:'충쌤', sub:'상담 · 과제 안내',
+        minX:6.0, maxX:9.0, minZ:-15.6, maxZ:-13.6});
+    }
     // 매점 존 — 룸 존보다 앞에 둔다. 존 판정이 첫 일치에서 멈추는데,
     // 카운터 앞은 휴게실 존 안쪽이라 뒤에 두면 영영 안 잡힌다.
     if (level === 'union'){
@@ -652,7 +660,7 @@ export async function mountCampus(){
   };
   // 레벨별 고정 NPC. 충쌤은 원장실 사람이라 본관에만 있다.
   const NPC_DEFS = [
-    {level:'main',  name:'충쌤',   preset:TEACHER,    x:14,   z:-17.2, yaw:0},
+    {level:'main',  name:'충쌤',   preset:TEACHER,    x:7.5,  z:-16.2, yaw:0},
     {level:'union', name:'매점쌤', preset:SHOPKEEPER, x:11.5, z:4.4,   yaw:Math.PI},
   ];
   let NPCS = [];
@@ -696,7 +704,7 @@ export async function mountCampus(){
   function flushInv(){
     if (!invDirty) return;
     invDirty = false;
-    saveInv(INV.inv, INV.bells, INV.picked);
+    saveInv(INV.inv, INV.bells, INV.picked, INV.earned);
   }
   function markInv(){
     invDirty = true;
@@ -706,7 +714,15 @@ export async function mountCampus(){
   // 탭을 닫거나 백그라운드로 가면 그 자리에서 밀어 넣는다
   const onPageHide = () => flushInv();
   addEventListener('pagehide', onPageHide);
+  INV.earned = INV.earned || 0;
   const countOf = k => INV.inv[k] || 0;
+  const tierNow = () => roomTier(INV.earned);
+  /** 포인트를 준다 — 잔액과 누적을 같이 올린다(누적은 방 확장·해금 기준). */
+  function award(n, why){
+    if (n <= 0) return;
+    INV.bells += n; INV.earned += n; markInv();
+    toast(`⭐ ${why} +${n.toLocaleString()}포인트`);
+  }
   function give(k, n = 1){ INV.inv[k] = countOf(k) + n; markInv(); }
   function take(k, n = 1){
     const c = countOf(k);
@@ -925,6 +941,7 @@ export async function mountCampus(){
   const elBagBtn = document.getElementById('bagBtn'), elBagBells = document.getElementById('bagBells');
   const elBag = document.getElementById('bagPanel'), elShop = document.getElementById('shopPanel');
   const elRoomBtn = document.getElementById('roomBtn'), elEditBar = document.getElementById('editBar');
+  const elTalk = document.getElementById('talkPanel');
   let currentZone = null, toastTimer = 0;
 
   function toast(msg){
@@ -952,7 +969,8 @@ export async function mountCampus(){
       elPAct.textContent =
         z.kind === 'exit' ? '나가기' :
         z.kind === 'tree' ? '흔들기' :
-        z.kind === 'shop' ? '열기'   : '입장';
+        z.kind === 'shop' ? '열기'   :
+        z.kind === 'npc'  ? '말 걸기' : '입장';
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
     // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)
@@ -964,6 +982,7 @@ export async function mountCampus(){
     if (currentZone.kind === 'exit')  return exitToOutdoor();
     if (currentZone.kind === 'tree')  return shakeTree(currentZone.tree);
     if (currentZone.kind === 'shop')  return openShop();
+    if (currentZone.kind === 'npc')   return openTalk();
     const room = currentZone.room;
     if (room.go) location.href = room.go;        // 룸 데이터가 이동 대상을 갖는다
     else toast(room.name + ' — 다음 슬라이스에서 구현');
@@ -1013,7 +1032,7 @@ export async function mountCampus(){
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
   // 패널은 innerHTML 로 매번 다시 그린다 — 항목이 10개 남짓이라 diff 를 관리할
   // 이유가 없다. 클릭은 패널 단위 위임으로 받는다.
-  const uiOpen = () => !elBag.hidden || !elShop.hidden;
+  const uiOpen = () => !elBag.hidden || !elShop.hidden || !elTalk.hidden;
   const esc = s => String(s);
   const itemRow = (k, right) =>
     `<div class="prow"><span class="nm">${ITEMS[k].icon} ${esc(ITEMS[k].name)}</span>${right}</div>`;
@@ -1029,7 +1048,7 @@ export async function mountCampus(){
       return itemRow(r.make, `<button data-craft="${r.id}" ${ok ? '' : 'disabled'}>조합 · ${need}</button>`);
     });
     elBag.innerHTML =
-      `<div class="phead">🎒 가방<span class="sp"></span><b>${INV.bells.toLocaleString()}벨</b>` +
+      `<div class="phead">🎒 가방<span class="sp"></span><b>${INV.bells.toLocaleString()}P</b>` +
       `<button class="x" data-close aria-label="닫기">✕</button></div>` +
       `<div class="pbody">` +
       (rows.length ? rows.join('') : `<div class="pempty">비어 있어요 — 야외 과일나무를 흔들어 보세요</div>`) +
@@ -1042,20 +1061,27 @@ export async function mountCampus(){
       .map(k => itemRow(k, `<span class="ct">×${countOf(k)}</span>` +
         `<button data-sell="${k}">팔기 ${ITEMS[k].sell}벨</button>` +
         (countOf(k) > 1 ? `<button data-sellall="${k}" class="ghostb">전부</button>` : '')));
-    const buys = Object.keys(ITEMS).filter(k => ITEMS[k].buy)
-      .map(k => itemRow(k, `<button data-buy="${k}" ${INV.bells >= ITEMS[k].buy ? '' : 'disabled'}>` +
-        `${ITEMS[k].buy}벨</button>`));
+    const ti = tierNow();
+    const buys = Object.keys(ITEMS).filter(k => ITEMS[k].buy).map(k => {
+      const need = ITEMS[k].tier ?? 0;
+      if (need > ti.index){
+        const at = ROOM_TIERS[need];
+        return itemRow(k, `<span class="ct">🔒 누적 ${at.need.toLocaleString()}P</span>`);
+      }
+      return itemRow(k, `<button data-buy="${k}" ${INV.bells >= ITEMS[k].buy ? '' : 'disabled'}>` +
+        `${ITEMS[k].buy}P</button>`);
+    });
     elShop.innerHTML =
-      `<div class="phead">🏪 매점<span class="sp"></span><b>${INV.bells.toLocaleString()}벨</b>` +
+      `<div class="phead">🏪 상점<span class="sp"></span><b>${INV.bells.toLocaleString()}P</b>` +
       `<button class="x" data-close aria-label="닫기">✕</button></div>` +
       `<div class="pbody">` +
       `<div class="psec">팔기</div>` +
       (sells.length ? sells.join('') : `<div class="pempty">팔 물건이 없어요</div>`) +
-      `<div class="psec">사기 — 가구는 자습실에 놓을 수 있어요</div>` + buys.join('') +
+      `<div class="psec">사기 — 가구는 우리집에 놓을 수 있어요</div>` + buys.join('') +
       `</div>`;
   }
-  function openBag(){ elShop.hidden = true; elBag.hidden = false; refreshBag(); }
-  function openShop(){ elBag.hidden = true; elShop.hidden = false; refreshShop(); }
+  function openBag(){ elShop.hidden = elTalk.hidden = true; elBag.hidden = false; refreshBag(); }
+  function openShop(){ elBag.hidden = elTalk.hidden = true; elShop.hidden = false; refreshShop(); }
   elBagBtn.onclick = () => elBag.hidden ? openBag() : (elBag.hidden = true);
 
   elBag.addEventListener('click', e => {
@@ -1077,8 +1103,8 @@ export async function mountCampus(){
     if (d.sell || d.sellall){
       const k = d.sell || d.sellall, n = d.sellall ? countOf(k) : 1;
       if (!take(k, n)) return;
-      INV.bells += ITEMS[k].sell * n; markInv();
-      toast(`${ITEMS[k].name} ×${n} → ${(ITEMS[k].sell*n).toLocaleString()}벨`);
+      INV.bells += ITEMS[k].sell * n; INV.earned += ITEMS[k].sell * n; markInv();
+      toast(`${ITEMS[k].name} ×${n} → ${(ITEMS[k].sell*n).toLocaleString()}P`);
       refreshShop();
     } else if (d.buy){
       const k = d.buy;
@@ -1087,6 +1113,67 @@ export async function mountCampus(){
       toast(`${ITEMS[k].icon} ${ITEMS[k].name} 구입!`);
       refreshShop();
     }
+  });
+
+  // ══ 충쌤 상담 ═════════════════════════════════════════════════════
+  //  같은 사람이라도 역할에 따라 할 말이 다르다.
+  //   · 학부모 → 학습 상담(아이 진행 상황을 어디서 보는지)
+  //   · 학생   → 오늘 할 과제 안내
+  //   · 비로그인 → 로그인 안내
+  //  실제 데이터는 plantor 본체 화면들이 이미 갖고 있다. 여기서는 그리로 보낸다 —
+  //  같은 숫자를 두 곳에서 계산하면 반드시 어긋난다.
+  function talkScript(){
+    const role = ME && ME.role;
+    if (!ME) return {
+      title: '충쌤',
+      lines: ['안녕! 처음 보는 얼굴이네.',
+              '로그인하면 네 학습 기록을 보고 상담해 줄 수 있어.'],
+      actions: [{label:'로그인하러 가기', href:'/'}],
+    };
+    if (role === 'parent') return {
+      title: `${ME.name} 학부모님, 안녕하세요`,
+      lines: ['아이 학습은 잘 따라가고 있어요.',
+              '진행 상황과 이번 달 리포트는 아래에서 바로 보실 수 있어요.'],
+      actions: [{label:'학습 리포트 보기', href:'/parent'},
+                {label:'플랜 확인', href:'/plan'}],
+    };
+    if (role === 'admin') return {
+      title: '충쌤',
+      lines: ['운영자시군요. 관리 화면으로 안내할게요.'],
+      actions: [{label:'관리', href:'/admin'}],
+    };
+    return {
+      title: `${ME.name}, 어서 와`,
+      lines: ['오늘 할 과제부터 같이 보자.',
+              '끝내고 오면 포인트를 줄게 — 그걸로 우리집을 넓힐 수 있어.'],
+      actions: [{label:'오늘 과제 보기', href:'/class5'},
+                {label:'내 플랜', href:'/plan'}],
+    };
+  }
+
+  function openTalk(){
+    elBag.hidden = elShop.hidden = true;
+    const t = talkScript();
+    const ti = tierNow();
+    const next = ti.next
+      ? `<div class="pempty">누적 ${INV.earned.toLocaleString()}P · ${ti.name}` +
+        ` — ${ti.next.need.toLocaleString()}P 모으면 ${ti.next.name}으로 넓어져요</div>`
+      : `<div class="pempty">누적 ${INV.earned.toLocaleString()}P · ${ti.name} (최대)</div>`;
+    elTalk.innerHTML =
+      `<div class="phead">🧑‍🏫 ${esc(t.title)}<span class="sp"></span>` +
+      `<button class="x" data-close aria-label="닫기">✕</button></div>` +
+      `<div class="pbody">` +
+      t.lines.map(l => `<p class="say">${esc(l)}</p>`).join('') +
+      (ME ? next : '') +
+      `<div class="acts">` +
+      t.actions.map(a => `<button data-go="${a.href}">${esc(a.label)}</button>`).join('') +
+      `</div></div>`;
+    elTalk.hidden = false;
+  }
+  elTalk.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-close')){ elTalk.hidden = true; return; }
+    if (b.dataset.go) location.href = b.dataset.go;
   });
 
   // ══ 방 꾸미기 (자습실 배치 모드) ═══════════════════════════════════
@@ -1200,9 +1287,13 @@ export async function mountCampus(){
     const hit = new THREE.Vector3();
     if (!rayc.ray.intersectPlane(GROUND, hit)) return;
     const x = Math.round(hit.x*2)/2, z = Math.round(hit.z*2)/2;
-    const B = ROOM_BOUNDS;
+    const B = roomBounds(INV.earned);
     if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
-      if (placeType || editSel >= 0) toast('자습실 안에만 놓을 수 있어요');
+      if (placeType || editSel >= 0){
+        const t = tierNow();
+        toast(t.next ? `여기는 아직 못 써요 — 누적 ${t.next.need.toLocaleString()}P 면 넓어져요`
+                     : '방 밖에는 놓을 수 없어요');
+      }
       return;
     }
     if (placeType){
@@ -1415,7 +1506,7 @@ export async function mountCampus(){
     inv: () => INV,
     zone: () => currentZone && currentZone.kind,
     warp: (x, z) => placeAt(x, z, P.yaw),
-    interact, shake: shakeTree, openShop, openBag,
+    interact, shake: shakeTree, openShop, openBag, openTalk, award,
     startEdit, endEdit, editTap,
     fruits: () => ({trees: fruitTrees.map(t => ({id:t.id, left:t.fruits.length})), ground: groundFruits.length}),
   };

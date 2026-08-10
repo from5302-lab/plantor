@@ -66,13 +66,14 @@ export default function CampusPage() {
           <button id="roomBtn" hidden>방 꾸미기</button>
           <button id="dressBtn" hidden>꾸미기</button>
           <button id="bagBtn">
-            🎒 <b id="bagBells">0</b>벨
+            🎒 <b id="bagBells">0</b>P
           </button>
         </div>
 
         {/* 가방·매점 패널과 방 꾸미기 툴바 — 내용은 맵(map.js)이 그때그때 그린다 */}
         <div className="panel" id="bagPanel" hidden />
         <div className="panel" id="shopPanel" hidden />
+        <div className="panel" id="talkPanel" hidden />
         <div className="editbar" id="editBar" hidden />
 
         <div className="where" id="where">
@@ -80,8 +81,8 @@ export default function CampusPage() {
         </div>
 
         <div className="prompt" id="prompt">
-          <h4 id="pTitle">개인 자습실</h4>
-          <p id="pSub">플래닝 · 자습 인증</p>
+          <h4 id="pTitle">내 방</h4>
+          <p id="pSub">포인트로 넓히고 꾸미기</p>
           <button id="pBtn">
             {/* 동작 이름은 맵이 바꿔 쓴다(입장 / 나가기). 텍스트 노드째 다루면
                 JSX 공백 처리에 따라 엉뚱한 자식을 잡으므로 span 으로 고정한다 */}

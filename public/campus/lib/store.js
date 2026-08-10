@@ -17,7 +17,7 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
 import { sanitizeRoom, DEFAULT_ROOM } from './room.js';
-import { ITEMS, sanitizeInv, sanitizeBells, dayKey } from './items.js';
+import { ITEMS, sanitizeInv, sanitizeBells, sanitizeEarned, dayKey } from './items.js';
 
 const app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -126,13 +126,14 @@ const pickedToday = p => (p && p.d === dayKey() && Array.isArray(p.ids)) ? p.ids
 const invRead = () => {
   try {
     const d = JSON.parse(localStorage.getItem(INV_KEY)) || {};
-    return {inv: sanitizeInv(d.inv), bells: sanitizeBells(d.bells), picked: pickedToday(d.picked)};
-  } catch { return {inv:{}, bells:0, picked:[]}; }
+    return {inv: sanitizeInv(d.inv), bells: sanitizeBells(d.bells),
+            earned: sanitizeEarned(d.earned), picked: pickedToday(d.picked)};
+  } catch { return {inv:{}, bells:0, earned:0, picked:[]}; }
 };
-const invWrite = (inv, bells, picked) => {
+const invWrite = (inv, bells, picked, earned) => {
   try {
     localStorage.setItem(INV_KEY, JSON.stringify(
-      {v:1, inv, bells, picked:{d: dayKey(), ids: picked}}));
+      {v:1, inv, bells, earned, picked:{d: dayKey(), ids: picked}}));
     return true;
   } catch { return false; }
 };
@@ -143,16 +144,17 @@ export async function loadInv(){
   if (!me) return invRead();
   try {
     const c = (await getDoc(doc(db, 'users', me.uid))).data()?.campus || {};
-    return {inv: sanitizeInv(c.inv), bells: sanitizeBells(c.bells), picked: pickedToday(c.picked)};
+    return {inv: sanitizeInv(c.inv), bells: sanitizeBells(c.bells),
+            earned: sanitizeEarned(c.earned), picked: pickedToday(c.picked)};
   } catch (e){ console.warn('[campus] 인벤토리를 읽지 못했습니다', e); }
-  return {inv:{}, bells:0, picked:[]};
+  return {inv:{}, bells:0, earned:0, picked:[]};
 }
 
 /** 인벤·벨·채집 기록 저장. picked 는 오늘 날짜 키로만 남긴다(어제 기록은 버린다). */
-export async function saveInv(inv, bells, picked){
+export async function saveInv(inv, bells, picked, earned = 0){
   const me = await whenReady();
   if (!me){
-    return invWrite(inv, bells, picked)
+    return invWrite(inv, bells, picked, earned)
       ? {ok:true, where:'guest'}
       : {ok:false, where:'guest', error:'브라우저가 저장을 막고 있습니다.'};
   }
@@ -162,7 +164,8 @@ export async function saveInv(inv, bells, picked){
     const full = {};
     for (const k in ITEMS) full[k] = Math.floor(inv[k]) > 0 ? Math.floor(inv[k]) : 0;
     await setDoc(doc(db, 'users', me.uid),
-      {campus: {inv: full, bells, picked: {d: dayKey(), ids: picked}, updatedAt: serverTimestamp()}},
+      {campus: {inv: full, bells, earned, picked: {d: dayKey(), ids: picked},
+                updatedAt: serverTimestamp()}},
       {merge:true});
     return {ok:true, where:'account'};
   } catch (e){ return {ok:false, where:'account', error: e?.code || String(e)}; }
