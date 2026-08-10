@@ -33,18 +33,18 @@ export async function mountCampus(){
   // ══════════════════════════════════════════════════════════════════
 
   // ── 캐릭터 구현 선택 ───────────────────────────────────────────────
-  //  기본은 GLB 베이스메시(DuNguyn Studio, CC-BY-4.0).
+  //  기본은 Kenney Mini Characters (CC0) — 12종·애니메이션 30개 내장.
   //  ?code 를 붙이면 예전 코드 아바타로 되돌린다(비교·비상용).
-  //  두 구현이 buildAvatar / poseAvatar / disposeAvatar 같은 API 를 제공한다.
+  //  구현들이 buildAvatar / poseAvatar / disposeAvatar 같은 API 를 제공한다.
   const USE_CODE = new URLSearchParams(location.search).has('code');
   let Avatar = CodeAvatar;
   if (!USE_CODE){
     try {
-      const glb = await import('/campus/lib/avatar-glb.js');
-      await glb.preload();                 // buildAvatar 가 동기라 미리 받아 둔다
-      Avatar = glb;
+      const k = await import('/campus/lib/avatar-kenney.js');
+      await k.preload();                   // buildAvatar 가 동기라 미리 받아 둔다
+      Avatar = k;
     } catch (e){
-      console.warn('[campus] GLB 캐릭터 로드 실패 — 코드 아바타로 돌아갑니다', e);
+      console.warn('[campus] Kenney 캐릭터 로드 실패 — 코드 아바타로 돌아갑니다', e);
     }
   }
   const { buildAvatar, poseAvatar, disposeAvatar } = Avatar;
@@ -529,13 +529,14 @@ export async function mountCampus(){
     body:{height:1.02, head:1.10, girth:1.16, shoulder:1.08, limb:1.08, legLen:0.89, torso:0.94},
     look:{hairStyle:'bald', topStyle:'hood', bottomStyle:'pants', glasses:true,
           brow:'thick', mouth:'flat', blush:'hatch',
-          skin:0xf2f1ee, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a'},
+          skin:0xf2f1ee, hair:0x000000, top:0x26262c, bottom:0x141417, shoe:0x0d0d10, tie:0x1b1b20, eye:'#17141a',
+          model:'male-c'},          // Kenney 캐릭터 — 정장 느낌
   };
   // 매점쌤 — GLB 아바타는 지금 skin·표정만 반영하므로 피부톤·표정으로만 구분된다.
   // look 의 나머지 필드는 코드 아바타(?code) 폴백일 때를 위해 채워 둔다.
   const SHOPKEEPER = {
     body: {...TEACHER.body},
-    look: {...TEACHER.look, glasses:false, skin:0xf7f2e8, expr:'happy',
+    look: {...TEACHER.look, glasses:false, skin:0xf7f2e8, expr:'happy', model:'female-b',
            top:0x2e7d4f, bottom:0x27563f, shoe:0x223d30, tie:0x1f5c40},
   };
   // 레벨별 고정 NPC. 충쌤은 원장실 사람이라 본관에만 있다.
@@ -568,11 +569,10 @@ export async function mountCampus(){
   // 그게 로드되면 '아무 커스텀도 안 된 방문자'가 아니게 된다.
   const SAVED = ME ? await loadCharacter() : null;
   let myLook = SAVED ? {...SAVED.look} : {...(ME ? DEFAULT_LOOK : GUEST_LOOK)};
-  // GUEST_LOOK 의 무채색은 '코드 아바타에서 미설정을 나타내는 회색' 이지 피부색이
-  // 아니다. GLB 캐릭터에 그대로 쓰면 얼굴까지 회색이 되어 표정이 안 읽힌다.
-  // 방문자는 색을 칠하는 대신 **투명 실루엣**으로 간다 — 아직 아무도 아닌 상태다.
-  if (IS_GLB && !SAVED)
-    myLook = ME ? {...myLook, skin: 0xf2f1ee} : {...myLook, ghost: true};
+  // Kenney 캐릭터는 색·표정·헤어가 메시에 박혀 있다. 코드 아바타용 색 필드는
+  // 그대로 두되(?code 폴백이 읽는다), 어떤 캐릭터인지는 look.model 이 정한다.
+  if (IS_GLB && !myLook.model)
+    myLook = {...myLook, model: ME ? 'male-a' : 'male-e'};   // 방문자는 다른 얼굴
   let myBody = SAVED ? {...SAVED.body} : {...BODY_BASE};
 
   applyRoom(await loadRoom());
