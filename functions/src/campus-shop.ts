@@ -66,11 +66,34 @@ async function adminUnlimited(auth: { uid: string; token: Record<string, unknown
 
 const ALL: Owned = Object.fromEntries(SLOTS.map((s) => [s, MODELS]));
 
+/**
+ * 부모는 **자녀 포인트로 살 수 없다.** 부모 포인트는 따로다(버는 방법은 아직 없다).
+ *
+ * ⚠ 지금도 사실상 막혀 있긴 하다 — resolveChild 는 users/{uid}.plantor_id 로
+ *   children 을 뒤지는데, 부모에게도 plantor_id 가 있고(role:"parent") 자녀 아이디와
+ *   겹치지 못하게 막혀 있어 "못 찾음"으로 끝난다. 하지만 그건 **다른 곳의 유일성
+ *   제약에 기댄 우연**이다. 그 제약이 느슨해지면 조용히 열린다 — 여기서 명시한다.
+ */
+async function assertNotParent(auth: { uid: string } | undefined) {
+  if (!auth) return;
+  try {
+    const role = (await db.collection("users").doc(auth.uid).get()).data()?.role;
+    if (role === "parent") {
+      throw new HttpsError("permission-denied",
+        "부모 포인트는 따로예요. 자녀 계정으로 로그인해 주세요.");
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;      // 위에서 던진 것은 그대로 올린다
+    // 문서를 못 읽었으면 판단하지 않는다 — resolveChild 가 어차피 한 번 더 막는다
+  }
+}
+
 /** 지갑 — 잔액과 가진 것. 캠퍼스가 꾸미기 화면을 열 때 한 번 부른다. */
 export const getCampusWardrobe = onCall(async (request) => {
   if (await adminUnlimited(request.auth as never)) {
     return { points: Number.MAX_SAFE_INTEGER, owned: ALL, price: PRICE, free: MODELS, open: OPEN, unlimited: true };
   }
+  await assertNotParent(request.auth as never);
   const childDoc = await resolveChild(request.auth as never);
   const d = childDoc.data() ?? {};
   return {
@@ -95,6 +118,7 @@ export const buyCampusItem = onCall(async (request) => {
     return { ok: true, already: true, points: Number.MAX_SAFE_INTEGER, owned: ALL, cost: 0 };
   }
 
+  await assertNotParent(request.auth as never);
   const childRef = (await resolveChild(request.auth as never)).ref;
   const cost = PRICE[slot];
 
