@@ -1393,7 +1393,16 @@ export async function mountCampus(){
   //  얹을 수 있고, 뼈가 같아 남의 옷을 입을 수 있다). 탭 하나가 슬롯 하나고,
   //  ‹ › 는 **지금 탭의 슬롯**을 넘긴다 — 무엇을 고르는 중인지가 화면에 남는다.
   const SLOTS = [{id:'base', name:'얼굴'}, {id:'head', name:'헤어'}, {id:'body', name:'옷'}];
-  const slotOf = tab => SLOTS.some(s => s.id === tab) ? tab : 'base';
+  //  탭은 **부위**다. 모양과 색을 다른 탭에 두면 머리를 고르다 색을 바꾸려고
+  //  탭을 옮겨야 한다 — 같은 것을 만지는데 자리가 갈린다.
+  //  한 탭 안에 '무엇을 입을까'(모양)와 '무슨 색으로'(색)를 같이 놓는다.
+  const TABS = [
+    {id:'base', name:'얼굴', slot:'base', colors:['skin']},
+    {id:'head', name:'헤어', slot:'head', colors:['hair']},
+    {id:'body', name:'옷',   slot:'body', colors:['top', 'bottom']},
+    {id:'aid',  name:'소품'},
+  ];
+  const slotOf = tab => (TABS.find(t => t.id === tab) || {}).slot || 'base';
   /** 이 슬롯이 고를 수 있는 값들. 헤어에만 '없음'(대머리)이 있다. */
   const optionsOf = slot => (slot === 'head' ? [Avatar.BALD] : []).concat(Avatar.MODELS || []);
 
@@ -1508,19 +1517,29 @@ export async function mountCampus(){
     const L = Avatar.resolveLook ? Avatar.resolveLook(myLook) : {base: myLook.model};
     const colors = myLook.colors || {};
     const parts = Avatar.PARTS || [];
-    const withAid = !Avatar.hasBuiltinGlasses?.(L.base);
-    const tabs = SLOTS
-      .concat(parts.map(p => ({id: p.id, name: p.name + '색'})))
-      .concat(withAid ? [{id:'aid', name:'소품'}] : []);
+    // 안경이 메시에 박힌 얼굴에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
+    const tabs = TABS.filter(t => t.id !== 'aid' || !Avatar.hasBuiltinGlasses?.(L.base));
     if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
+    const tab = tabs.find(t => t.id === dressTab);
 
-    const slot = slotOf(dressTab);
-    const opts = optionsOf(slot);
-    const at = Math.max(0, opts.indexOf(L[slot]));
+    const swatches = (partId) => {
+      const p = parts.find(x => x.id === partId);
+      if (!p) return '';
+      return `<div class="drow"><span class="dlabel">${p.name}</span><div class="swrow">` +
+        p.ids.map(id => {
+          const c = (Avatar.PALETTE || []).find(x => x.id === id);
+          if (!c) return '';
+          const on = colors[partId] === id ? ' on' : '';
+          return `<button class="swatch${on}" data-part="${partId}" data-color="${id}"` +
+                 ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
+        }).join('') + `</div></div>`;
+    };
 
-    let grid;
-    if (SLOTS.some(s => s.id === dressTab)){
-      grid = `<div class="dgrid2">` + opts.map(v => {
+    let body = '';
+    if (tab.slot){
+      const slot = tab.slot;
+      const opts = optionsOf(slot);
+      body += `<div class="dgrid2">` + opts.map(v => {
         const on = v === L[slot] ? ' on' : '';
         const lock = ownsSlot(slot, v) ? '' : ' lock';
         if (v === Avatar.BALD)
@@ -1531,24 +1550,16 @@ export async function mountCampus(){
                (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
                (lock ? `<span class="dlock">${icon('lock', 12)}</span>` : '') + `</button>`;
       }).join('') + `</div>`;
-    } else if (dressTab === 'aid'){
-      grid = `<div class="swrow">` + (Avatar.ACCESSORIES || []).map(a =>
-        `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
-        `${a.name}</button>`).join('') + `</div>`;
+      body += (tab.colors || []).map(swatches).join('');
     } else {
-      grid = `<div class="swrow">` + (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
-        const c = (Avatar.PALETTE || []).find(p => p.id === id);
-        if (!c) return '';
-        const on = colors[dressTab] === id ? ' on' : '';
-        return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
-               ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
-      }).join('') + `</div>`;
+      body += `<div class="drow"><div class="swrow">` +
+        (Avatar.ACCESSORIES || []).map(a =>
+          `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
+          `${a.name}</button>`).join('') + `</div></div>`;
     }
 
-    const label = SLOTS.find(s => s.id === slot).name;
     elHead.innerHTML =
-      `<b>캐릭터 꾸미기</b><span class="dwhat">${label} · ` +
-      `${L[slot] === Avatar.BALD ? '없음' : at + 1}/${opts.length}</span><span class="sp"></span>` +
+      `<b>캐릭터 꾸미기</b><span class="sp"></span>` +
       (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
          (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
       `<button class="ddone" data-close>완료</button>`;
@@ -1556,7 +1567,7 @@ export async function mountCampus(){
       `<div class="dtabs">` +
         tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
                       `data-tab="${t.id}">${t.name}</button>`).join('') +
-      `</div>${grid}${buyRow(L)}`;
+      `</div>${body}${buyRow(L)}`;
   }
   /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
   function buyRow(L){
