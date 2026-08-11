@@ -154,11 +154,16 @@ export async function mountCampus(){
     // fog 는 레벨마다 다르다. 실내 값을 야외에 그대로 쓰면 건물이 안개에 잠긴다.
     // spawn.yaw 는 **카메라 반대 방향**이어야 뒷모습이 보인다.
     // 카메라 기본각이 0°(camYaw=0, 카메라가 +z 쪽)이므로 캐릭터는 -z 인 π 를 본다.
-    // 야외 부감은 33°(23.2/15.1, 거리 27.7m). 40° 대에서는 하늘이 안 보여
+    // 야외 부감은 28°(24.4/13.0, 거리 27.7m). 40° 대에서는 하늘이 안 보여
     // 곡면 셰이더가 드러나지 않았다 — 동숲의 곡률은 낮은 각을 위한 장치다.
-    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:23.2, camH:15.1, fog:[46, 105]},
+    // 33° 도 써 봤는데 지평선만 겨우 생기고 땅이 말리는 게 안 보였다.
+    // 안개 46m 는 하필 울타리 자리였다(카메라→마을 끝 ≈45m). 부감을 내려 보이는
+    // 땅이 60m 밖까지 늘어나자 마을 경계부터 흰색으로 빠졌다. 안개는 마을 **밖**
+    // 에서만 걸려야 한다 — 지평선을 지우는 장치지 바닥을 지우는 장치가 아니다.
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:24.4, camH:13.0, fog:[64, 130]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
-    study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
+    // 우리집은 뒷모습으로 통일한다. 상점만 0 인 건 매점쌤(z=4.4)을 마주 보라는 뜻이다.
+    study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
   };
 
