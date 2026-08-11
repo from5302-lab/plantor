@@ -415,9 +415,11 @@ export function studySummary(
       // 활동별로 적는다 — 하나로 뭉치면 어느 단계에서 막혔는지가 사라진다.
       // 채점하지 않는 활동(더빙·쉐도잉·무비보기)은 카드가 없어 이름만 남는다.
       // 칩은 줄바꿈이 안 되므로(feed-event-card) 이어 붙이지 않고 항목마다 하나씩 낸다.
+      // 자르지 않는다. 리포트에 있는 항목이 카드에 없으면 "왜 안 보이지" 가 되고,
+      // 잘린 뒷쪽에 정작 봐야 할 낮은 점수가 숨는다(실제로 10개 중 6개만 나와 스펠 17% 뒤가 잘렸다).
       const steps: Json[] = Array.isArray(u?.steps) ? u.steps : [];
       let anyPct = false;
-      for (const s of steps.slice(0, 6)) {
+      for (const s of steps) {
         // 옛 로그는 문자열 배열이다(활동별 정답률을 붙이기 전에 긁힌 것)
         const name = typeof s === "string" ? s : String(s?.n ?? "");
         if (!name) continue;

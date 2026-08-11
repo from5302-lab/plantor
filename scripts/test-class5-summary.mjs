@@ -48,6 +48,13 @@ check("[피드] 활동별 정답률 · 채점 안 하는 활동은 이름만 · 
     { name: "", value: "오후 3:06 ~ 오후 3:19" },
   ]);
 
+// 리포트에 10개가 있으면 10개 다 나와야 한다 — 예전 상한 6개 때문에 뒤쪽 점수가 잘렸다
+const tenSteps = [{ type: "Reading", unitLabel: "30-word READING 1 / Unit 05", completed: true, cardFirstTry: 83,
+  steps: [{n:"암기",p:100},{n:"리콜",p:83},{n:"스펠",p:17},{n:"문장익히기"},{n:"어순배열"},
+          {n:"쉐도잉",p:100},{n:"문장만들기",p:67},{n:"본문듣기",p:100},{n:"본문익히기",p:92},{n:"낭독"}] }];
+check("[피드] 활동이 10개면 10개 다 싣는다(상한 없음)",
+  studySummary("class5", tenSteps, null, { units: tenSteps }).items[0].stats.length, 10);
+
 // 활동별 값이 하나도 없으면(옛 로그는 문자열 배열이다) 전체 정답률을 대신 적는다
 const oldSteps = [{ type: "Reading", unitLabel: "Easy Link Starter 3", completed: true, cardFirstTry: 52, steps: ["암기", "본문듣기"] }];
 check("[피드] 옛 로그(문자열 steps)는 전체 정답률로 폴백",
