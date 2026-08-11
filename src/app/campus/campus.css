@@ -139,6 +139,10 @@
   .campus-root .panel .x:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .campus-root .panel .pbody{overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;
        overscroll-behavior:contain}
+  /* flex 세로 컨테이너의 자식은 기본으로 줄어든다. 캐릭터 그리드처럼 이미지가 든
+     블록이 눌려 납작해지고, 높이를 지키는 색 줄만 멀쩡히 남는다 — 각자 제 높이를
+     쓰게 두고 넘치면 여기서 스크롤한다 */
+  .campus-root .panel .pbody > *{flex:none}
   /* 섹션 라벨은 위 그룹과 떨어뜨려야 근접성으로 묶인다(그룹 사이 > 그룹 내부) */
   .campus-root .psec{font-size:11.5px;font-weight:700;color:var(--muted);margin:12px 2px 2px;
        letter-spacing:0}
@@ -262,4 +266,64 @@
     .campus-root:has(.panel:not([hidden])) .where,
     .campus-root:has(.panel:not([hidden])) .rot,
     .campus-root:has(.panel:not([hidden])) .prompt{opacity:0;pointer-events:none}
+  }
+
+  /* ══ 꾸미기 모드 ══════════════════════════════════════════════════
+     격자로 12종을 늘어놓으면 정작 캐릭터가 화면에서 제일 작아진다. 카메라가
+     캐릭터로 밀고 들어가 화면을 채우고, 조작은 아래 얇은 바 하나로 모은다.
+     그래서 이 바는 '패널'이 아니라 '독'이다 — 카드처럼 떠 있지 않고 바닥에 붙는다. */
+  .campus-root.dressing .tools,
+  .campus-root.dressing .where,
+  .campus-root.dressing .prompt{opacity:0;pointer-events:none}
+  /* 회전 버튼은 남긴다 — 꾸미는 동안에는 캐릭터를 돌려 보는 턴테이블이 된다 */
+  .campus-root.dressing .rot{bottom:auto;top:16px;right:16px}
+
+  .campus-root .panel.dress{position:absolute;top:auto;bottom:0;left:0;right:0;
+       width:auto;max-height:none;border-radius:16px 16px 0 0;
+       border-left:none;border-right:none;border-bottom:none;
+       display:flex;flex-direction:column;gap:10px;
+       padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+       box-shadow:0 -1px 2px rgba(0,0,0,.03), 0 -12px 32px rgba(0,0,0,.08)}
+  .campus-root .panel.dress::before{content:none}
+
+  /* 1행 — 캐릭터 넘기기. 넘기는 것이 이 화면의 주 동작이라 가장 위에 둔다 */
+  .campus-root .dnav{display:flex;align-items:center;gap:10px}
+  .campus-root .navb{width:44px;height:44px;flex:none;display:grid;place-items:center;
+       border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;
+       color:var(--ink);cursor:pointer;
+       transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .navb:hover{background:var(--primary-soft);color:var(--primary)}
+  .campus-root .navb:active{background:var(--primary-soft)}
+  .campus-root .navb:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .dcount{font-size:15px;font-weight:700;color:var(--ink);
+       font-variant-numeric:tabular-nums;min-width:56px;text-align:center}
+  .campus-root .dcount i{font-style:normal;font-size:12px;font-weight:600;color:var(--muted)}
+  /* 화면에서 유일한 solid 초록 — 지금 끝낼 수 있는 행동은 이것 하나다 */
+  .campus-root .ddone{border:none;border-radius:var(--r-sm);background:var(--primary);
+       color:#fff;font:inherit;font-size:13.5px;font-weight:700;padding:11px 20px;
+       cursor:pointer;transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .ddone:hover{background:#1a6a2c}
+  .campus-root .ddone:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+  /* 2행 — 부위 탭. 네 부위의 색을 동시에 펴면 그것만으로 화면이 찬다 */
+  .campus-root .dtabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+       overscroll-behavior-x:contain}
+  .campus-root .dtabs::-webkit-scrollbar{display:none}
+  .campus-root .dtab{flex:none;border:none;background:none;cursor:pointer;font:inherit;
+       font-size:13px;font-weight:600;color:var(--muted);padding:8px 12px;
+       border-radius:var(--r-sm);transition:color 150ms cubic-bezier(.4,0,.2,1),
+       background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .dtab:hover{color:var(--ink)}
+  .campus-root .dtab.on{background:var(--primary-soft);color:var(--primary);font-weight:700}
+  .campus-root .dtab:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+  /* 3행 — 고른 부위의 색만. 넘치면 가로로 흐른다(줄바꿈하면 바가 키를 키운다) */
+  .campus-root .panel.dress .swrow{flex-wrap:nowrap;overflow-x:auto;gap:8px;
+       margin:0;padding:2px 0 4px;scrollbar-width:none;overscroll-behavior-x:contain}
+  .campus-root .panel.dress .swrow::-webkit-scrollbar{display:none}
+  .campus-root .panel.dress .swatch{width:34px;height:34px;flex:none}
+  .campus-root .panel.dress .aidbtn{flex:none;padding:9px 14px}
+
+ @media (prefers-reduced-motion: reduce){
+    .campus-root .navb,.campus-root .ddone,.campus-root .dtab{transition:none}
   }

@@ -1025,6 +1025,10 @@ export async function mountCampus(){
   // 캐릭터 키(TARGET_H)를 올리는 쪽은 문틀·앉는 높이·이름표·충돌을 다 건드려야 해서
   // 카메라만 당긴다. 대신 건물도 같이 커져 한 화면에 들어오는 마을 범위가 줄어든다.
   let zoom = 0.75;
+  // 꾸미기 모드의 카메라 거리(배율). 27.7m × 0.17 ≈ 4.7m — 화각 30°에서 세로로
+  // 2.5m 가 보이므로 1.3m 캐릭터가 화면 높이의 절반을 차지한다.
+  const DRESS_ZOOM = 0.17;
+  let dressT = 0;                          // 0 = 평소, 1 = 꾸미기. 프레임 루프가 민다
   const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
   const camLook = new THREE.Vector3(P.x, 0.9, P.z);
   //  키보드 줌 — 휠과 같은 값을 쓴다
@@ -1295,7 +1299,12 @@ export async function mountCampus(){
 
   // ── 카메라 회전 ────────────────────────────────────────────────
   // 45°씩 끊어 돌린다. 자유 회전은 아이소메트릭 격자가 어긋나 보인다.
-  function turn(dir){ camYawTo += dir * Math.PI/4; }
+  // 꾸미는 중에는 같은 키가 **캐릭터**를 돌린다(턴테이블). 카메라를 돌려 봐야
+  // 캐릭터가 계속 카메라를 보고 있어 화면이 그대로다.
+  function turn(dir){
+    if (charOpen) P.yaw += dir * Math.PI/4;
+    else camYawTo += dir * Math.PI/4;
+  }
   document.getElementById('rotL').onclick = () => turn(-1);
   document.getElementById('rotR').onclick = () => turn(1);
 
@@ -1319,58 +1328,85 @@ export async function mountCampus(){
   //  체형 슬라이더·색 팔레트는 코드 아바타 시절 물건이라 여기선 의미가 없다.
   //  그래서 '무엇을 조절하나'가 아니라 '누구로 할까'를 고르게 한다 — 12종을
   //  실제 3D 로 찍어 나란히 보여 준다(팔레트와 같은 카메라라 크기가 비교된다).
-  const charThumbs = new Map();
+
+  //  ── 꾸미기 모드 ──
+  //  썸네일 12개를 격자로 늘어놓으면 **정작 캐릭터가 제일 작다**. 모바일 시트에서는
+  //  격자가 눌려 잘리기까지 했다. 그래서 격자를 버리고, 카메라가 캐릭터로 밀고
+  //  들어가 화면을 채운다 — 고르는 대상이 화면에서 가장 큰 것이어야 한다.
+  //  넘기기는 ‹ › 로, 색은 **한 번에 한 부위만** 한 줄로 낸다(네 줄을 동시에 펴면
+  //  그것만으로 화면이 다 찬다).
+  let dressTab = 'skin';
+  const elRoot = document.querySelector('.campus-root');
 
   async function openChars(){
     if (!ME) return toast('로그인하면 캐릭터를 고를 수 있어요');
     elBag.hidden = elShop.hidden = elTalk.hidden = true;
     charOpen = true;
     elChars.hidden = false;
-    elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
-      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
-      `<div class="pbody"><div class="pempty">불러오는 중…</div></div>`;
-    await Avatar.preloadAll?.();
-    Avatar.preloadAids?.();                 // 소품은 기다리지 않는다 — 눌릴 때 확인한다
-    for (const n of (Avatar.MODELS || [])){
-      if (charThumbs.has(n)) continue;
-      const g = Avatar.previewOf?.(n);
-      if (g) charThumbs.set(n, thumbOf(g));
-    }
+    elChars.classList.add('dress');
+    // 꾸미는 동안에는 카메라를 마주 본다 — 뒷모습을 보며 얼굴색을 고를 수는 없다.
+    // P.yaw 를 직접 돌린다(프레임 루프가 이 값으로 캐릭터를 세운다).
+    P.yaw = camYaw;
+    elRoot && elRoot.classList.add('dressing');
     drawChars();
+    await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
+    Avatar.preloadAids?.();
+  }
+  function closeChars(){
+    elChars.hidden = true; charOpen = false;
+    elChars.classList.remove('dress');
+    elRoot && elRoot.classList.remove('dressing');
   }
   function drawChars(){
     if (!charOpen) return;
-    const cur = myLook.model || 'male-a';
+    const models = Avatar.MODELS || [];
+    const cur = myLook.model || models[0];
+    const at = Math.max(0, models.indexOf(cur));
     const colors = myLook.colors || {};
-    // 색 줄 — 부위마다 고를 수 있는 색만 낸다(피부에 초록을 내면 실수로만 눌린다).
-    const swatches = (Avatar.PARTS || []).map(part => {
-      const cells = part.ids.map(id => {
-        const c = (Avatar.PALETTE || []).find(p => p.id === id);
-        if (!c) return '';
-        const on = colors[part.id] === id ? ' on' : '';
-        return `<button class="swatch${on}" data-part="${part.id}" data-color="${id}"` +
-               ` style="background:${c.hex}" title="${c.name}" aria-label="${part.name} ${c.name}"></button>`;
-      }).join('');
-      return `<div class="psec">${part.name}</div><div class="swrow">${cells}</div>`;
-    }).join('');
-    // 소품 — 안경이 이미 메시에 박힌 캐릭터는 빼 준다(씌우면 두 겹이 된다)
-    const builtin = Avatar.hasBuiltinGlasses?.(cur);
-    const aids = builtin ? '' :
-      `<div class="psec">소품</div><div class="swrow">` +
-      (Avatar.ACCESSORIES || []).map(a =>
-        `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
-        `${a.name}</button>`).join('') + `</div>`;
-    elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
-      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
-      `<div class="pbody"><div class="dgrid">` +
-      (Avatar.MODELS || []).map(n =>
-        `<button class="dcell ${n === cur ? 'on' : ''}" data-char="${n}">` +
-        `<img src="${charThumbs.get(n) || ''}" alt="" draggable="false"></button>`).join('') +
-      `</div>${swatches}${aids}</div>`;
+    const parts = Avatar.PARTS || [];
+    // 안경이 메시에 박힌 캐릭터에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
+    const withAid = !Avatar.hasBuiltinGlasses?.(cur);
+    const tabs = parts.map(p => ({id:p.id, name:p.name}))
+                      .concat(withAid ? [{id:'aid', name:'소품'}] : []);
+    if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
+
+    const row = dressTab === 'aid'
+      ? (Avatar.ACCESSORIES || []).map(a =>
+          `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
+          `${a.name}</button>`).join('')
+      : (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
+          const c = (Avatar.PALETTE || []).find(p => p.id === id);
+          if (!c) return '';
+          const on = colors[dressTab] === id ? ' on' : '';
+          return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
+                 ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
+        }).join('');
+
+    elChars.innerHTML =
+      `<div class="dnav">` +
+        `<button class="navb" data-step="-1" aria-label="이전 캐릭터">${icon('chevron-left', 20)}</button>` +
+        `<span class="dcount">${at + 1} <i>/ ${models.length}</i></span>` +
+        `<button class="navb" data-step="1" aria-label="다음 캐릭터">${icon('chevron-right', 20)}</button>` +
+        `<span class="sp"></span>` +
+        `<button class="ddone" data-close>완료</button>` +
+      `</div>` +
+      `<div class="dtabs">` +
+        tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
+                      `data-tab="${t.id}">${t.name}</button>`).join('') +
+      `</div>` +
+      `<div class="swrow">${row}</div>`;
   }
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-close')){ elChars.hidden = true; charOpen = false; return; }
+    if (b.hasAttribute('data-close')){ closeChars(); return; }
+    if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
+    if (b.dataset.step){
+      const models = Avatar.MODELS || [];
+      const at = Math.max(0, models.indexOf(myLook.model || models[0]));
+      const n = models[(at + Number(b.dataset.step) + models.length) % models.length];
+      await pickModel(n);
+      return;
+    }
     if (b.dataset.aid){
       // 같은 소품을 다시 누르면 벗는다
       const next = myLook.aid === b.dataset.aid ? null : b.dataset.aid;
@@ -1397,8 +1433,8 @@ export async function mountCampus(){
       if (!r.ok) toast('저장 실패: ' + r.error);
       return;
     }
-    const n = b.dataset.char;
-    if (!n) return;
+  });
+  async function pickModel(n){
     // 안경이 박힌 캐릭터로 갈아입으면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
     const aid = Avatar.hasBuiltinGlasses?.(n) ? null : myLook.aid;
     myLook = {...myLook, model: n, aid};
@@ -1407,8 +1443,8 @@ export async function mountCampus(){
     const r = await saveCharacter(myLook, myBody);
     if (r.ok && net) net.updateMeta(myLook, myBody);
     drawChars();
-    toast(r.ok ? '캐릭터를 바꿨어요' : '저장 실패: ' + r.error);
-  });
+    if (!r.ok) toast('저장 실패: ' + r.error);
+  }
   document.getElementById('dressBtn').onclick = openChars;
 
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
@@ -1466,9 +1502,9 @@ export async function mountCampus(){
       `<div class="psec">사기 — 가구는 우리집에 놓을 수 있어요</div>` + buys.join('') +
       `</div>`;
   }
-  const shutPanels = () => { elShop.hidden = elTalk.hidden = elChars.hidden = true; charOpen = false; };
+  const shutPanels = () => { elShop.hidden = elTalk.hidden = true; closeChars(); };
   function openBag(){ shutPanels(); elBag.hidden = false; refreshBag(); }
-  function openShop(){ elBag.hidden = elTalk.hidden = elChars.hidden = true; charOpen = false;
+  function openShop(){ elBag.hidden = elTalk.hidden = true; closeChars();
                        elShop.hidden = false; refreshShop(); }
   elBagBtn.onclick = () => elBag.hidden ? openBag() : (elBag.hidden = true);
 
@@ -1542,7 +1578,7 @@ export async function mountCampus(){
   }
 
   function openTalk(){
-    elBag.hidden = elShop.hidden = elChars.hidden = true; charOpen = false;
+    elBag.hidden = elShop.hidden = true; closeChars();
     // 충쌤에게 인사 — 말을 걸었다는 신호가 화면에도 남는다
     for (const n of NPCS) if (n.rig) playOnce(n.rig, 'yes');
     playOnce(player, 'wave');
@@ -1936,9 +1972,16 @@ export async function mountCampus(){
     // ── 카메라: 위치와 look-at을 각각 스무딩 ──
     // 세로로 긴 화면(모바일)은 가로 시야가 좁다. 거리로 보정해 주변 맥락이 보이게 한다.
     const fit = Math.min(1.7, Math.max(1, 1.35 / camera.aspect));
-    tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(player.root.position);
+    // 꾸미기 중에는 캐릭터로 밀고 들어간다 — 고르는 대상이 화면에서 가장 커야 한다.
+    // 여기서는 aspect 보정(fit)을 쓰지 않는다. 그건 '주변을 보여 주려고' 뒤로
+    // 물러나는 값이라, 세로로 긴 모바일에서 캐릭터를 도로 작게 만든다.
+    dressT += ((charOpen ? 1 : 0) - dressT) * Math.min(1, dt * 4);
+    const eDist = zoom * fit * (1 - dressT) + DRESS_ZOOM * dressT;
+    // 시선을 낮추면 캐릭터가 화면 위쪽으로 올라간다 — 아래는 조작 바가 덮는다.
+    const eLookY = 1.30 * (1 - dressT) + 0.62 * dressT;
+    tmp.copy(CAM_DIR).multiplyScalar(eDist).add(player.root.position);
     camPos.lerp(tmp, 1 - Math.exp(-6.5 * dt));
-    camLook.lerp(tmp.set(P.x, 1.30, P.z), 1 - Math.exp(-9 * dt));
+    camLook.lerp(tmp.set(P.x, eLookY, P.z), 1 - Math.exp(-9 * dt));
     camera.position.copy(camPos);
     camera.lookAt(camLook);
 
