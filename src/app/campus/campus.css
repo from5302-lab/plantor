@@ -510,3 +510,11 @@
     .campus-root .panel.dress .dgrid2{max-height:none}
   }
  @media (prefers-reduced-motion: reduce){ .campus-root .droll{transition:none} }
+
+  /* 색은 네모로 — 이 화면의 다른 요소(카드·버튼)가 전부 라운딩 사각형이라
+     동그라미만 혼자 논다. 라운딩은 쓰던 두 단계 안에서 고른다.
+     선택 표시는 **안쪽**에 그린다 — 바깥 링은 가로 스크롤 줄에서 잘린다. */
+  .campus-root .swatch{border-radius:var(--r-sm);width:34px;height:34px}
+  .campus-root .swatch.on{box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--primary)}
+  .campus-root .panel.dress .swatch{width:32px;height:32px}
+  .campus-root .drow .swrow{padding:3px 0}
