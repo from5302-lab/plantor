@@ -1111,8 +1111,22 @@ export async function mountCampus(){
   //    Space 는 **입장/나가기 전용** — 아무 데서나 눌러도 엉뚱한 게 열리지 않는다
   //    QWER 주기능: 앉기 · 점프 · 인사 · 끄덕임
   //    회전 J/K · 줌 +/-
+  //  ⚠ e.key 를 쓰면 **한/영 상태에 따라 조작이 죽는다** — 한글 입력기가 켜져 있으면
+  //    D 를 눌러도 e.key 가 'ㅇ' 로 온다(F→'ㄹ', J→'ㅓ'…). 방향키·Space 만 살아남아
+  //    "달리기가 갑자기 안 된다"가 된다. 물리 키 위치인 e.code 로 읽으면 입력기와
+  //    무관하게 같은 자리를 가리킨다. 코드가 없는 옛 환경만 e.key 로 떨어진다.
+  function keyId(e){
+    const c = e.code || '';
+    if (c.startsWith('Key'))   return c.slice(3).toLowerCase();   // KeyD → d
+    if (c.startsWith('Arrow')) return c.toLowerCase();            // ArrowUp → arrowup
+    if (c === 'Space') return ' ';
+    if (c === 'Enter' || c === 'NumpadEnter') return 'enter';
+    if (c === 'Equal' || c === 'NumpadAdd')      return '=';
+    if (c === 'Minus' || c === 'NumpadSubtract') return '-';
+    return e.key.toLowerCase();
+  }
   addEventListener('keydown', e => {
-    const k = e.key.toLowerCase();
+    const k = keyId(e);
     if (MOVEKEYS.has(k)){ if (!keys[k]) tap.target = null; keys[k] = true; e.preventDefault(); }
     if (k === 'd'){ keys['run'] = true; return; }
     if (k === 'j') turn(-1);
@@ -1127,7 +1141,7 @@ export async function mountCampus(){
     if (k === ' ' || k === 'enter'){ interact('door'); e.preventDefault(); }
   });
   addEventListener('keyup', e => {
-    const k = e.key.toLowerCase();
+    const k = keyId(e);
     if (k === 'd') keys['run'] = false;
     keys[k] = false;
   });
@@ -1189,6 +1203,7 @@ export async function mountCampus(){
   const elPrompt = document.getElementById('prompt');
   const elPTitle = document.getElementById('pTitle'), elPSub = document.getElementById('pSub');
   const elPBtn = document.getElementById('pBtn'), elPAct = document.getElementById('pAct');
+  const elPKey = document.getElementById('pKey');
   const elToast = document.getElementById('toast');
   const elBagBtn = document.getElementById('bagBtn'), elBagBells = document.getElementById('bagBells');
   const elBag = document.getElementById('bagPanel'), elShop = document.getElementById('shopPanel');
@@ -1226,6 +1241,9 @@ export async function mountCampus(){
         z.kind === 'shop' ? '열기'   :
         z.kind === 'npc'  ? '말 걸기' :
         z.kind === 'seat' ? '앉기'    : '입장';
+      // Space 는 문 전용이다(interact('door')). 그 밖에서 Space 를 안내하면
+      // 눌러도 아무 일이 안 일어난다 — 나머지는 전부 F 다.
+      elPKey.textContent = (z.kind === 'enter' || z.kind === 'exit') ? 'Space' : 'F';
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
     // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)

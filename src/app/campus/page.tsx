@@ -120,9 +120,10 @@ export default function CampusPage() {
           <h4 id="pTitle">내 방</h4>
           <p id="pSub">포인트로 넓히고 꾸미기</p>
           <button id="pBtn">
-            {/* 동작 이름은 맵이 바꿔 쓴다(입장 / 나가기). 텍스트 노드째 다루면
-                JSX 공백 처리에 따라 엉뚱한 자식을 잡으므로 span 으로 고정한다 */}
-            <span id="pAct">입장</span> <kbd>Space</kbd>
+            {/* 동작 이름과 키 모두 맵이 바꿔 쓴다. Space 는 입장·나가기 전용이고
+                흔들기·말 걸기·앉기는 F 다 — 텍스트 노드째 다루면 JSX 공백 처리에
+                따라 엉뚱한 자식을 잡으므로 둘 다 요소로 고정한다 */}
+            <span id="pAct">입장</span> <kbd id="pKey">Space</kbd>
           </button>
         </div>
 
