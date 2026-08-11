@@ -139,8 +139,57 @@ def apply_override(nm, agg):
             if k not in agg[part]['keys']: agg[part]['keys'].append(k)
     return agg
 
+# ── 대머리 ────────────────────────────────────────────────────────
+#  머리카락을 색으로 찾으면 안 된다. 눈썹·입이 같은 색이면 딸려오고, 모자 장식이
+#  다른 색이면 안 딸려온다. 기하로 보면 정확하다 — 머리카락·모자·눈썹은 각각
+#  **떨어져 있는 덩어리**다.
+#
+#  12종의 머리 메시는 구조가 같다:
+#    두개골 n136 · 귀 n42×2 · 머리카락 캡 · 눈썹 n8×2 · 입 n10 (+ 안경·수염 등)
+#  (male-b 만 머리카락 캡이 없다 — 원래 대머리다)
+def components(prim):
+    """정점을 공유하는 삼각형끼리 묶는다. UV 가 달라 쪼개진 정점은 위치로 다시 붙인다."""
+    idx = prim['idx']; n = len(prim['pos'])
+    par = list(range(n))
+    def find(a):
+        while par[a] != a: par[a] = par[par[a]]; a = par[a]
+        return a
+    def uni(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb: par[ra] = rb
+    seen = {}
+    for i, p in enumerate(map(tuple, np.round(prim['pos'], 4))):
+        if p in seen: uni(i, seen[p])
+        else: seen[p] = i
+    for t in range(0, len(idx), 3):
+        uni(idx[t], idx[t+1]); uni(idx[t+1], idx[t+2])
+    out = {}
+    for i in range(n): out.setdefault(find(i), []).append(i)
+    return list(out.values())
+
+def bald_hide(prims, tab):
+    """대머리로 만들 때 감출 정점 — 머리 메시의 '머리카락 덩어리' 전부."""
+    hide = []
+    for pr in prims:
+        if pr['key'][0][0] != 'h': continue            # 머리카락은 head-mesh 에만 있다
+        skin_y = [pr['pos'][i][1] for i, k in enumerate(pr['key'])
+                  if tab.get(f'{k[0]},{k[1]},{k[2]},{k[3]}') == 'skin']
+        top = max(skin_y) if skin_y else 0.66          # 두개골 정수리
+        for comp in components(pr):
+            parts = {tab.get(f'{k[0]},{k[1]},{k[2]},{k[3]}')
+                     for k in (pr['key'][i] for i in comp)}
+            if parts == {'skin'}: continue             # 두개골·귀
+            a = np.array([pr['pos'][i] for i in comp])
+            # 머리카락은 셋 중 하나다: 정수리를 덮거나 · 귀보다 옆으로 나가거나 ·
+            # 뒤통수 뒤로 흐르거나. 눈썹·입·안경·수염은 셋 다 아니다.
+            if (a[:,1].max() >= top - 0.005
+                    or np.abs(a[:,0]).max() > 0.24
+                    or a[:,2].min() < -0.20):
+                hide += comp
+    return sorted(set(hide))
+
 if __name__ == '__main__':
-    table, builtin = {}, []
+    table, builtin, bald = {}, [], {}
     for path in sorted(glob.glob('public/campus/models/kenney/*.glb')):
         nm = os.path.basename(path)[:-4]
         prims, groups, px = load(path)
@@ -172,8 +221,11 @@ if __name__ == '__main__':
         if lens:
             xs = [p[0] for p in lens]
             if max(xs) - min(xs) > 0.25: builtin.append(nm)
+        bald[nm] = bald_hide(prims, table[nm])
+        print(f'   대머리로 감출 정점 {len(bald[nm])}개')
         print()
     out = 'public/campus/models/kenney/part-cells.json'
-    json.dump({'family': [CELL, CELL*2], 'models': table, 'builtinGlasses': builtin},
+    json.dump({'family': [CELL, CELL*2], 'models': table,
+               'builtinGlasses': builtin, 'bald': bald},
               open(out, 'w'), ensure_ascii=False, indent=0, separators=(',', ':'))
     print('wrote', out)

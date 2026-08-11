@@ -187,7 +187,7 @@ function recolor(model, modelName, colors, owned){
                   v + (pick.f[1] - fy) * fh / TEX);
     }
     uv.needsUpdate = true;
-    if (colors.hair === BALD) makeBald(o, partAt);
+    if (colors.hair === BALD && o.name.charAt(0) === 'h') makeBald(o, modelName);
   });
 }
 
@@ -198,24 +198,20 @@ export const BALD = 'none';
  * 대머리 — 머리카락 삼각형을 인덱스에서 뺀다. 정점을 지우는 게 아니라 그리지
  * 않는 것이라 스키닝·뼈는 그대로다. 머리 밑에 두피 면이 닫혀 있어 구멍은 안 뚫린다.
  *
- * ⚠ 눈썹·입이 머리카락과 **같은 색 계열**인 캐릭터가 있다(male-a·male-f·female-a).
- *   그것까지 빼면 얼굴이 백지가 된다. 눈썹·입은 얼굴 앞면에 납작하게 붙어 있고
- *   머리카락은 그보다 높거나 뒤통수를 감싼다 — 앞면(z>0.13)이면서 눈썹 높이
- *   아래(y<0.55)면 이목구비로 보고 남긴다. 12종을 렌더해 확인한 경계다.
+ * 무엇이 머리카락인지는 **런타임이 추측하지 않는다.** 색으로 찾으면 눈썹·입이
+ * 같은 색일 때 딸려오고, 모자 장식이 다른 색이면 안 딸려온다. 오프라인에서
+ * 메시를 연결 요소로 쪼개 머리카락 덩어리를 골라 두고(scripts/campus-part-cells.py),
+ * 여기서는 그 정점 목록을 읽기만 한다.
  */
-function makeBald(mesh, partAt){
-  const g = mesh.geometry, idx = g.index, pos = g.attributes.position;
-  if (!idx) return;
+function makeBald(mesh, modelName){
+  const hide = PART_CELLS && PART_CELLS.bald && PART_CELLS.bald[modelName];
+  const g = mesh.geometry, idx = g.index;
+  if (!hide || !hide.length || !idx) return;
+  const drop = new Set(hide);
   const keep = [];
   for (let t = 0; t < idx.count; t += 3){
     const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
-    const isHair = partAt(a).part === 'hair' || partAt(b).part === 'hair'
-                || partAt(c).part === 'hair';
-    if (isHair){
-      const cy = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
-      const cz = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
-      if (!(cz > 0.13 && cy < 0.55)) continue;            // 머리카락 → 안 그린다
-    }
+    if (drop.has(a) || drop.has(b) || drop.has(c)) continue;
     keep.push(a, b, c);
   }
   g.setIndex(keep);
