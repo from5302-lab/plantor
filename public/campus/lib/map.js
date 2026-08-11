@@ -1489,10 +1489,12 @@ export async function mountCampus(){
   //  부위마다 **그 부위를 확대해서** 찍는다. 전신으로 찍으면 머리 차이가 몇 픽셀이라
   //  무엇이 다른지 알 수 없다(레퍼런스의 아바타 편집기들이 그렇게 한다).
   //  캐릭터 키는 1.30m — 아래 값은 그 안에서의 띠다.
+  //  띠는 **바운딩에서 비율로** 잡는다. 좌표로 박으면 안 맞는다 — 긴 머리·모자가
+  //  있는 모델은 같은 키에 맞추느라 머리통이 아래로 내려온다.
   const FOCUS = {
-    base: [0.74, 1.34],      // 얼굴 — 머리
-    head: [0.76, 1.40],      // 헤어 — 머리(높은 머리·모자까지)
-    body: [0.02, 0.98],      // 옷 — 몸통과 다리
+    base: [0.54, 1.00],      // 얼굴 — 위에서 46%
+    head: [0.54, 1.00],      // 헤어 — 같은 자리
+    body: [0.00, 0.74],      // 옷 — 아래에서 74%
   };
   const THUMB_W = 132, THUMB_H = 150;
   let aR = null, aS = null, aC = null;
@@ -1513,8 +1515,11 @@ export async function mountCampus(){
     // 살짝 튼 3/4 — 정면만 보면 옆머리·소매가 안 보인다
     rig.root.rotation.y = -0.42;
     aS.add(rig.root);
-    const [y0, y1] = FOCUS[slot] || [0, 1.32];
-    const h = (y1 - y0) / 2, w = h * (THUMB_W / THUMB_H);
+    const box = new THREE.Box3().setFromObject(rig.root);
+    const lo = box.min.y, hi = box.max.y, span = Math.max(0.1, hi - lo);
+    const [f0, f1] = FOCUS[slot] || [0, 1];
+    const y0 = lo + span * f0, y1 = lo + span * f1;
+    const h = (y1 - y0) / 2 * 1.06, w = h * (THUMB_W / THUMB_H);
     aC.left = -w; aC.right = w; aC.top = h; aC.bottom = -h;
     aC.position.set(0, (y0 + y1) / 2, 8);
     aC.lookAt(0, (y0 + y1) / 2, 0);
