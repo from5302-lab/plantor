@@ -2070,6 +2070,9 @@ export async function mountCampus(){
     // 여기서는 aspect 보정(fit)을 쓰지 않는다. 그건 '주변을 보여 주려고' 뒤로
     // 물러나는 값이라, 세로로 긴 모바일에서 캐릭터를 도로 작게 만든다.
     dressT += ((charOpen ? 1 : 0) - dressT) * Math.min(1, dt * 4);
+    // 꾸미는 동안엔 내 이름표를 감춘다 — 이 거리에서는 얼굴만 하게 커져서
+    // 정작 고르는 대상을 가린다. 내 캐릭터인 건 이미 안다.
+    for (const c of player.root.children) if (c.isSprite) c.visible = dressT < 0.15;
     const eDist = zoom * fit * (1 - dressT) + DRESS_ZOOM * dressT;
     // 시선을 낮추면 캐릭터가 화면 위쪽으로 올라간다 — 아래는 조작 바가 덮는다.
     const eLookY = 1.30 * (1 - dressT) + 0.62 * dressT;
