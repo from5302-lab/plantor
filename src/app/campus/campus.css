@@ -498,9 +498,10 @@
   .campus-root .droll:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
   /* 넓은 화면에서는 좌우로 나눈다 — 위아래로 두면 무대가 화면의 40% 밖에 안 된다 */
- @media (min-width: 900px){
+ /* 좌우 분할 기준을 내린다 — 720px 창에서도 위아래로 두면 무대가 너무 납작하다 */
+ @media (min-width: 640px){
     .campus-root .panel.dress{display:grid;gap:12px;
-         grid-template-columns:1fr minmax(340px, 38%);
+         grid-template-columns:1fr minmax(268px, 40%);
          grid-template-rows:auto 1fr;
          grid-template-areas:"head head" "stage list"}
     .campus-root .panel.dress .dhead{grid-area:head}

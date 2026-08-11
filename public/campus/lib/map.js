@@ -1332,6 +1332,7 @@ export async function mountCampus(){
   //  창 안에서는 **초안(draft)** 만 바꾼다. 고를 때마다 저장하면 되돌릴 길이 없어
   //  아이가 눌러 보기를 무서워한다. 적용을 눌러야 내 것이 된다.
   let draft = null;
+  let escClose = null, outClose = null;
   //  옷장 — 잔액·가진 것·값. 꾸미기 화면을 열 때 한 번 받아 온다.
   //  통화는 캠퍼스 사과가 아니라 **학습 포인트**다. 안 산 것도 입어는 볼 수 있게 하고
   //  (입어 봐야 산다), 저장은 가진 것만 한다.
@@ -1362,6 +1363,12 @@ export async function mountCampus(){
     elHead = elChars.querySelector('.dhead');
     elFoot = elChars.querySelector('.dfoot');
     previewStart(elChars.querySelector('.dcv'));
+    // 닫는 길을 여럿 둔다. '취소'는 있었지만 '닫기'로 안 읽혔다 —
+    // ESC 와 바깥 클릭은 창을 닫는 보편적인 방법이라 없으면 갇힌 느낌이 든다.
+    escClose = e => { if (e.key === 'Escape' || e.code === 'Escape'){ e.preventDefault(); closeChars(); } };
+    outClose = e => { if (charOpen && !elChars.contains(e.target)) closeChars(); };
+    addEventListener('keydown', escClose, true);
+    setTimeout(() => addEventListener('pointerdown', outClose), 0);
     drawChars();
     await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
     Avatar.preloadAids?.();
@@ -1369,6 +1376,8 @@ export async function mountCampus(){
     drawChars();
   }
   function closeChars(){
+    if (escClose){ removeEventListener('keydown', escClose, true); escClose = null; }
+    if (outClose){ removeEventListener('pointerdown', outClose); outClose = null; }
     // 초안은 버리면 그만이다 — 맵의 나는 애초에 안 건드렸다
     draft = null;
     previewStop();
@@ -1626,7 +1635,7 @@ export async function mountCampus(){
       (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
          (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
       `<button class="droll" data-roll aria-label="아무거나 골라 보기">${icon('dice', 18)}</button>` +
-      `<button class="dcancel" data-close>취소</button>` +
+      `<button class="dcancel" data-close>닫기</button>` +
       `<button class="ddone" data-apply>적용</button>`;
     elFoot.innerHTML =
       `<div class="dtabs">` +
