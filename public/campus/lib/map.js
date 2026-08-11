@@ -1039,6 +1039,8 @@ export async function mountCampus(){
   // 꾸미기 창의 목록을 굴릴 때 휠이 뒤의 맵까지 당기던 문제도 같이 없어진다.
   // 이제 시점 조작은 **회전 하나**다.
   const zoom = 0.75;
+  const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
+  const camLook = new THREE.Vector3(P.x, 0.9, P.z);
 
   // 카메라 기준 이동축 (화면 위 = 화면 안쪽). 카메라가 돌면 같이 돈다.
   const FWD = new THREE.Vector3(), RIGHT = new THREE.Vector3();
