@@ -906,6 +906,16 @@ export async function mountCampus(){
   }
 
   // ── 플레이어 ──────────────────────────────────────────────────────
+  //  ⚠ buildAvatar 는 동기다. 저장된 조합(얼굴·헤어·옷)이 서로 다른 모델이면
+  //    **그 모델들이 먼저 받아져 있어야** 한다. 안 그러면 첫 화면이 반쪽으로
+  //    선다 — 원래 머리는 지워졌는데 이식할 머리는 아직 없어서 대머리로 뜬다.
+  //    꾸미기를 열면 preloadAll 이 돌아 정상으로 돌아오는 게 그래서였다.
+  if (IS_GLB && Avatar.resolveLook){
+    const L = Avatar.resolveLook(myLook);
+    await Promise.all([L.base, L.head, L.body]
+      .filter(v => v && v !== Avatar.BALD)
+      .map(v => Avatar.ensure?.(v).catch(() => false)));
+  }
   let player = buildAvatar(myLook, myBody);
   scene.add(player.root);
   const meTag = nameTag(MY_LABEL);

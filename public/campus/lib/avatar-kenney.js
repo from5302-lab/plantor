@@ -467,7 +467,10 @@ export function buildAvatar(look = {}, body = null, opts = {}){
 
   let headMesh = null;
   model.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') headMesh = o; });
-  if (headMesh && L.head !== name){
+  // 이식할 머리가 아직 안 받아졌으면 **아무것도 하지 않는다**. 원래 머리를 지우고
+  // 이식만 실패하면 대머리로 서는데, 그건 저장한 모습이 아니다.
+  const headReady = L.head === BALD || cache.has(L.head);
+  if (headMesh && L.head !== name && headReady){
     // 원래 머리카락을 감춘다(대머리와 같은 목록). geometry 는 공유물이라 먼저 복제한다.
     headMesh.geometry = headMesh.geometry.clone();
     owned.push(headMesh.geometry);
