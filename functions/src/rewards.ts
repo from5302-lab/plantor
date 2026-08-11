@@ -927,7 +927,11 @@ export async function awardRewards(params: {
 
       // 피드에 남길 값은 트랜잭션 안에서 모아두고, 기록은 밖에서 한다
       // (피드 실패가 적립을 되돌리면 안 되므로).
-      const feed: FeedInput | null = deltaXp !== 0 || newBadges.length
+      // XP가 그대로여도 **표기가 달라졌으면 카드도 다시 써야 한다**(summaryStale).
+      // 이게 없어서 원장은 새 형식인데 피드 카드만 옛 칩을 붙들고 있었다 —
+      // 표기 규칙을 고쳐 배포해도 학생·학부모가 보는 화면은 그대로였다.
+      // replay 는 "다시 그려라" 는 뜻이므로 바뀐 게 없어도 한 번 새로 쓴다.
+      const feed: FeedInput | null = deltaXp !== 0 || newBadges.length || summaryStale || params.replay
         ? {
           childId, date,
           name: String(childSnap.data()?.name ?? ""),
