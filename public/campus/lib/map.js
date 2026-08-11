@@ -6,7 +6,8 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import * as CodeAvatar from '/campus/lib/avatar.js';
 import { DEFAULT_LOOK, GUEST_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
-import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadPlace, savePlace,
+import { loadWardrobe, buyWardrobe,
+         loadCharacter, saveCharacter, loadRoom, saveRoom, loadPlace, savePlace,
          loadInv, saveInv, whenReady } from '/campus/lib/store.js';
 import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
@@ -1335,7 +1336,14 @@ export async function mountCampus(){
   //  들어가 화면을 채운다 — 고르는 대상이 화면에서 가장 큰 것이어야 한다.
   //  넘기기는 ‹ › 로, 색은 **한 번에 한 부위만** 한 줄로 낸다(네 줄을 동시에 펴면
   //  그것만으로 화면이 다 찬다).
-  let dressTab = 'skin';
+  let dressTab = 'base';
+  //  옷장 — 잔액·가진 것·값. 꾸미기 화면을 열 때 한 번 받아 온다.
+  //  통화는 캠퍼스 사과가 아니라 **학습 포인트**다. 안 산 것도 입어는 볼 수 있게 하고
+  //  (입어 봐야 산다), 저장은 가진 것만 한다.
+  let wardrobe = null;
+  let savedLook = null;                    // 마지막으로 저장된 값 — 미리보기를 되돌릴 기준
+  const ownsSlot = (slot, id) =>
+    id === Avatar.BALD || !wardrobe || (wardrobe.owned?.[slot] || []).includes(id);
   const elRoot = document.querySelector('.campus-root');
 
   async function openChars(){
@@ -1348,11 +1356,23 @@ export async function mountCampus(){
     // P.yaw 를 직접 돌린다(프레임 루프가 이 값으로 캐릭터를 세운다).
     P.yaw = camYaw;
     elRoot && elRoot.classList.add('dressing');
+    savedLook = {...myLook};
     drawChars();
     await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
     Avatar.preloadAids?.();
+    wardrobe = await loadWardrobe();
+    drawChars();
   }
-  function closeChars(){
+  async function closeChars(){
+    // 안 산 것을 입어 본 채로 나가면 되돌린다 — 미리보기지 소유가 아니다
+    const L = Avatar.resolveLook(myLook);
+    const back = {};
+    for (const s of SLOTS) if (!ownsSlot(s.id, L[s.id])) back[s.id] = Avatar.resolveLook(savedLook || {})[s.id];
+    if (Object.keys(back).length){
+      myLook = {...myLook, ...back};
+      rebuildPlayer();
+      toast('사지 않은 것은 그대로 두었어요');
+    }
     elChars.hidden = true; charOpen = false;
     elChars.classList.remove('dress');
     elRoot && elRoot.classList.remove('dressing');
@@ -1383,9 +1403,12 @@ export async function mountCampus(){
 
     let row;
     if (SLOTS.some(s => s.id === dressTab)){
-      row = opts.map((v, i) =>
-        `<button class="slotb${v === L[slot] ? ' on' : ''}" data-slot="${slot}" data-val="${v}">` +
-        `${v === Avatar.BALD ? '없음' : i + (opts[0] === Avatar.BALD ? 0 : 1)}</button>`).join('');
+      row = opts.map((v, i) => {
+        const lock = ownsSlot(slot, v) ? '' : ' lock';
+        const label = v === Avatar.BALD ? '없음' : i + (opts[0] === Avatar.BALD ? 0 : 1);
+        return `<button class="slotb${v === L[slot] ? ' on' : ''}${lock}" ` +
+               `data-slot="${slot}" data-val="${v}">${label}</button>`;
+      }).join('');
     } else if (dressTab === 'aid'){
       row = (Avatar.ACCESSORIES || []).map(a =>
         `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
@@ -1414,12 +1437,38 @@ export async function mountCampus(){
         tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
                       `data-tab="${t.id}">${t.name}</button>`).join('') +
       `</div>` +
-      `<div class="swrow">${row}</div>`;
+      `<div class="swrow">${row}</div>` + buyRow(L);
+  }
+  /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
+  function buyRow(L){
+    if (!wardrobe) return '';
+    const s = SLOTS.find(s => !ownsSlot(s.id, L[s.id]));
+    if (!s) return '';
+    const cost = (wardrobe.price || {})[s.id] || 0;
+    const short = (wardrobe.points || 0) < cost;
+    return `<div class="dbuy">` +
+      `<span class="dbuyt">${s.name} · <b>${cost.toLocaleString('ko-KR')}P</b></span>` +
+      `<span class="dbuyp">가진 포인트 ${(wardrobe.points || 0).toLocaleString('ko-KR')}P</span>` +
+      `<button class="ddone" data-buy="${s.id}"${short ? ' disabled' : ''}>` +
+      `${short ? '포인트 부족' : '사기'}</button></div>`;
   }
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-close')){ closeChars(); return; }
     if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
+    if (b.dataset.buy){
+      const slot = b.dataset.buy;
+      const id = Avatar.resolveLook(myLook)[slot];
+      b.disabled = true;
+      const r = await buyWardrobe(slot, id);
+      if (!r.ok){ toast(r.error || '사지 못했어요'); drawChars(); return; }
+      wardrobe = {...wardrobe, points: r.points, owned: r.owned};
+      const sv = await saveCharacter(myLook, myBody);
+      if (sv.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
+      toast(r.already ? '이미 가지고 있어요' : '샀어요!');
+      drawChars();
+      return;
+    }
     if (b.dataset.slot){ await pickSlot(b.dataset.slot, b.dataset.val); return; }
     if (b.dataset.step){
       const slot = slotOf(dressTab);
@@ -1465,8 +1514,9 @@ export async function mountCampus(){
     myLook = {...myLook, ...next, model: undefined, aid};
     if (value !== Avatar.BALD) await Avatar.ensure?.(value);
     rebuildPlayer();
+    if (!ownsSlot(slot, value)){ drawChars(); return; }   // 미리보기만 — 저장은 살 때
     const r = await saveCharacter(myLook, myBody);
-    if (r.ok && net) net.updateMeta(myLook, myBody);
+    if (r.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
     drawChars();
     if (!r.ok) toast('저장 실패: ' + r.error);
   }

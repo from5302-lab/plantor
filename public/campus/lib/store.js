@@ -14,6 +14,8 @@ import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebase
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+import { getFunctions, httpsCallable }
+  from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-functions.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
 import { DEFAULT_ROOM, ROOM_FULL } from './room.js';
@@ -23,6 +25,8 @@ import { ITEMS, sanitizeInv, sanitizeBells, sanitizeEarned, dayKey } from './ite
 const app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+// 리전은 plantor 본체(src/lib/firebase.ts)와 같아야 한다 — 다르면 콜러블을 못 찾는다
+const fns  = getFunctions(app, 'us-central1');
 
 export const GUEST_KEY = 'mp.character.v1';
 export const PLANTOR_HOME = '/';          // 로그인 모달이 있는 plantor 홈
@@ -215,4 +219,24 @@ export async function saveRoom(items){
                  {campus: {room: clean, updatedAt: serverTimestamp()}}, {merge:true});
     return {ok:true};
   } catch (e){ return {ok:false, error: e?.code || String(e)}; }
+}
+
+// ── 옷장(상점) ─────────────────────────────────────────────────────
+//  통화는 캠퍼스 사과가 아니라 **학습 포인트**(children/{childId}.points)다.
+//  그 문서는 캠퍼스가 직접 못 읽는다(uid 가 아니라 childId 로 잡혀 있다) —
+//  잔액 조회도 구매도 콜러블을 거친다. 차감은 서버 트랜잭션이 한다.
+export async function loadWardrobe(){
+  const me = await whenReady();
+  if (!me) return null;
+  try { return (await httpsCallable(fns, 'getCampusWardrobe')()).data; }
+  catch (e){ console.warn('[campus] 옷장을 불러오지 못했습니다', e); return null; }
+}
+
+export async function buyWardrobe(slot, id){
+  try {
+    const r = await httpsCallable(fns, 'buyCampusItem')({slot, id});
+    return {ok:true, ...r.data};
+  } catch (e){
+    return {ok:false, error: e?.message || e?.code || String(e)};
+  }
 }
