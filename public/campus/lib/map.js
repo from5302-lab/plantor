@@ -1329,6 +1329,9 @@ export async function mountCampus(){
   //  그것만으로 화면이 다 찬다).
   let dressTab = 'base';
   let elHead = null, elFoot = null;
+  //  창 안에서는 **초안(draft)** 만 바꾼다. 고를 때마다 저장하면 되돌릴 길이 없어
+  //  아이가 눌러 보기를 무서워한다. 적용을 눌러야 내 것이 된다.
+  let draft = null;
   //  옷장 — 잔액·가진 것·값. 꾸미기 화면을 열 때 한 번 받아 온다.
   //  통화는 캠퍼스 사과가 아니라 **학습 포인트**다. 안 산 것도 입어는 볼 수 있게 하고
   //  (입어 봐야 산다), 저장은 가진 것만 한다.
@@ -1346,6 +1349,7 @@ export async function mountCampus(){
     elChars.classList.add('dress');
     elRoot && elRoot.classList.add('dressing');
     savedLook = {...myLook};
+    draft = {...myLook};
     elChars.innerHTML =
       `<div class="dhead"></div>` +
       `<div class="dstage"><canvas class="dcv"></canvas>` +
@@ -1364,16 +1368,9 @@ export async function mountCampus(){
     wardrobe = await loadWardrobe();
     drawChars();
   }
-  async function closeChars(){
-    // 안 산 것을 입어 본 채로 나가면 되돌린다 — 미리보기지 소유가 아니다
-    const L = Avatar.resolveLook(myLook);
-    const back = {};
-    for (const s of SLOTS) if (!ownsSlot(s.id, L[s.id])) back[s.id] = Avatar.resolveLook(savedLook || {})[s.id];
-    if (Object.keys(back).length){
-      myLook = {...myLook, ...back};
-      rebuildPlayer();
-      toast('사지 않은 것은 그대로 두었어요');
-    }
+  function closeChars(){
+    // 초안은 버리면 그만이다 — 맵의 나는 애초에 안 건드렸다
+    draft = null;
     previewStop();
     elChars.hidden = true; charOpen = false;
     elChars.classList.remove('dress');
@@ -1453,7 +1450,7 @@ export async function mountCampus(){
   function previewSync(){
     if (!pv) return;
     if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); }
-    pv.rig = buildAvatar(myLook, myBody);
+    pv.rig = buildAvatar(draft || myLook, myBody);
     // 이름표는 맵에서만 쓴다. 무대에서는 캐릭터만 본다.
     pv.rig.root.rotation.y = pv.yaw;
     pv.scene.add(pv.rig.root);
@@ -1491,11 +1488,12 @@ export async function mountCampus(){
   //  캐릭터 키는 1.30m — 아래 값은 그 안에서의 띠다.
   //  띠는 **바운딩에서 비율로** 잡는다. 좌표로 박으면 안 맞는다 — 긴 머리·모자가
   //  있는 모델은 같은 키에 맞추느라 머리통이 아래로 내려온다.
-  const FOCUS = {
-    base: [0.54, 1.00],      // 얼굴 — 위에서 46%
-    head: [0.54, 1.00],      // 헤어 — 같은 자리
-    body: [0.00, 0.74],      // 옷 — 아래에서 74%
-  };
+  //  **부위만 보여 준다.** 전신을 찍으면 12개가 다 비슷한 살색 덩어리로 보인다.
+  //  레퍼런스(아바타 편집기들)가 머리카락을 민머리 위에 얹어 보여 주는 이유다.
+  //   · 헤어 → 민머리(male-b) 위에 그 머리카락만. 몸은 감춘다
+  //   · 옷   → 몸만. 머리를 감춘다
+  //   · 얼굴 → 얼굴만
+  const NEUTRAL = 'male-b';            // 12종 중 유일하게 원래 대머리다
   const THUMB_W = 132, THUMB_H = 150;
   let aR = null, aS = null, aC = null;
   function thumbSetup(){
@@ -1504,25 +1502,37 @@ export async function mountCampus(){
     aR.setSize(THUMB_W, THUMB_H); aR.setPixelRatio(2);
     aR.outputColorSpace = THREE.SRGBColorSpace;
     aS = new THREE.Scene();
-    aS.add(new THREE.HemisphereLight(0xffffff, 0xe2e8e3, 2.2));
-    const k = new THREE.DirectionalLight(0xfff6e8, 1.4); k.position.set(2, 4, 3); aS.add(k);
+    aS.add(new THREE.HemisphereLight(0xffffff, 0xe2e8e3, 2.3));
+    const k = new THREE.DirectionalLight(0xfff6e8, 1.3); k.position.set(2, 4, 3); aS.add(k);
     // 정사영 — 원근이 섞이면 카드마다 크기가 달라 보여 비교가 안 된다
     aC = new THREE.OrthographicCamera(-1, 1, 1, -1, -20, 40);
   }
+  /** 슬롯마다 보여 줄 메시만 남긴다. 나머지는 감춘다. */
+  function showOnly(rig, slot){
+    rig.model.traverse(o => {
+      if (!o.isMesh) return;
+      const isBody = o.name.charAt(0) === 'b';
+      o.visible = slot === 'body' ? isBody : !isBody;
+    });
+  }
   function renderThumb(look, slot){
     thumbSetup();
-    const rig = buildAvatar({...look, colors: myLook.colors}, myBody);
-    // 살짝 튼 3/4 — 정면만 보면 옆머리·소매가 안 보인다
-    rig.root.rotation.y = -0.42;
+    const rig = buildAvatar({...look, colors: (draft || myLook).colors}, myBody);
+    showOnly(rig, slot);
+    rig.root.rotation.y = -0.38;          // 살짝 튼 3/4 — 옆머리·소매가 보인다
+    rig.root.updateMatrixWorld(true);
     aS.add(rig.root);
-    const box = new THREE.Box3().setFromObject(rig.root);
-    const lo = box.min.y, hi = box.max.y, span = Math.max(0.1, hi - lo);
-    const [f0, f1] = FOCUS[slot] || [0, 1];
-    const y0 = lo + span * f0, y1 = lo + span * f1;
-    const h = (y1 - y0) / 2 * 1.06, w = h * (THUMB_W / THUMB_H);
-    aC.left = -w; aC.right = w; aC.top = h; aC.bottom = -h;
-    aC.position.set(0, (y0 + y1) / 2, 8);
-    aC.lookAt(0, (y0 + y1) / 2, 0);
+    // 보이는 메시만으로 바운딩을 잡는다 — 감춘 것까지 세면 엉뚱한 데를 찍는다
+    const box = new THREE.Box3();
+    rig.model.traverse(o => { if (o.isMesh && o.visible) box.expandByObject(o); });
+    if (box.isEmpty()) box.setFromObject(rig.root);
+    const cy = (box.max.y + box.min.y) / 2;
+    const h = Math.max(0.08, (box.max.y - box.min.y)) / 2 * 1.14;
+    const wNeed = Math.max(0.08, (box.max.x - box.min.x)) / 2 * 1.14;
+    const half = Math.max(h, wNeed * (THUMB_H / THUMB_W));
+    const w = half * (THUMB_W / THUMB_H);
+    aC.left = -w; aC.right = w; aC.top = half; aC.bottom = -half;
+    aC.position.set(0, cy, 8); aC.lookAt(0, cy, 0);
     aC.updateProjectionMatrix();
     aR.render(aS, aC);
     const url = aR.domElement.toDataURL('image/png');
@@ -1530,10 +1540,12 @@ export async function mountCampus(){
     return url;
   }
   function thumbFor(slot, v, L){
-    const k = `${slot}:${v}:${L.base}:${JSON.stringify(myLook.colors || {})}`;
+    const k = `${slot}:${v}:${L.base}:${JSON.stringify((draft || myLook).colors || {})}`;
     if (lookThumbs.has(k)) return lookThumbs.get(k);
+    // 헤어·옷은 **기준 몸**에 얹어 찍는다. 얼굴이 같이 나오면 12개가 다 비슷해 보인다.
     const look = slot === 'base' ? {base:v, head:v, body:v}
-                                 : {base:L.base, head:L.head, body:L.body, [slot]:v};
+               : slot === 'head' ? {base:NEUTRAL, head:v, body:NEUTRAL}
+                                 : {base:NEUTRAL, head:'none', body:v};
     let url = '';
     try { url = renderThumb(look, slot); } catch { url = ''; }
     lookThumbs.set(k, url);
@@ -1542,8 +1554,9 @@ export async function mountCampus(){
 
   function drawChars(){
     if (!charOpen) return;
-    const L = Avatar.resolveLook ? Avatar.resolveLook(myLook) : {base: myLook.model};
-    const colors = myLook.colors || {};
+    const D = draft || myLook;
+    const L = Avatar.resolveLook ? Avatar.resolveLook(D) : {base: D.model};
+    const colors = D.colors || {};
     const parts = Avatar.PARTS || [];
     // 안경이 메시에 박힌 얼굴에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
     const tabs = TABS.filter(t => t.id !== 'aid' || !Avatar.hasBuiltinGlasses?.(L.base));
@@ -1582,7 +1595,7 @@ export async function mountCampus(){
     } else {
       body += `<div class="drow"><div class="swrow">` +
         (Avatar.ACCESSORIES || []).map(a =>
-          `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
+          `<button class="aidbtn${D.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
           `${a.name}</button>`).join('') + `</div></div>`;
     }
 
@@ -1590,7 +1603,9 @@ export async function mountCampus(){
       `<b>캐릭터 꾸미기</b><span class="sp"></span>` +
       (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
          (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
-      `<button class="ddone" data-close>완료</button>`;
+      `<button class="droll" data-roll aria-label="아무거나 골라 보기">${icon('dice', 18)}</button>` +
+      `<button class="dcancel" data-close>취소</button>` +
+      `<button class="ddone" data-apply>적용</button>`;
     elFoot.innerHTML =
       `<div class="dtabs">` +
         tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
@@ -1612,17 +1627,17 @@ export async function mountCampus(){
   }
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-roll')){ await rollLook(); return; }
+    if (b.hasAttribute('data-apply')){ await applyDraft(); return; }
     if (b.hasAttribute('data-close')){ closeChars(); return; }
     if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
     if (b.dataset.buy){
       const slot = b.dataset.buy;
-      const id = Avatar.resolveLook(myLook)[slot];
+      const id = Avatar.resolveLook(draft)[slot];
       b.disabled = true;
       const r = await buyWardrobe(slot, id);
       if (!r.ok){ toast(r.error || '사지 못했어요'); drawChars(); return; }
       wardrobe = {...wardrobe, points: r.points, owned: r.owned};
-      const sv = await saveCharacter(myLook, myBody);
-      if (sv.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
       toast(r.already ? '이미 가지고 있어요' : '샀어요!');
       drawChars();
       return;
@@ -1635,54 +1650,76 @@ export async function mountCampus(){
     if (b.dataset.step){
       const slot = slotOf(dressTab);
       const opts = optionsOf(slot);
-      const L = Avatar.resolveLook(myLook);
+      const L = Avatar.resolveLook(draft);
       const at = Math.max(0, opts.indexOf(L[slot]));
       await pickSlot(slot, opts[(at + Number(b.dataset.step) + opts.length) % opts.length]);
       return;
     }
     if (b.dataset.aid){
       // 같은 소품을 다시 누르면 벗는다
-      const next = myLook.aid === b.dataset.aid ? null : b.dataset.aid;
+      const next = draft.aid === b.dataset.aid ? null : b.dataset.aid;
       if (next) await Avatar.ensureAid?.(next);
-      myLook = {...myLook, aid: next};
-      rebuildPlayer(); previewSync();
-      const r = await saveCharacter(myLook, myBody);
-      if (r.ok && net) net.updateMeta(myLook, myBody);
-      drawChars();
-      if (!r.ok) toast('저장 실패: ' + r.error);
+      draft = {...draft, aid: next};
+      previewSync(); drawChars();
       return;
     }
     if (b.dataset.part){
       // 같은 색을 다시 누르면 원래 색으로 되돌린다 — 되돌릴 길이 없으면 못 눌러 본다.
-      const cur = (myLook.colors || {})[b.dataset.part];
-      const colors = {...(myLook.colors || {})};
+      const cur = (draft.colors || {})[b.dataset.part];
+      const colors = {...(draft.colors || {})};
       if (cur === b.dataset.color) delete colors[b.dataset.part];
       else colors[b.dataset.part] = b.dataset.color;
-      myLook = {...myLook, colors};
-      rebuildPlayer(); previewSync();
-      const r = await saveCharacter(myLook, myBody);
-      if (r.ok && net) net.updateMeta(myLook, myBody);
-      drawChars();
-      if (!r.ok) toast('저장 실패: ' + r.error);
+      draft = {...draft, colors};
+      lookThumbs.clear();                 // 색이 바뀌면 썸네일도 다시 찍어야 한다
+      previewSync(); drawChars();
       return;
     }
   });
   async function pickSlot(slot, value){
-    const L = Avatar.resolveLook(myLook);
+    const L = Avatar.resolveLook(draft);
     const next = {...L, [slot]: value};
     // 안경이 박힌 얼굴로 바꾸면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
-    const aid = Avatar.hasBuiltinGlasses?.(next.base) ? null : (myLook.aid || null);
-    // model 은 더 이상 안 쓴다 — 남겨 두면 옛 값이 되살아난다
-    myLook = {...myLook, ...next, model: undefined, aid};
+    const aid = Avatar.hasBuiltinGlasses?.(next.base) ? null : (draft.aid || null);
+    draft = {...draft, ...next, model: undefined, aid};
     if (value !== Avatar.BALD) await Avatar.ensure?.(value);
-    rebuildPlayer(); previewSync();
-    if (!ownsSlot(slot, value)){ drawChars(); return; }   // 미리보기만 — 저장은 살 때
+    previewSync();
+    drawChars();
+  }
+
+  /**
+   * 주사위 — 조합이 12 × 13 × 12 × 색이라 무엇을 고를지 모르는 게 정상이다.
+   * 시작점을 준다. **가진 것 중에서만** 뽑는다 — 못 사는 걸 뽑아 주면 놀리는 셈이다.
+   */
+  async function rollLook(){
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const mine = slot => optionsOf(slot).filter(v => ownsSlot(slot, v));
+    const next = {base: pick(mine('base')), head: pick(mine('head')), body: pick(mine('body'))};
+    const ids = (Avatar.PALETTE || []).map(p => p.id);
+    const colors = {};
+    for (const p of (Avatar.PARTS || []))
+      if (Math.random() < 0.7) colors[p.id] = pick(p.ids.length ? p.ids : ids);
+    draft = {...draft, ...next, model: undefined, colors,
+             aid: Avatar.hasBuiltinGlasses?.(next.base) ? null : draft.aid};
+    await Promise.all([next.base, next.head, next.body]
+      .filter(v => v && v !== Avatar.BALD).map(v => Avatar.ensure?.(v).catch(() => false)));
+    lookThumbs.clear();
+    previewSync(); drawChars();
+  }
+
+  /** 적용 — 초안을 내 것으로. 안 산 것은 여기서 걸러진다. */
+  async function applyDraft(){
+    const L = Avatar.resolveLook(draft);
+    const back = {};
+    for (const sl of SLOTS) if (!ownsSlot(sl.id, L[sl.id])) back[sl.id] = Avatar.resolveLook(savedLook || {})[sl.id];
+    const dropped = Object.keys(back).length;
+    myLook = {...draft, ...back};
+    rebuildPlayer();
     const r = await saveCharacter(myLook, myBody);
     if (r.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
-    drawChars();
-    if (!r.ok) toast('저장 실패: ' + r.error);
+    closeChars();
+    toast(!r.ok ? '저장 실패: ' + r.error
+          : dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요');
   }
-  document.getElementById('dressBtn').onclick = openChars;
 
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
   // 패널은 innerHTML 로 매번 다시 그린다 — 항목이 10개 남짓이라 diff 를 관리할

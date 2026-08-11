@@ -482,3 +482,30 @@
   .campus-root .dlabel{flex:none;width:34px;font-size:11.5px;font-weight:700;
        color:var(--muted)}
   .campus-root .drow .swrow{flex:1;min-width:0;margin:0}
+
+  /* 취소 / 적용 — 고를 때마다 저장하면 되돌릴 길이 없어 눌러 보기를 무서워한다.
+     실험은 초안에서 하고, 적용을 눌러야 내 것이 된다 */
+  .campus-root .dcancel{border:1px solid var(--line);border-radius:var(--r-sm);
+       background:rgba(255,255,255,.8);color:var(--muted);font:inherit;font-size:13px;
+       font-weight:700;padding:10px 16px;cursor:pointer}
+  .campus-root .dcancel:hover{background:#fff;color:var(--ink)}
+  .campus-root .dcancel:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .droll{width:40px;height:40px;flex:none;display:grid;place-items:center;
+       border:1px solid var(--line);border-radius:var(--r-sm);
+       background:rgba(255,255,255,.8);color:var(--ink);cursor:pointer;
+       transition:transform 150ms cubic-bezier(.4,0,.2,1), background 150ms}
+  .campus-root .droll:hover{background:#fff;transform:rotate(-12deg)}
+  .campus-root .droll:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+  /* 넓은 화면에서는 좌우로 나눈다 — 위아래로 두면 무대가 화면의 40% 밖에 안 된다 */
+ @media (min-width: 900px){
+    .campus-root .panel.dress{display:grid;gap:12px;
+         grid-template-columns:1fr minmax(340px, 38%);
+         grid-template-rows:auto 1fr;
+         grid-template-areas:"head head" "stage list"}
+    .campus-root .panel.dress .dhead{grid-area:head}
+    .campus-root .panel.dress .dstage{grid-area:stage}
+    .campus-root .panel.dress .dfoot{grid-area:list;overflow-y:auto;padding:0 4px}
+    .campus-root .panel.dress .dgrid2{max-height:none}
+  }
+ @media (prefers-reduced-motion: reduce){ .campus-root .droll{transition:none} }
