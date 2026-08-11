@@ -75,12 +75,37 @@ export const LOADING_QUIPS: readonly string[] = [
   "계획표에 오늘 칸 만드는 중…",
 ];
 
-/** 직전에 나온 것과는 다른 문구를 고른다 — 같은 게 연달아 뜨면 랜덤으로 안 보인다. */
+/**
+ * 조작키. 화면에 상시 안내판을 띄우지 않는다 — 3D 위에 얹힌 설명 상자는 처음 한 번
+ * 읽히고 그 뒤로는 계속 시야만 먹는다. 대신 로딩 중에 가끔 한 줄씩 흘려 보낸다.
+ * 다 볼 때까지 여러 번 걸리는데, 그게 이스터 에그로 읽히는 이유이기도 하다.
+ *
+ * 위 문구들과 달리 '…' 로 끝내지 않는다. 이건 마을 소식이 아니라 사실 전달이라,
+ * 말끝을 흐리면 안내인지 농담인지 헷갈린다.
+ */
+export const KEY_HINTS: readonly string[] = [
+  "방향키로 걷는다. 급하면 D 를 누른 채",
+  "F 는 만능이다 — 흔들고, 말 걸고, 앉는다",
+  "Space 는 문 앞에서만 듣는다",
+  "J · K 로 카메라를 돌린다",
+  "+ 와 − 로 당기고 민다",
+  "Q 앉기 · W 점프 · E 인사 · R 끄덕임",
+  "벤치 앞에서 F 로 앉는다. 걸으면 저절로 일어난다",
+  "사과나무는 하루 한 번만 흔들린다",
+];
+
+/**
+ * 직전에 나온 것과는 다른 문구를 고른다 — 같은 게 연달아 뜨면 랜덤으로 안 보인다.
+ *
+ * 네 번에 한 번쯤 조작키가 섞인다. 키보드가 있을 때만이다 — 손가락으로 하는
+ * 사람에게 "D 를 누른 채"는 거짓말이다(프롬프트의 kbd 도 같은 이유로 CSS 에서 숨긴다).
+ */
 export function pickQuip(prev?: string): string {
-  if (LOADING_QUIPS.length < 2) return LOADING_QUIPS[0];
+  const keyboard = typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches;
+  const pool = keyboard && Math.random() < 0.25 ? KEY_HINTS : LOADING_QUIPS;
   for (let i = 0; i < 8; i++) {
-    const q = LOADING_QUIPS[Math.floor(Math.random() * LOADING_QUIPS.length)];
+    const q = pool[Math.floor(Math.random() * pool.length)];
     if (q !== prev) return q;
   }
-  return LOADING_QUIPS[0];
+  return pool[0];
 }
