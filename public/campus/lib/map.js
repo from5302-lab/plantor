@@ -153,8 +153,10 @@ export async function mountCampus(){
     // 카메라를 당겼다 — 거리 25m 면 1.3m 캐릭터가 화면 높이의 1/10 쯤 된다.
     // fog 는 레벨마다 다르다. 실내 값을 야외에 그대로 쓰면 건물이 안개에 잠긴다.
     // spawn.yaw 는 **카메라 반대 방향**이어야 뒷모습이 보인다.
-    // 카메라 기본각이 45°(camYaw=π/4)이므로 캐릭터는 그 반대인 -3π/4 를 본다.
-    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:-Math.PI*0.75}, camR:21.0, camH:18.0, fog:[46, 105]},
+    // 카메라 기본각이 0°(camYaw=0, 카메라가 +z 쪽)이므로 캐릭터는 -z 인 π 를 본다.
+    // 야외 부감은 33°(23.2/15.1, 거리 27.7m). 40° 대에서는 하늘이 안 보여
+    // 곡면 셰이더가 드러나지 않았다 — 동숲의 곡률은 낮은 각을 위한 장치다.
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:23.2, camH:15.1, fog:[46, 105]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
     union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
@@ -992,10 +994,14 @@ export async function mountCampus(){
 
   // ══ 카메라 ════════════════════════════════════════════════════════
   // 고정 아이소메트릭 프레이밍. 위치와 look-at을 각각 따로 스무딩한다.
-  // 카메라는 수평각(camYaw)으로 돈다. 기본 45°가 기존 아이소메트릭 각도다.
+  // 카메라는 수평각(camYaw)으로 돈다. 기본은 **0° — 월드 축에 정면 정렬**이다.
+  // 45°(대각선)로 두면 건물이 전부 모서리를 내밀어 아이소메트릭 전략 게임이 된다.
+  // 동물의 숲은 섬에서 카메라를 좌우로 아예 못 돌린다 — 집이 정면을 보이고 길이
+  // 화면 축을 따라 흐르는 그 구도가 정면 정렬이다. 회전(J/K)은 남겨 두되 시작만
+  // 여기서 한다. 45° 단위라 0°에서 시작해야 정면과 대각선을 둘 다 쓸 수 있다.
   // 반경·높이는 레벨이 정한다 — 야외는 건물 세 채가 한눈에 들어와야 해서 더 멀다.
   let CAM_R = 21.8, CAM_H = 14.2;          // 부감 33°. 더 낮추면 허리벽이 시야를 가린다
-  let camYaw = Math.PI/4, camYawTo = Math.PI/4;
+  let camYaw = 0, camYawTo = 0;
   const CAM_DIR = new THREE.Vector3();
   const camDirFrom = y => CAM_DIR.set(Math.sin(y)*CAM_R, CAM_H, Math.cos(y)*CAM_R);
   camDirFrom(camYaw);
