@@ -1434,20 +1434,29 @@ export async function mountCampus(){
     }
 
     const label = SLOTS.find(s => s.id === slot).name;
+    // 90% 창. 가운데는 비워 둔다 — 거기에 유리를 깔면 뒤의 캐릭터가 같이 뭉개진다.
+    // 유리는 머리(제목)와 발치(조작)에만 깐다.
     elChars.innerHTML =
-      `<div class="dnav">` +
-        `<button class="navb" data-step="-1" aria-label="이전 ${label}">${icon('chevron-left', 20)}</button>` +
-        `<span class="dcount">${L[slot] === Avatar.BALD ? '없음' : at + 1}` +
-        ` <i>/ ${opts.length}</i></span>` +
-        `<button class="navb" data-step="1" aria-label="다음 ${label}">${icon('chevron-right', 20)}</button>` +
+      `<div class="dhead">` +
+        `<b>캐릭터 꾸미기</b>` +
+        `<span class="dwhat">${label} · ${L[slot] === Avatar.BALD ? '없음' : at + 1}/${opts.length}</span>` +
         `<span class="sp"></span>` +
+        (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
+           (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
         `<button class="ddone" data-close>완료</button>` +
       `</div>` +
-      `<div class="dtabs">` +
-        tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
-                      `data-tab="${t.id}">${t.name}</button>`).join('') +
-      `</div>` +
-      `<div class="swrow">${row}</div>` + buyRow(L);
+      `<button class="dside dprev" data-step="-1" aria-label="이전 ${label}">` +
+        `${icon('chevron-left', 26)}</button>` +
+      `<button class="dside dnext" data-step="1" aria-label="다음 ${label}">` +
+        `${icon('chevron-right', 26)}</button>` +
+      `<div class="dfoot">` +
+        `<div class="dtabs">` +
+          tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
+                        `data-tab="${t.id}">${t.name}</button>`).join('') +
+        `</div>` +
+        `<div class="swrow">${row}</div>` +
+        buyRow(L) +
+      `</div>`;
   }
   /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
   function buyRow(L){

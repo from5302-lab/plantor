@@ -359,3 +359,66 @@
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .campus-root .dbuy .ddone{padding:9px 16px;font-size:13px}
   .campus-root .dbuy .ddone:disabled{background:#c8d3cb;cursor:default}
+
+  /* ══ 꾸미기 창 (90%) ══════════════════════════════════════════════
+     ⚠ 창 전체에 backdrop-filter 를 걸면 **캐릭터도 같이 뭉개진다** — 캐릭터는 이
+       창 뒤의 3D 캔버스에 그려진다. 그래서 가운데는 비워 두고(유리 없음),
+       유리는 머리(제목)와 발치(조작)에만 깐다.
+     바깥은 큰 spread 그림자 하나로 눌러 스포트라이트를 만든다. 별도 오버레이를
+     깔면 그 위에 또 블러가 얹혀 같은 문제가 생긴다. */
+  .campus-root .panel.dress{position:absolute;inset:5%;top:5%;left:5%;right:5%;bottom:5%;
+       width:auto;max-height:none;padding:0;gap:0;overflow:visible;
+       background:transparent;backdrop-filter:none;border:1px solid rgba(255,255,255,.55);
+       border-radius:24px;
+       box-shadow:0 0 0 9999px rgba(16,26,20,.34), 0 24px 64px rgba(0,0,0,.18);
+       /* 가운데는 클릭이 통과해야 캐릭터를 끌어 돌릴 수 있다 */
+       pointer-events:none}
+  .campus-root .panel.dress > *{pointer-events:auto}
+
+  /* 유리 — 흰 반투명 + 블러 + 위쪽 하이라이트. 셋이 같이 있어야 유리로 읽힌다 */
+  .campus-root .dhead,
+  .campus-root .dfoot,
+  .campus-root .dside{background:rgba(255,255,255,.62);
+       -webkit-backdrop-filter:blur(18px) saturate(1.5);
+       backdrop-filter:blur(18px) saturate(1.5);
+       border:1px solid rgba(255,255,255,.7);
+       box-shadow:0 8px 32px rgba(16,26,20,.14), inset 0 1px 0 rgba(255,255,255,.85)}
+
+  .campus-root .dhead{position:absolute;top:12px;left:12px;right:12px;
+       display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px}
+  .campus-root .dhead b{font-size:14px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+  .campus-root .dwhat{font-size:12px;font-weight:600;color:var(--muted);
+       font-variant-numeric:tabular-nums}
+  .campus-root .dpts{font-size:13px;font-weight:800;color:var(--primary);
+       font-variant-numeric:tabular-nums}
+  .campus-root .dpts i{font-style:normal;font-size:11px;font-weight:600;color:var(--muted);
+       margin-left:1px}
+
+  /* 좌우 넘기기 — 캐릭터 양옆. 손이 가장 먼저 닿는 자리다 */
+  .campus-root .dside{position:absolute;top:50%;transform:translateY(-50%);
+       width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
+       color:var(--ink);cursor:pointer;
+       transition:background 150ms cubic-bezier(.4,0,.2,1), transform 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .dprev{left:14px}
+  .campus-root .dnext{right:14px}
+  .campus-root .dside:hover{background:rgba(255,255,255,.85);
+       transform:translateY(-50%) scale(1.06)}
+  .campus-root .dside:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+
+  .campus-root .dfoot{position:absolute;left:12px;right:12px;bottom:12px;
+       display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:18px}
+
+  /* 창 안에서는 조작 줄이 유리 위에 얹히므로 흰 배경을 걷는다 */
+  .campus-root .panel.dress .slotb,
+  .campus-root .panel.dress .aidbtn{background:rgba(255,255,255,.7)}
+  .campus-root .panel.dress .dbuy{background:rgba(255,255,255,.72);
+       border-color:rgba(31,122,51,.3)}
+
+ @media (max-width: 720px){
+    /* 좁은 화면에서 5% 여백은 화면을 좀먹는다. 창을 거의 꽉 채운다 */
+    .campus-root .panel.dress{inset:8px;top:8px;left:8px;right:8px;bottom:8px;border-radius:18px}
+    .campus-root .dside{width:44px;height:44px}
+    .campus-root .dprev{left:8px}
+    .campus-root .dnext{right:8px}
+  }
+ @media (prefers-reduced-motion: reduce){ .campus-root .dside{transition:none} }
