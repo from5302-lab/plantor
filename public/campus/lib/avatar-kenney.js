@@ -158,7 +158,8 @@ function recolor(model, modelName, colors, owned){
     const sw = o.geometry.attributes.skinWeight;
     const bones = o.skeleton ? o.skeleton.bones : [];
     const tag = o.name.charAt(0);                         // 'b' / 'h'
-    for (let i = 0; i < uv.count; i++){
+    /** 정점의 부위 — (메시, 계열, 뼈부류) 로 표를 찾는다 */
+    const partAt = (i) => {
       const u = uv.getX(i), v = uv.getY(i);
       const fx = Math.floor(Math.min(Math.floor(u * TEX), TEX - 1) / fw);
       const fy = Math.floor(Math.min(Math.floor(v * TEX), TEX - 1) / fh);
@@ -176,14 +177,48 @@ function recolor(model, modelName, colors, owned){
           if (w[c] > best){ best = w[c]; cls = c; }
         }
       }
-      const part = table[`${tag},${fx},${fy},${cls}`];
+      return { part: table[`${tag},${fx},${fy},${cls}`], fx, fy, u, v };
+    };
+    for (let i = 0; i < uv.count; i++){
+      const { part, fx, fy, u, v } = partAt(i);
       const pick = part && BY_ID.get(colors[part]);
       if (!pick) continue;
       uv.setXY(i, u + (pick.f[0] - fx) * fw / TEX,
                   v + (pick.f[1] - fy) * fh / TEX);
     }
     uv.needsUpdate = true;
+    if (colors.hair === BALD) makeBald(o, partAt);
   });
+}
+
+/** 머리 색 대신 고를 수 있는 '없음'. 색이 아니라 상태라 id 를 따로 둔다. */
+export const BALD = 'none';
+
+/**
+ * 대머리 — 머리카락 삼각형을 인덱스에서 뺀다. 정점을 지우는 게 아니라 그리지
+ * 않는 것이라 스키닝·뼈는 그대로다. 머리 밑에 두피 면이 닫혀 있어 구멍은 안 뚫린다.
+ *
+ * ⚠ 눈썹·입이 머리카락과 **같은 색 계열**인 캐릭터가 있다(male-a·male-f·female-a).
+ *   그것까지 빼면 얼굴이 백지가 된다. 눈썹·입은 얼굴 앞면에 납작하게 붙어 있고
+ *   머리카락은 그보다 높거나 뒤통수를 감싼다 — 앞면(z>0.13)이면서 눈썹 높이
+ *   아래(y<0.55)면 이목구비로 보고 남긴다. 12종을 렌더해 확인한 경계다.
+ */
+function makeBald(mesh, partAt){
+  const g = mesh.geometry, idx = g.index, pos = g.attributes.position;
+  if (!idx) return;
+  const keep = [];
+  for (let t = 0; t < idx.count; t += 3){
+    const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+    const isHair = partAt(a).part === 'hair' || partAt(b).part === 'hair'
+                || partAt(c).part === 'hair';
+    if (isHair){
+      const cy = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
+      const cz = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
+      if (!(cz > 0.13 && cy < 0.55)) continue;            // 머리카락 → 안 그린다
+    }
+    keep.push(a, b, c);
+  }
+  g.setIndex(keep);
 }
 
 // ══ 소품 ══════════════════════════════════════════════════════════

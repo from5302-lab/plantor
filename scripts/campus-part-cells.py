@@ -119,9 +119,16 @@ def label(groups):
 EN = {'살':'skin', '머리카락':'hair', '상의':'top',
       '하의':'bottom', '신발':'shoes', '이목구비':'face'}
 
+#  아래 셋은 '대머리'(머리카락 숨기기)를 넣으며 드러났다. 머리 위 장식이 색이
+#  달라 다른 계열에 있고, 그래서 이목구비로 묶여 머리를 지워도 혼자 떠 있었다.
+#  female-b·female-c : 정수리의 머리끈(y 0.51~0.68, 가운데)
+#  male-c            : 모자의 노란 장식
 OVERRIDE = {
     'female-f': {'머리카락': [('h',6,3,'head')]},
     'male-e':   {'머리카락': [('h',6,3,'head')]},
+    'female-b': {'머리카락': [('h',2,2,'head')]},
+    'female-c': {'머리카락': [('h',4,2,'head')]},
+    'male-c':   {'머리카락': [('h',2,2,'head')]},
 }
 
 def apply_override(nm, agg):

@@ -1374,13 +1374,18 @@ export async function mountCampus(){
       ? (Avatar.ACCESSORIES || []).map(a =>
           `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
           `${a.name}</button>`).join('')
-      : (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
+      // 머리에는 색 말고 '없음'(대머리)이 있다 — 색이 아니라 상태라 맨 앞에 따로 낸다
+      : ((dressTab === 'hair' && Avatar.BALD
+            ? `<button class="aidbtn${colors.hair === Avatar.BALD ? ' on' : ''}" ` +
+              `data-part="hair" data-color="${Avatar.BALD}">없음</button>`
+            : '')
+        + (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
           const c = (Avatar.PALETTE || []).find(p => p.id === id);
           if (!c) return '';
           const on = colors[dressTab] === id ? ' on' : '';
           return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
                  ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
-        }).join('');
+        }).join(''));
 
     elChars.innerHTML =
       `<div class="dnav">` +
