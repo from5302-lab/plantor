@@ -17,6 +17,7 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
 import { sanitizeRoom, DEFAULT_ROOM } from './room.js';
+import { sanitizePlace } from './decor.js';
 import { ITEMS, sanitizeInv, sanitizeBells, sanitizeEarned, dayKey } from './items.js';
 
 const app  = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
@@ -169,6 +170,34 @@ export async function saveInv(inv, bells, picked, earned = 0){
       {merge:true});
     return {ok:true, where:'account'};
   } catch (e){ return {ok:false, where:'account', error: e?.code || String(e)}; }
+}
+
+// ── 공용 공간 꾸미기 ───────────────────────────────────────────────
+//  campusPlaces/{levelId}.items — 캠퍼스·학습센터·상점처럼 **모두가 보는** 공간.
+//  누구나 읽고 운영자만 쓴다(규칙은 firestore.rules).
+//  학생 개인방은 여기가 아니라 users/{uid}.campus.room 에 따로 있다.
+export async function loadPlace(levelId){
+  try {
+    const snap = await getDoc(doc(db, 'campusPlaces', levelId));
+    return sanitizePlace(snap.data()?.items) || [];
+  } catch (e){
+    console.warn('[campus] 공간 배치를 읽지 못했습니다', levelId, e);
+    return [];
+  }
+}
+
+export async function savePlace(levelId, items){
+  const me = await whenReady();
+  if (!me) return {ok:false, error:'로그인이 필요합니다.'};
+  const clean = sanitizePlace(items) || [];
+  try {
+    await setDoc(doc(db, 'campusPlaces', levelId),
+                 {items: clean, updatedAt: serverTimestamp(), by: me.uid});
+    return {ok:true};
+  } catch (e){
+    return {ok:false, error: e?.code === 'permission-denied'
+      ? '운영자만 공용 공간을 꾸밀 수 있습니다.' : (e?.code || String(e))};
+  }
 }
 
 export async function saveRoom(items){

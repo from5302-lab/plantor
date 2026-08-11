@@ -6,13 +6,14 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import * as CodeAvatar from '/campus/lib/avatar.js';
 import { DEFAULT_LOOK, GUEST_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
-import { mountCustomizer } from '/campus/lib/customizer.js';
-import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadInv, saveInv, whenReady }
-  from '/campus/lib/store.js';
-import { FURNITURE, itemBox, roomBounds, roomTier } from '/campus/lib/room.js';
+import { loadCharacter, saveCharacter, loadRoom, saveRoom, loadPlace, savePlace,
+         loadInv, saveInv, whenReady } from '/campus/lib/store.js';
+import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
 import { icon } from '/campus/lib/icons.js';
+import { DECOR, DECOR_BY_ID, GROUPS, preloadDecor, decorBox, buildDecor, decorThumb,
+         thumbOf, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
 import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
@@ -773,37 +774,36 @@ export async function mountCampus(){
 
   // 개인 자습실 가구는 계정 데이터라 레벨 지오메트리와 수명이 다르다.
   // world 밖에 따로 두고 study 레벨에서만 보인다.
+  // ── 꾸며 놓은 것들 ────────────────────────────────────────────────
+  //  두 종류가 있고 데이터 모양은 같다({t,x,z,r,s}).
+  //    myRoom  = 내 방(users/{uid}.campus.room). study 레벨에서만 보인다
+  //    place   = 공용 공간(campusPlaces/{level}). 레벨마다 다르고 운영자만 고친다
+  //  둘 다 같은 편집 코드를 쓴다 — 다루는 배열과 저장처만 갈아 끼운다.
   const roomGroup = new THREE.Group(); scene.add(roomGroup);
-  const ROOM_COLLIDERS = [];
-  // 방 가구는 레벨과 수명이 달라 junk 에 못 섞는다(레벨 전환 때 같이 버려진다)
-  let roomJunk = [];
-  const FURN_MAT = {};
-  const furnMat = t => (FURN_MAT[t] ||= new THREE.MeshLambertMaterial({
-    color: FURNITURE[t].c, emissive: new THREE.Color(FURNITURE[t].c).multiplyScalar(0.24)}));
-  let myRoom = [];
+  const placeGroup = new THREE.Group(); scene.add(placeGroup);
+  const ROOM_COLLIDERS = [], PLACE_COLLIDERS = [];
+  let roomJunk = [], placeJunk = [];
+  let myRoom = [], place = [], placeLevel = null;
 
-  function applyRoom(items){
-    myRoom = items;
-    roomGroup.clear();
-    for (const m of roomJunk) m.dispose?.();
-    roomJunk = [];
-    ROOM_COLLIDERS.length = 0;
+  function drawDecor(items, group, junkArr, colliders){
+    group.clear();
+    for (const m of junkArr) m.dispose?.();
+    junkArr.length = 0;
+    colliders.length = 0;
     for (const it of items){
-      const f = FURNITURE[it.t];
-      if (!f) continue;
-      const g = KIT_OK && f.kit
-        ? placeKit(f.kit, {x:it.x, z:it.z, yaw:it.r, scale:f.s, track:m => roomJunk.push(m)})
-        : null;
-      if (g) roomGroup.add(g);
-      else {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, f.h, f.d), furnMat(it.t));
-        m.position.set(it.x, f.h/2, it.z);
-        m.rotation.y = it.r;
-        roomGroup.add(m);
-      }
-      if (f.solid !== false) ROOM_COLLIDERS.push(itemBox(it));
+      const g = buildDecor(it, m => junkArr.push(m));
+      if (g) group.add(g);
+      const d = DECOR_BY_ID[it.t];
+      // 러그·바닥처럼 밟고 지나가는 것은 막지 않는다(높이로 판단한다)
+      const box = decorBox(it);
+      if (box && d && !FLAT.has(it.t)) colliders.push(box);
     }
   }
+  //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
+  const FLAT = new Set(['rug', 'rugr', 'floor', 'path', 'grass', 'fRed', 'fYellow', 'fPurple']);
+
+  const applyRoom  = items => { myRoom = items; drawDecor(items, roomGroup, roomJunk, ROOM_COLLIDERS); };
+  const applyPlace = items => { place  = items; drawDecor(items, placeGroup, placeJunk, PLACE_COLLIDERS); };
 
   // ══ 아바타 ════════════════════════════════════════════════════════
   // 학생은 '기본 학생'에서 출발해 각자 꾸민다(4속성 캐릭터 프리셋은 걷어냈다 —
@@ -953,6 +953,7 @@ export async function mountCampus(){
     jumpT = JUMP_DUR;
   }
   const doWave = () => gesture('wave', 700);
+  const doNod  = () => gesture('yes', 700);
   player.root.position.set(P.x, 0, P.z);
 
   // ── 실제 접속자 ────────────────────────────────────────────────────
@@ -1011,6 +1012,10 @@ export async function mountCampus(){
   let zoom = 1;
   const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
   const camLook = new THREE.Vector3(P.x, 0.9, P.z);
+  //  키보드 줌 — 휠과 같은 값을 쓴다
+  function zoomBy(dir){
+    zoom = THREE.MathUtils.clamp(zoom + dir * 0.12, 0.18, 1.65);
+  }
   addEventListener('wheel', e => {
     // 하한을 0.34 → 0.18 로 낮췄다. GLB 캐릭터는 얼굴·표정이 있어서 더 가까이
     // 볼 만한 값이 생겼다(코드 아바타 시절엔 당겨도 볼 게 없었다).
@@ -1053,6 +1058,12 @@ export async function mountCampus(){
     if (L.outdoor) world.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
     buildNpcs(id);
     roomGroup.visible = (id === 'study');
+    // 공용 배치는 레벨마다 다르다. 비동기라 먼저 비우고 도착하면 그린다.
+    if (placeLevel !== id){
+      placeLevel = id;
+      applyPlace([]);
+      loadPlace(id).then(items => { if (placeLevel === id) applyPlace(items); });
+    }
     CAM_R = L.camR; CAM_H = L.camH;
     scene.fog.near = L.fog[0]; scene.fog.far = L.fog[1];
     camDirFrom(camYaw); syncAxes();
@@ -1092,20 +1103,33 @@ export async function mountCampus(){
 
   // ══ 입력 ══════════════════════════════════════════════════════════
   const keys = {};
-  const MOVEKEYS = new Set(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d']);
-  addEventListener('keydown', e => { if (e.key === 'Shift') keys['shift'] = true; });
-  addEventListener('keyup',   e => { if (e.key === 'Shift') keys['shift'] = false; });
+  //  이동은 방향키만. WASD 를 비워 둬야 그 자리를 기능키로 쓸 수 있다.
+  const MOVEKEYS = new Set(['arrowup','arrowdown','arrowleft','arrowright']);
+  //  ── 키 배치 ──────────────────────────────────────────────────────
+  //    이동 ←↑↓→ · 달리기 D(누른 채) · 상호작용 F
+  //    Space 는 **입장/나가기 전용** — 아무 데서나 눌러도 엉뚱한 게 열리지 않는다
+  //    QWER 주기능: 앉기 · 점프 · 인사 · 끄덕임
+  //    회전 J/K · 줌 +/-
   addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (MOVEKEYS.has(k)){ if (!keys[k]) tap.target = null; keys[k] = true; e.preventDefault(); }
-    if (k === 'q') turn(-1);
-    if (k === 'e') turn(1);
-    if (k === 'c'){ toggleSit(); e.preventDefault(); }
-    if (k === 'j'){ doJump(); e.preventDefault(); }
-    if (k === 'v'){ doWave(); e.preventDefault(); }
-    if (k === ' ' || k === 'enter'){ interact(); e.preventDefault(); }
+    if (k === 'd'){ keys['run'] = true; return; }
+    if (k === 'j') turn(-1);
+    if (k === 'k') turn(1);
+    if (k === '=' || k === '+') zoomBy(-1);
+    if (k === '-' || k === '_') zoomBy(1);
+    if (k === 'q'){ toggleSit(); e.preventDefault(); }
+    if (k === 'w'){ doJump(); e.preventDefault(); }
+    if (k === 'e'){ doWave(); e.preventDefault(); }
+    if (k === 'r'){ doNod(); e.preventDefault(); }
+    if (k === 'f'){ interact(); e.preventDefault(); }
+    if (k === ' ' || k === 'enter'){ interact('door'); e.preventDefault(); }
   });
-  addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'd') keys['run'] = false;
+    keys[k] = false;
+  });
 
   // 보이지 않는 터치 조작: 드래그=조이스틱 / 탭=그 지점으로 이동
   const stick = {on:false, ox:0, oy:0, vx:0, vy:0, mag:0, moved:false};
@@ -1149,7 +1173,9 @@ export async function mountCampus(){
   // ══ 충돌 해소 — 축 분리 방식이라 벽을 따라 미끄러진다 ═════════════
   const R = 0.42;
   function resolve(p, axis){
-    const list = level === 'study' ? COLLIDERS.concat(ROOM_COLLIDERS) : COLLIDERS;
+    const list = level === 'study'
+      ? COLLIDERS.concat(ROOM_COLLIDERS, PLACE_COLLIDERS)
+      : COLLIDERS.concat(PLACE_COLLIDERS);
     for (const c of list){
       if (p.x + R <= c.minX || p.x - R >= c.maxX || p.z + R <= c.minZ || p.z - R >= c.maxZ) continue;
       if (axis === 'x') p.x = (p.x < (c.minX + c.maxX)/2) ? c.minX - R : c.maxX + R;
@@ -1167,6 +1193,8 @@ export async function mountCampus(){
   const elBag = document.getElementById('bagPanel'), elShop = document.getElementById('shopPanel');
   const elRoomBtn = document.getElementById('roomBtn'), elEditBar = document.getElementById('editBar');
   const elTalk = document.getElementById('talkPanel');
+  const elChars = document.getElementById('charPanel');
+  let charOpen = false;
   let currentZone = null, toastTimer = 0;
 
   function toast(msg){
@@ -1200,10 +1228,15 @@ export async function mountCampus(){
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
     // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)
-    elRoomBtn.hidden = !(ME && z && z.kind === 'room' && z.room.id === 'study' && z.room.personal);
+    // 내 방에서는 누구나, 그 밖에서는 운영자만 꾸밀 수 있다
+    const inMyRoom = ME && z && z.kind === 'room' && z.room.id === 'study' && z.room.personal;
+    elRoomBtn.hidden = !(inMyRoom || (IS_ADMIN && level !== 'study'));
+    elRoomBtn.textContent = inMyRoom ? '내 방 꾸미기' : '꾸미기';
   }
-  function interact(){
+  /** @param only 'door' 면 입장/나가기만 처리한다(Space 전용) */
+  function interact(only){
     if (!currentZone || switching) return;
+    if (only === 'door' && currentZone.kind !== 'enter' && currentZone.kind !== 'exit') return;
     if (currentZone.kind === 'enter') return enterBuilding(currentZone.level);
     if (currentZone.kind === 'exit')  return exitToOutdoor();
     if (currentZone.kind === 'tree')  return shakeTree(currentZone.tree);
@@ -1248,21 +1281,59 @@ export async function mountCampus(){
     scene.add(player.root);
   }
 
-  const cz = mountCustomizer({
-    onChange(look, body){ myLook = look; myBody = body; },
-    async onSave(look, body){
-      const r = await saveCharacter(look, body);
-      if (r.ok && net) net.updateMeta(look, body);      // 남들 화면에도 바로 반영
-      return r;
-    },
-    onClose(){ rebuildPlayer(); },
+  // ══ 캐릭터 고르기 ═════════════════════════════════════════════════
+  //  Kenney 캐릭터는 피부·머리·옷 색이 **메시에 박혀** 있다. 예전 커스터마이저의
+  //  체형 슬라이더·색 팔레트는 코드 아바타 시절 물건이라 여기선 의미가 없다.
+  //  그래서 '무엇을 조절하나'가 아니라 '누구로 할까'를 고르게 한다 — 12종을
+  //  실제 3D 로 찍어 나란히 보여 준다(팔레트와 같은 카메라라 크기가 비교된다).
+  const charThumbs = new Map();
+
+  async function openChars(){
+    if (!ME) return toast('로그인하면 캐릭터를 고를 수 있어요');
+    elBag.hidden = elShop.hidden = elTalk.hidden = true;
+    charOpen = true;
+    elChars.hidden = false;
+    elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
+      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
+      `<div class="pbody"><div class="pempty">불러오는 중…</div></div>`;
+    await Avatar.preloadAll?.();
+    for (const n of (Avatar.MODELS || [])){
+      if (charThumbs.has(n)) continue;
+      const g = Avatar.previewOf?.(n);
+      if (g) charThumbs.set(n, thumbOf(g));
+    }
+    drawChars();
+  }
+  function drawChars(){
+    if (!charOpen) return;
+    const cur = myLook.model || 'male-a';
+    elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
+      `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
+      `<div class="pbody"><div class="dgrid">` +
+      (Avatar.MODELS || []).map(n =>
+        `<button class="dcell ${n === cur ? 'on' : ''}" data-char="${n}">` +
+        `<img src="${charThumbs.get(n) || ''}" alt="" draggable="false"></button>`).join('') +
+      `</div></div>`;
+  }
+  elChars.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-close')){ elChars.hidden = true; charOpen = false; return; }
+    const n = b.dataset.char;
+    if (!n) return;
+    myLook = {...myLook, model: n};
+    await Avatar.ensure?.(n);
+    rebuildPlayer();
+    const r = await saveCharacter(myLook, myBody);
+    if (r.ok && net) net.updateMeta(myLook, myBody);
+    drawChars();
+    toast(r.ok ? '캐릭터를 바꿨어요' : '저장 실패: ' + r.error);
   });
-  document.getElementById('dressBtn').onclick = () => cz.open(myLook, myBody, ME);
+  document.getElementById('dressBtn').onclick = openChars;
 
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
   // 패널은 innerHTML 로 매번 다시 그린다 — 항목이 10개 남짓이라 diff 를 관리할
   // 이유가 없다. 클릭은 패널 단위 위임으로 받는다.
-  const uiOpen = () => !elBag.hidden || !elShop.hidden || !elTalk.hidden;
+  const uiOpen = () => !elBag.hidden || !elShop.hidden || !elTalk.hidden || !elChars.hidden;
   const esc = s => String(s);
   const itemRow = (k, right) =>
     `<div class="prow"><span class="ig">${icon(ITEMS[k].icon, 17)}</span>` +
@@ -1314,8 +1385,10 @@ export async function mountCampus(){
       `<div class="psec">사기 — 가구는 우리집에 놓을 수 있어요</div>` + buys.join('') +
       `</div>`;
   }
-  function openBag(){ elShop.hidden = elTalk.hidden = true; elBag.hidden = false; refreshBag(); }
-  function openShop(){ elBag.hidden = elTalk.hidden = true; elShop.hidden = false; refreshShop(); }
+  const shutPanels = () => { elShop.hidden = elTalk.hidden = elChars.hidden = true; charOpen = false; };
+  function openBag(){ shutPanels(); elBag.hidden = false; refreshBag(); }
+  function openShop(){ elBag.hidden = elTalk.hidden = elChars.hidden = true; charOpen = false;
+                       elShop.hidden = false; refreshShop(); }
   elBagBtn.onclick = () => elBag.hidden ? openBag() : (elBag.hidden = true);
 
   elBag.addEventListener('click', e => {
@@ -1388,7 +1461,7 @@ export async function mountCampus(){
   }
 
   function openTalk(){
-    elBag.hidden = elShop.hidden = true;
+    elBag.hidden = elShop.hidden = elChars.hidden = true; charOpen = false;
     // 충쌤에게 인사 — 말을 걸었다는 신호가 화면에도 남는다
     for (const n of NPCS) if (n.rig) playOnce(n.rig, 'yes');
     playOnce(player, 'wave');
@@ -1415,138 +1488,176 @@ export async function mountCampus(){
     if (b.dataset.go) location.href = b.dataset.go;
   });
 
-  // ══ 방 꾸미기 (자습실 배치 모드) ═══════════════════════════════════
-  //  가방의 가구를 골라 바닥 탭 = 배치 / 놓인 가구 탭 = 선택(이동·회전·치우기).
-  //  저장 전까지는 전부 편집 사본(editItems)에서만 논다.
-  let editing = false, editItems = null, origRoom = null, invSnap = null;
-  let editSel = -1, placeType = null;
+  // ══ 꾸미기 ════════════════════════════════════════════════════════
+  //  같은 코드가 두 곳에 쓰인다:
+  //    · 내 방(study) — 누구나 자기 방만. 배치 범위는 누적 포인트로 넓어진다
+  //    · 공용 공간   — 운영자만. 캠퍼스·학습센터·상점을 자유롭게 꾸민다
+  //  다른 건 '어느 배열을 고치고 어디에 저장하느냐' 뿐이다.
+  const IS_ADMIN = !!(ME && ME.role === 'admin');
+  let editing = false, editItems = null, editOrig = null;
+  let editTarget = null;              // 'room' | 'place'
+  let editSel = -1, placeType = null, decorReady = false;
+
   const selMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.62, 0.74, 28).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.85, depthWrite:false}));
+    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.9, depthWrite:false}));
   selMarker.visible = false; selMarker.renderOrder = 5;
   scene.add(selMarker);
+
+  //  내 방은 티어 범위 안으로 제한한다. 공용 공간은 그 레벨의 활동 범위로 넉넉히 둔다.
+  const editBounds = () => editTarget === 'room'
+    ? roomBounds(INV.earned)
+    : (level === 'outdoor' ? {minX:-20, maxX:20, minZ:-18, maxZ:10}
+                           : {minX:-26, maxX:26, minZ:-22, maxZ:8});
+
+  function redraw(){
+    if (editTarget === 'room') applyRoom(editItems); else applyPlace(editItems);
+    syncMarker(); refreshEditBar();
+  }
 
   function syncMarker(){
     selMarker.visible = editing && editSel >= 0;
     if (!selMarker.visible) return;
-    const it = editItems[editSel], f = FURNITURE[it.t];
-    selMarker.position.set(it.x, 0.04, it.z);
-    selMarker.scale.setScalar(Math.max(f.w, f.d));
+    const it = editItems[editSel];
+    const b = decorBox(it);
+    selMarker.position.set(it.x, 0.05, it.z);
+    selMarker.scale.setScalar(b ? Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * 0.85 : 1);
   }
-  function overlaps(it, self){
-    if (FURNITURE[it.t].solid === false) return false;      // 러그는 깔개다 — 겹쳐도 된다
-    const a = itemBox(it);
-    return editItems.some((o, i) => {
-      if (i === self || FURNITURE[o.t].solid === false) return false;
-      const b = itemBox(o);
-      return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
-    });
-  }
-  function refreshEditBar(){
-    const chips = Object.keys(ITEMS).filter(k => ITEMS[k].furn && countOf(k) > 0)
-      .map(k => `<button class="chip ${placeType === k ? 'on' : ''}" data-place="${k}">` +
-                `${icon(ITEMS[k].icon, 15)} ${ITEMS[k].name} <b>×${countOf(k)}</b></button>`);
-    elEditBar.innerHTML =
-      `<div class="chips">` +
-      (chips.length ? chips.join('') : `<span class="pempty">가구가 없어요 — 매점에서 살 수 있어요</span>`) +
-      `</div>` +
-      `<div class="acts">` +
-      `<button data-rot ${editSel < 0 ? 'disabled' : ''}>회전</button>` +
-      `<button data-del ${editSel < 0 ? 'disabled' : ''}>치우기</button>` +
-      `<span class="sp"></span>` +
-      `<button data-save>저장</button>` +
-      `<button data-cancel class="ghostb">취소</button>` +
-      `</div>` +
-      `<div class="hint">${placeType
-        ? '바닥을 탭하면 놓입니다'
-        : editSel >= 0 ? '바닥 탭 = 이동 · 회전/치우기 버튼 사용' : '가구 칩을 고르거나, 놓인 가구를 탭하세요'}</div>`;
-  }
-  function applyEdit(){ applyRoom(editItems); syncMarker(); refreshEditBar(); }
 
-  function startEdit(){
-    if (editing || !ME) return;
-    editing = true;
-    origRoom = myRoom.map(it => ({...it}));
-    editItems = myRoom.map(it => ({...it}));
-    invSnap = JSON.stringify(INV.inv);
-    editSel = -1; placeType = null;
-    elBag.hidden = elShop.hidden = true;
-    elEditBar.hidden = false; elRoomBtn.hidden = true;
-    applyEdit();
-    toast('방 꾸미기 — 가구 칩을 고르고 바닥을 탭하세요');
+  /** 팔레트에 보일 목록. 내 방은 산 가구만, 공용 공간(운영자)은 전부. */
+  function paletteItems(){
+    if (editTarget === 'place') return DECOR;
+    // 내 방 — 인벤토리에 있는 것만. ITEMS.furn 의 id 가 DECOR id 와 같다(board→tv 는 별칭)
+    return DECOR.filter(d => countOf(d.id) > 0 || (d.id === 'tv' && countOf('board') > 0));
   }
+
+  function refreshEditBar(){
+    const list = paletteItems();
+    const groups = GROUPS.filter(g => list.some(d => d.group === g));
+    const sel = editSel >= 0 ? editItems[editSel] : null;
+
+    const cell = d => {
+      const url = decorReady ? decorThumb(d.id) : '';
+      const own = editTarget === 'room' ? `<b>×${countOf(d.id) || countOf('board')}</b>` : '';
+      return `<button class="dcell ${placeType === d.id ? 'on' : ''}" data-place="${d.id}"
+                title="${esc(d.name)}">` +
+             (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
+             `<span>${esc(d.name)}${own}</span></button>`;
+    };
+
+    elEditBar.innerHTML =
+      `<div class="ehead">${editTarget === 'room' ? '내 방 꾸미기' : level === 'outdoor' ? '캠퍼스 꾸미기' : '실내 꾸미기'}` +
+      `<span class="sp"></span>` +
+      `<button data-save>저장</button><button data-cancel class="ghostb">취소</button></div>` +
+      (sel
+        ? `<div class="erow">` +
+          `<span class="elab">${esc(DECOR_BY_ID[sel.t]?.name || '')}</span>` +
+          `<label>회전<input type="range" data-rot min="0" max="359" step="5"
+             value="${Math.round(sel.r * 180 / Math.PI)}"></label>` +
+          `<label>크기<input type="range" data-scale min="40" max="220" step="5"
+             value="${Math.round((sel.s || 1) * 100)}"></label>` +
+          `<button data-dup class="ghostb">복제</button>` +
+          `<button data-del class="ghostb">치우기</button>` +
+          `</div>`
+        : `<div class="ehint">놓을 것을 고른 뒤 바닥을 탭하세요. 놓인 것을 탭하면 고칠 수 있어요.</div>`) +
+      groups.map(g =>
+        `<div class="egroup">${esc(g)}</div><div class="dgrid">` +
+        list.filter(d => d.group === g).map(cell).join('') + `</div>`).join('');
+  }
+
+  async function startEdit(){
+    if (editing || switching) return;
+    const inMyRoom = level === 'study';
+    if (!inMyRoom && !IS_ADMIN) return toast('공용 공간은 운영자만 꾸밀 수 있어요');
+    if (inMyRoom && !ME) return toast('로그인하면 내 방을 꾸밀 수 있어요');
+
+    editTarget = inMyRoom ? 'room' : 'place';
+    editing = true;
+    editItems = (editTarget === 'room' ? myRoom : place).map(it => ({...it}));
+    editOrig = editItems.map(it => ({...it}));
+    editSel = -1; placeType = null;
+    elBag.hidden = elShop.hidden = elTalk.hidden = true;
+    elEditBar.hidden = false; elRoomBtn.hidden = true;
+    redraw();
+
+    if (!decorReady){
+      try { await preloadDecor(); decorReady = true; refreshEditBar(); }
+      catch (e){ console.warn('[campus] 꾸미기 모델 로드 실패', e); }
+    }
+  }
+
   async function endEdit(save){
     if (!editing) return;
     editing = false;
     elEditBar.hidden = true;
     selMarker.visible = false;
-    if (save){
-      applyRoom(editItems);
-      flushInv();
-      const r = await saveRoom(editItems);
-      toast(r.ok ? '방을 저장했어요' : '저장 실패: ' + r.error);
-    } else {
-      INV.inv = JSON.parse(invSnap); markInv();
-      applyRoom(origRoom);
-      toast('되돌렸어요');
-    }
+    const items = save ? editItems : editOrig;
+    if (editTarget === 'room') applyRoom(items); else applyPlace(items);
+    if (!save) return toast('되돌렸어요');
+    const r = editTarget === 'room' ? await saveRoom(items) : await savePlace(level, items);
+    toast(r.ok ? '저장했어요' : '저장 실패: ' + r.error);
   }
+
   elRoomBtn.onclick = startEdit;
   elEditBar.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const d = b.dataset;
-    if (d.place !== undefined){ placeType = placeType === d.place ? null : d.place; editSel = -1; syncMarker(); refreshEditBar(); }
-    else if (d.rot !== undefined && editSel >= 0){
-      const it = editItems[editSel], prev = it.r;
-      it.r = (it.r + Math.PI/2) % (Math.PI*2);
-      if (overlaps(it, editSel)){ it.r = prev; toast('돌릴 자리가 없어요'); return; }
-      applyEdit();
-    }
-    else if (d.del !== undefined && editSel >= 0){
-      give(editItems[editSel].t);
-      editItems.splice(editSel, 1); editSel = -1;
-      applyEdit();
-    }
+    if (d.place !== undefined){ placeType = placeType === d.place ? null : d.place; editSel = -1; redraw(); }
     else if (d.save !== undefined) endEdit(true);
     else if (d.cancel !== undefined) endEdit(false);
+    else if (editSel >= 0 && d.del !== undefined){ editItems.splice(editSel, 1); editSel = -1; redraw(); }
+    else if (editSel >= 0 && d.dup !== undefined){
+      const c = {...editItems[editSel]}; c.x += 1; c.z += 1;
+      editItems.push(c); editSel = editItems.length - 1; redraw();
+    }
+  });
+  elEditBar.addEventListener('input', e => {
+    if (editSel < 0) return;
+    const t = e.target;
+    if (t.dataset.rot !== undefined) editItems[editSel].r = (+t.value) * Math.PI / 180;
+    else if (t.dataset.scale !== undefined) editItems[editSel].s = (+t.value) / 100;
+    else return;
+    // 슬라이더를 끄는 동안 목록을 다시 그리면 포커스가 튄다 — 3D 만 갱신한다
+    if (editTarget === 'room') applyRoom(editItems); else applyPlace(editItems);
+    syncMarker();
   });
 
-  // 편집 중의 탭 — 가구 선택 / 배치 / 이동. 이동 탭과 완전히 분리된다.
+  //  편집 중의 탭 — 놓기 / 고르기 / 옮기기. 걷기 탭과 완전히 분리된다.
   function editTap(cx, cy){
     const r = cv.getBoundingClientRect();
     ndc.set((cx - r.left)/r.width*2 - 1, -((cy - r.top)/r.height*2 - 1));
     rayc.setFromCamera(ndc, camera);
-    const hits = rayc.intersectObjects(roomGroup.children, false);
+
+    const group = editTarget === 'room' ? roomGroup : placeGroup;
+    const hits = rayc.intersectObjects(group.children, true);
     if (hits.length){
-      editSel = roomGroup.children.indexOf(hits[0].object);
-      placeType = null;
-      syncMarker(); refreshEditBar();
-      return;
+      let node = hits[0].object;
+      while (node.parent && node.parent !== group) node = node.parent;
+      const i = group.children.indexOf(node);
+      if (i >= 0){ editSel = i; placeType = null; syncMarker(); refreshEditBar(); return; }
     }
+
     const hit = new THREE.Vector3();
     if (!rayc.ray.intersectPlane(GROUND, hit)) return;
-    const x = Math.round(hit.x*2)/2, z = Math.round(hit.z*2)/2;
-    const B = roomBounds(INV.earned);
+    // 0.25m 격자 — 자유 배치는 줄이 안 맞고, 1m 격자는 답답하다
+    const x = Math.round(hit.x * 4) / 4, z = Math.round(hit.z * 4) / 4;
+    const B = editBounds();
     if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
       if (placeType || editSel >= 0){
-        const t = tierNow();
-        toast(t.next ? `여기는 아직 못 써요 — 누적 ${t.next.need.toLocaleString()}P 면 넓어져요`
-                     : '방 밖에는 놓을 수 없어요');
+        const t = editTarget === 'room' ? tierNow() : null;
+        toast(t && t.next
+          ? `여기는 아직 못 써요 — 누적 ${t.next.need.toLocaleString()}P 면 넓어져요`
+          : '이 범위 밖에는 놓을 수 없어요');
       }
       return;
     }
     if (placeType){
-      const it = {t:placeType, x, z, r:0};
-      if (overlaps(it, -1)){ toast('겹치는 자리예요'); return; }
-      if (!take(placeType)) return;
-      editItems.push(it);
-      editSel = editItems.length - 1; placeType = null;
-      applyEdit();
+      editItems.push({t: placeType, x, z, r: 0, s: 1});
+      editSel = editItems.length - 1;
+      redraw();
     } else if (editSel >= 0){
-      const it = editItems[editSel], px = it.x, pz = it.z;
-      it.x = x; it.z = z;
-      if (overlaps(it, editSel)){ it.x = px; it.z = pz; toast('겹치는 자리예요'); return; }
-      applyEdit();
+      editItems[editSel].x = x; editItems[editSel].z = z;
+      redraw();
     }
   }
 
@@ -1604,7 +1715,7 @@ export async function mountCampus(){
 
     // ── 입력 → 이동 벡터 (카메라 기준) ──
     // 꾸미는 동안·전환 중·패널이 열린 동안에는 조작을 받지 않는다
-    const frozen = cz.isOpen() || switching || uiOpen();
+    const frozen = switching || uiOpen();
     let ix = 0, iy = 0;
     if (frozen){ for (const k in keys) keys[k] = false; tap.target = null; stick.vx = stick.vy = 0; }
     if (keys['w'] || keys['arrowup'])    iy += 1;
@@ -1631,7 +1742,7 @@ export async function mountCampus(){
 
     // 달리기: 데스크탑은 Shift, 모바일은 조이스틱을 멀리 밀었을 때.
     // 별도 버튼을 두지 않는다 — 손가락 하나로 걷기·달리기가 이어져야 한다.
-    const running = moving && (keys['shift'] || stick.mag > RUN_MAG);
+    const running = moving && (keys['run'] || stick.mag > RUN_MAG);
     if (moving){
       const before = P.x + P.z;
       const sp = running ? RUN_SPEED : SPEED;
@@ -1779,6 +1890,7 @@ export async function mountCampus(){
     clearTimeout(invTimer); flushInv();
     removeEventListener('pagehide', onPageHide);
     try { net?.leave(); } catch {}
+    disposeThumbs();
     clearLevel();
     renderer.dispose();
   };

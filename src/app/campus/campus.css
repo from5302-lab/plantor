@@ -69,90 +69,6 @@
   /* 키보드가 있으면 Q/E 로 돌린다 — 화면에 버튼을 겹쳐 둘 이유가 없다 */
  @media (pointer: fine){ .campus-root .rot{display:none} }
 
-  /* ── 키 안내 (접이식) ──
-     펼친 목록이 아래 중앙의 '현재 위치'와 겹쳤다. 왼쪽 아래에 고정하고
-     column-reverse 로 **위로** 펼쳐 아래쪽 HUD 를 침범하지 않게 한다. */
-  /* 아래쪽은 '현재 위치'·프롬프트·회전이 이미 쓴다. 좁은 창에서 계속 부딪혀
-     비어 있는 **왼쪽 위**로 옮겼다(툴바는 오른쪽 위라 겹치지 않는다). */
-  .campus-root .keys{position:absolute;top:16px;left:16px;z-index:20;
-       display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-  .campus-root .keys > summary{list-style:none;cursor:pointer;
-       display:inline-flex;align-items:center;gap:6px;
-       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
-       padding:8px 12px;font-size:11.5px;font-weight:600;color:var(--muted);
-       backdrop-filter:blur(8px);box-shadow:var(--sh-card);
-       transition:background 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .keys > summary::-webkit-details-marker{display:none}
-  .campus-root .keys > summary:hover{background:#fff;color:var(--ink)}
-  .campus-root .keys > summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-  /* 열림 상태를 화살표로 알린다(아이콘 하나를 CSS 로 회전) */
-  .campus-root .keys > summary::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;
-       border-bottom:1.5px solid currentColor;transform:rotate(-135deg) translate(-1px,-1px);
-       transition:transform 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .keys[open] > summary::after{transform:rotate(45deg) translate(-1px,-1px)}
-  /* 위에서 아래로 펼치므로 화살표 방향도 뒤집는다 */
-  .campus-root .keys > summary::after{transform:rotate(45deg) translate(-1px,-1px)}
-  .campus-root .keys[open] > summary::after{transform:rotate(-135deg) translate(-1px,-1px)}
-  .campus-root .keys-body{display:flex;flex-wrap:wrap;gap:6px 12px;max-width:min(400px,42vw);
-       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
-       padding:10px 12px;font-size:11.5px;font-weight:500;color:var(--muted);
-       backdrop-filter:blur(8px);box-shadow:var(--sh-card)}
-  .campus-root .keys-body span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-  .campus-root .keys kbd{background:#fff;border:1px solid var(--line);border-radius:4px;
-       padding:1px 5px;font:inherit;font-size:10.5px;font-weight:700;color:var(--ink)}
-  /* 터치 기기엔 키보드가 없다 — 안내 대신 회전 버튼이 남는다 */
- @media (pointer: coarse){ .campus-root .keys{display:none} }
-  .campus-root .rot button{width:44px;height:44px;border-radius:var(--r-sm);background:var(--panel);
-              border:1px solid var(--line);color:var(--muted);display:grid;place-items:center;
-              backdrop-filter:blur(8px);box-shadow:var(--sh-card);
-              transition:background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .rot button:hover{background:#f2f6f3}
-  .campus-root .rot button:active{background:var(--primary-soft);color:var(--primary)}
-  .campus-root .rot button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
- @media (prefers-reduced-motion: reduce){ .campus-root .rot button{transition:none} }
-
-  /* 아래쪽은 프롬프트·에딧바·현재위치가 이미 쓴다. 겹치지 않게 위로 올린다. */
-  .campus-root .toast{position:absolute;top:16px;left:50%;transform:translateX(-50%) translateY(-6px);
-         background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
-         padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--ink);
-         backdrop-filter:blur(8px);box-shadow:var(--sh-card);white-space:nowrap;
-         opacity:0;pointer-events:none;
-         transition:opacity 250ms cubic-bezier(.16,1,.3,1), transform 250ms cubic-bezier(.16,1,.3,1)}
-  .campus-root .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* 레벨 전환 암전. 기본은 pointer-events:none 이라 평소엔 클릭을 안 막고,
-     .on 인 동안에만 조작을 삼킨다(전환 중 탭이 들어가면 새 레벨에서 엉뚱한 곳으로 걷는다). */
-  .campus-root .fade{position:absolute;inset:0;z-index:60;background:#eef3ee;
-        opacity:0;pointer-events:none;transition:opacity .22s ease}
-  .campus-root .fade.on{opacity:1;pointer-events:auto}
- @media (prefers-reduced-motion: reduce){ .campus-root .fade{transition:none} }
-
-  .campus-root #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
-       background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
-       max-width:80vw;line-height:1.7}
-
-  /* ── 첫 로딩 화면 ── */
-  .campus-root .boot{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
-       align-items:center;justify-content:center;gap:20px;background:#f4f8f5}
-  .campus-root .boot-mark{position:relative;width:88px;height:88px;display:grid;place-items:center}
-  .campus-root .boot-ring{position:absolute;inset:0;border-radius:50%;
-       border:3px solid rgba(31,122,51,.14);border-top-color:var(--primary);
-       animation:boot-spin 900ms linear infinite}
-  @keyframes boot-spin{to{transform:rotate(360deg)}}
-  .campus-root .boot-quip{font-size:13.5px;font-weight:600;color:var(--muted);
-       min-height:1.4em;text-align:center;padding:0 24px}
-  .campus-root .boot-fail{display:flex;flex-direction:column;align-items:center;gap:8px;
-       max-width:34ch;text-align:center}
-  .campus-root .boot-fail .boot-quip{color:var(--ink);font-weight:700}
-  .campus-root .boot-sub{font-size:12.5px;color:var(--muted);line-height:1.6;font-weight:500}
-  .campus-root .boot-retry{margin-top:8px;border:none;border-radius:var(--r-sm);
-       background:var(--primary);color:#fff;font:inherit;font-size:13px;font-weight:700;
-       padding:10px 20px;cursor:pointer}
-  .campus-root .boot-retry:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
- @media (prefers-reduced-motion: reduce){
-    .campus-root .boot-ring{animation-duration:2.4s}
-  }
-
   /* ── 가방·매점 패널 ── */
   .campus-root .panel{position:absolute;z-index:50;top:64px;right:16px;
        width:320px;max-height:calc(100% - 160px);
@@ -211,35 +127,59 @@
   .campus-root .pempty{font-size:12.5px;color:var(--muted);text-align:center;padding:16px 8px;
        font-weight:500;line-height:1.6}
 
-  /* ── 방 꾸미기 툴바 ── */
-  .campus-root .editbar{position:absolute;z-index:50;left:50%;bottom:64px;transform:translateX(-50%);
-       width:min(560px,calc(100vw - 24px));
-       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:12px;
+  /* ── 꾸미기 팔레트 ──
+     실제 에셋을 같은 비율로 줄여 보여 준다(아이콘이면 나무와 의자가 같은 크기로
+     보여 놓아 보기 전엔 크기를 가늠할 수 없다). */
+  .campus-root .editbar{position:absolute;z-index:50;left:16px;bottom:16px;
+       width:min(360px,calc(100vw - 32px));max-height:calc(100% - 120px);
+       display:flex;flex-direction:column;overflow:hidden;
+       background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);
        backdrop-filter:blur(10px);box-shadow:var(--sh-panel)}
   .campus-root .editbar[hidden]{display:none}
-  .campus-root .editbar .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
-  .campus-root .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
-       background:#fff;border-radius:var(--r-sm);padding:8px 12px;font:inherit;font-size:12px;
-       font-weight:600;cursor:pointer;white-space:nowrap;color:var(--ink);
-       transition:background 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .chip b{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-  .campus-root .chip:hover{background:var(--primary-soft)}
-  .campus-root .chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-  .campus-root .chip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .campus-root .chip.on b{color:rgba(255,255,255,.75)}
-  .campus-root .editbar .acts{display:flex;gap:6px;align-items:center}
-  .campus-root .editbar .hint{font-size:11.5px;color:var(--muted);margin-top:8px;text-align:center;
-       font-weight:500}
+  .campus-root .ehead{display:flex;align-items:center;gap:6px;padding:12px 14px;
+       border-bottom:1px solid var(--line);font-size:13.5px;font-weight:700}
+  .campus-root .ehead button{border:1px solid rgba(31,122,51,.28);border-radius:6px;
+       background:#fff;color:var(--primary);font:inherit;font-size:12px;font-weight:700;
+       padding:6px 12px;cursor:pointer}
+  .campus-root .ehead button.ghostb{border-color:var(--line);color:var(--muted)}
+  .campus-root .ehead button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+  .campus-root .erow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+       padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .campus-root .erow .elab{font-weight:700;color:var(--ink)}
+  .campus-root .erow label{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .campus-root .erow input[type=range]{width:96px;accent-color:var(--primary)}
+  .campus-root .erow button{border:1px solid var(--line);border-radius:6px;background:#fff;
+       color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
+  .campus-root .ehint{padding:12px 14px;font-size:12px;color:var(--muted);
+       border-bottom:1px solid var(--line);line-height:1.6}
+
+  .campus-root .editbar .egroup{font-size:11.5px;font-weight:700;color:var(--muted);
+       padding:12px 14px 6px}
+  .campus-root .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));
+       gap:6px;padding:0 12px 12px;overflow-y:auto;overscroll-behavior:contain}
+  .campus-root .editbar > .dgrid:last-child{padding-bottom:14px}
+  .campus-root .dcell{display:flex;flex-direction:column;align-items:center;gap:2px;
+       border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;
+       padding:6px 4px 5px;cursor:pointer;font:inherit;font-size:10.5px;font-weight:600;
+       color:var(--muted);transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .dcell img{width:52px;height:52px;object-fit:contain;image-rendering:auto}
+  .campus-root .dcell .dph{width:52px;height:52px;border-radius:6px;background:#eef3ee}
+  .campus-root .dcell b{font-weight:700;color:var(--ink);margin-left:2px}
+  .campus-root .dcell:hover{background:var(--primary-soft)}
+  .campus-root .dcell.on{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+  .campus-root .dcell:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
  @media(max-width:760px){
     .campus-root .tools{top:12px;right:12px;gap:6px}
-    .campus-root .keys{top:12px;left:12px}
     .campus-root .chipbtn{padding:7px 10px;font-size:12px}
     .campus-root .where{bottom:12px;left:12px;transform:none;font-size:11.5px;padding:7px 10px}
     .campus-root .prompt{bottom:68px;min-width:0;left:12px;right:12px;transform:translateY(8px)}
     .campus-root .prompt.on{transform:translateY(0)}
     .campus-root .rot{bottom:12px;right:12px}
     .campus-root .rot button{width:46px;height:46px}
-    .campus-root .editbar{bottom:68px;left:12px;right:12px;transform:none;width:auto}
+    .campus-root .editbar{bottom:0;left:0;right:0;width:auto;max-height:56%;
+         border-radius:16px 16px 0 0;border-left:none;border-right:none;border-bottom:none}
 
     /* 패널을 오른쪽 상단 카드로 두면 화면을 거의 다 덮어 3D 가 안 보인다.
        손이 닿는 아래쪽 시트로 내리고 높이를 절반으로 묶는다. */

@@ -95,6 +95,20 @@ export async function preload(){
   return cache.get(DEFAULT_MODEL);
 }
 
+/** 12종 전부 받아 둔다 — 캐릭터 고르기 화면을 열 때 한 번. */
+export async function preloadAll(){
+  await Promise.all(MODELS.map(n => load(n).catch(() => null)));
+}
+
+/** 미리보기용 사본. 씬에 넣었다 빼고 버린다. */
+export function previewOf(name){
+  const e = cache.get(MODELS.includes(name) ? name : DEFAULT_MODEL);
+  if (!e) return null;
+  const g = cloneSkinned(e.scene);
+  g.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  return g;
+}
+
 /** 커스터마이저처럼 '고르고 나서 다시 만드는' 흐름에서 쓴다. */
 export async function ensure(name){
   if (!MODELS.includes(name)) return false;
