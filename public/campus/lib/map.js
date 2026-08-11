@@ -1549,6 +1549,9 @@ export async function mountCampus(){
   function renderThumb(look, slot){
     thumbSetup();
     const rig = buildAvatar({...look, colors: (draft || myLook).colors}, myBody, {flat: true});
+    // 바인드 자세는 팔을 벌린 T 포즈다. 그대로 찍으면 옷보다 팔이 먼저 보이고
+    // 카드 안에서 옷이 가로로 길쭉해진다. idle 을 한 번 돌려 팔을 내린다.
+    rig.mixer.update(0.4);
     showOnly(rig, slot);
     rig.root.rotation.y = -0.38;          // 살짝 튼 3/4 — 옆머리·소매가 보인다
     rig.root.updateMatrixWorld(true);
