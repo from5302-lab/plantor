@@ -1020,7 +1020,11 @@ export async function mountCampus(){
   const CAM_DIR = new THREE.Vector3();
   const camDirFrom = y => CAM_DIR.set(Math.sin(y)*CAM_R, CAM_H, Math.cos(y)*CAM_R);
   camDirFrom(camYaw);
-  let zoom = 1;
+  // 기본 줌 0.75 = 거리 27.7m → 20.8m. 캐릭터가 1.33배 커진다.
+  // 1.0 에서는 1.3m 캐릭터가 화면 높이의 1/10 쯤이라 표정이 안 읽혔다(동숲은 1/5~1/6).
+  // 캐릭터 키(TARGET_H)를 올리는 쪽은 문틀·앉는 높이·이름표·충돌을 다 건드려야 해서
+  // 카메라만 당긴다. 대신 건물도 같이 커져 한 화면에 들어오는 마을 범위가 줄어든다.
+  let zoom = 0.75;
   const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
   const camLook = new THREE.Vector3(P.x, 0.9, P.z);
   //  키보드 줌 — 휠과 같은 값을 쓴다
