@@ -595,6 +595,21 @@ export function sanitizeCharacter(raw){
     look[k] = isColor(src[k]) ? src[k] : DEFAULT_LOOK[k];
   for (const k of ['brow','mouth','blush']) if (typeof src[k] === 'string') look[k] = src[k];
 
+  // ⚠ Kenney(GLB) 캐릭터의 필드를 여기서 흘리면 안 된다.
+  //   이 함수는 예전 코드-아바타 시절 필드만 화이트리스트로 통과시키는데,
+  //   그 뒤로 model·colors·aid 가 생겼다. 걸러 버리면 **저장은 됐는데 읽을 때
+  //   사라져** 새로고침마다 기본 캐릭터로 돌아간다.
+  //   값의 유효성은 avatar-kenney 가 볼 때 판단한다(모르는 id 는 무시하고 기본값).
+  //   여기서는 모양만 본다 — 남의 문서에서 온 값이 그대로 DOM 에 닿지 않게.
+  if (typeof src.model === 'string' && /^[a-z]+-[a-z]$/.test(src.model)) look.model = src.model;
+  if (typeof src.aid === 'string' && /^[a-z]+$/.test(src.aid)) look.aid = src.aid;
+  if (src.colors && typeof src.colors === 'object' && !Array.isArray(src.colors)){
+    const colors = {};
+    for (const [k, v] of Object.entries(src.colors))
+      if (/^[a-z]+$/.test(k) && typeof v === 'string' && /^[a-z]+$/.test(v)) colors[k] = v;
+    if (Object.keys(colors).length) look.colors = colors;
+  }
+
   const body = Object.assign({}, BODY_BASE);
   for (const [key,, min, max] of BODY_SLIDERS){
     const v = +srcB[key];

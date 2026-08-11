@@ -81,9 +81,13 @@ export async function saveCharacter(look, body){
       : {ok:false, where:'guest', error:'브라우저가 저장을 막고 있습니다(시크릿 모드 등).'};
   }
   try {
+    // Firestore 는 undefined 를 거부한다 — 필드 하나 때문에 저장 전체가 죽는다.
+    // (예: 소품을 한 번도 안 골랐으면 look.aid 가 undefined 로 들어온다)
+    const clean = v => JSON.parse(JSON.stringify(v ?? null));
     // merge:true — 사용자 문서의 다른 필드(role·familyId 등)를 건드리지 않는다.
     await setDoc(doc(db, 'users', me.uid),
-                 {campus: {look, body, updatedAt: serverTimestamp()}}, {merge:true});
+                 {campus: {look: clean(look), body: clean(body), updatedAt: serverTimestamp()}},
+                 {merge:true});
     guestClear();                        // 계정으로 옮겼으니 손님 사본은 지운다
     return {ok:true, where:'account'};
   } catch (e){

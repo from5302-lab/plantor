@@ -1441,7 +1441,7 @@ export async function mountCampus(){
   });
   async function pickModel(n){
     // 안경이 박힌 캐릭터로 갈아입으면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
-    const aid = Avatar.hasBuiltinGlasses?.(n) ? null : myLook.aid;
+    const aid = Avatar.hasBuiltinGlasses?.(n) ? null : (myLook.aid || null);
     myLook = {...myLook, model: n, aid};
     await Avatar.ensure?.(n);
     rebuildPlayer();
