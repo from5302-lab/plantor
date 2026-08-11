@@ -163,7 +163,13 @@ type Class5Item = {
 
 // 학생별 상세(user_hw_list) — 활동·카드 단위 결과가 들어 있다
 type Class5Card = { try_cnt?: string | number; is_correct?: string | number };
-type Class5Activity = { activity?: string | number; score?: string | number; card_list?: Class5Card[] };
+// act_status: 2=끝냄(score 가 붙는다) / 0=열어만 보고 안 끝냄(score=null).
+// 2026-08-11 실측: 6명·55개 활동에서 act_status=2 ⇔ score 있음, 0 ⇔ null 로 정확히 갈렸다.
+type Class5Activity = { activity?: string | number; score?: string | number; act_status?: string | number; card_list?: Class5Card[] };
+
+/** 그 활동을 끝냈는가. 끝내지 않은 활동은 카드에 싣지 않는다(한 것처럼 보인다). */
+const isActivityDone = (a: Class5Activity) =>
+  String(a.act_status ?? "") === "2" || (a.score != null && String(a.score) !== "");
 type Class5UserItem = Class5Item & {
   total_duration?: string | number;
   is_clear?: boolean;
@@ -204,6 +210,9 @@ function activitySteps(movieType: string | undefined, acts: Class5Activity[]): C
   const acc = new Map<string, { ok: number; tot: number; graded: boolean }>();
   const unknown: unknown[] = [];
   for (const a of acts) {
+    // 끝내지 않은 활동은 뺀다 — 이름만 떠 있으면 한 것으로 읽힌다.
+    // (정답률 계산에 쓰는 cardFirstTry 는 종전 그대로다 — XP 산식을 건드리지 않는다)
+    if (!isActivityDone(a)) continue;
     const code = Number(a.activity);
     // 송(song)만 1번이 '암기'가 아니라 '단어'다
     const name = t === "song" && code === 1 ? "단어" : table[code];
