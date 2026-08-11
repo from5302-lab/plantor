@@ -11,23 +11,25 @@
  * 모듈을 붙였다 뗀다 — three.js 를 Next 번들에 넣지 않으려는 것이다.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./campus.css";
 import { pickQuip } from "./loading-quips";
 
 
 export default function CampusPage() {
-  const errRef = useRef<HTMLDivElement>(null);
   // 3D 가 준비될 때까지 덮는 로딩 화면. map.js 가 window.__ready 를 세운다.
   const [loading, setLoading] = useState(true);
   const [stuck, setStuck] = useState(false);
+  // 첫 문구는 렌더 중에 뽑지 않는다 — 서버와 값이 달라 하이드레이션이 어긋난다.
+  // 빈 문자열로 시작해 타이머(=외부 시스템)가 채운다.
   const [quip, setQuip] = useState("");
 
-  // 문구는 마운트 뒤에 뽑는다 — 서버 렌더와 값이 달라 하이드레이션이 어긋난다.
   useEffect(() => {
-    setQuip(pickQuip());
     // 로딩이 길어지면 한 줄만 붙들고 있지 않는다. 두세 개는 읽히게 돌린다.
+    // 첫 문구도 이 타이머가 즉시 한 번 채운다 — effect 본문에서 setState 하면
+    // 렌더가 한 번 더 도는 데다 린트(set-state-in-effect)에도 걸린다.
     const rotate = setInterval(() => setQuip(prev => pickQuip(prev)), 2600);
+    const first = setTimeout(() => setQuip(prev => pickQuip(prev)), 0);
 
     const w = window as unknown as { __ready?: boolean };
     const done = () => { clearInterval(rotate); clearInterval(poll); setLoading(false); };
@@ -35,7 +37,10 @@ export default function CampusPage() {
     // 3D 가 끝내 안 뜨는 환경(구형 기기·WebGL 차단)이 있다. 로딩 화면을 그냥 걷으면
     // 빈 초록 화면만 남아 무엇이 잘못됐는지 알 수 없다 — 실패 상태로 바꿔 준다.
     const bail = setTimeout(() => { clearInterval(rotate); setStuck(true); }, 15000);
-    return () => { clearInterval(rotate); clearInterval(poll); clearTimeout(bail); };
+    return () => {
+      clearInterval(rotate); clearInterval(poll);
+      clearTimeout(first); clearTimeout(bail);
+    };
   }, []);
 
   useEffect(() => {
@@ -140,7 +145,7 @@ export default function CampusPage() {
         </div>
 
         <div className="toast" id="toast" />
-        <div id="err" ref={errRef} />
+        <div id="err" />
       </div>
 
       {/* 레벨 전환 암전. HUD 밖에 둔다 — .hud 는 pointer-events:none 이라

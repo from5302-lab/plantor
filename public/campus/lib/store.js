@@ -16,7 +16,7 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { sanitizeCharacter } from './avatar.js';
-import { sanitizeRoom, DEFAULT_ROOM } from './room.js';
+import { DEFAULT_ROOM, ROOM_FULL } from './room.js';
 import { sanitizePlace } from './decor.js';
 import { ITEMS, sanitizeInv, sanitizeBells, sanitizeEarned, dayKey } from './items.js';
 
@@ -110,7 +110,7 @@ export async function loadRoom(){
   if (!me) return DEFAULT_ROOM.slice();
   try {
     const snap = await getDoc(doc(db, 'users', me.uid));
-    const r = sanitizeRoom(snap.data()?.campus?.room);
+    const r = sanitizePlace(snap.data()?.campus?.room);
     if (r && r.length) return r;
   } catch (e){ console.warn('[campus] 방 배치를 읽지 못했습니다', e); }
   return DEFAULT_ROOM.slice();
@@ -203,7 +203,9 @@ export async function savePlace(levelId, items){
 export async function saveRoom(items){
   const me = await whenReady();
   if (!me) return {ok:false, error:'로그인이 필요합니다.'};
-  const clean = sanitizeRoom(items) || [];
+  // ⚠ 방 배치도 공용 공간과 **같은 정화**를 쓴다. 예전엔 옛 가구 목록(FURNITURE)으로
+  //   걸러서, 새로 산 가구(텔레비전 등)가 저장할 때 조용히 사라졌다.
+  const clean = sanitizePlace(items, ROOM_FULL) || [];
   try {
     await setDoc(doc(db, 'users', me.uid),
                  {campus: {room: clean, updatedAt: serverTimestamp()}}, {merge:true});

@@ -1,11 +1,10 @@
 // ══════════════════════════════════════════════════════════════════
 //  아이템 카탈로그 — 채집·조합·매점이 전부 이 데이터를 읽는다
 //
-//  가구는 room.js FURNITURE 를 아이템으로 승격한 것이다. 매점에서 사면
-//  인벤토리에 들어오고, 자습실 배치 모드에서 꺼내 놓는다.
+//  가구는 상점에서 사면 인벤토리에 들어오고, 내 방 꾸미기에서 꺼내 놓는다.
+//  실제 모델·크기는 decor.js 가 들고 있다(id 가 같다).
 //  sell = 매점에 파는 값 / buy = 매점에서 사는 값. 없으면 그 방향 거래 불가.
 // ══════════════════════════════════════════════════════════════════
-import { FURNITURE } from '/campus/lib/room.js';
 
 //  tier = 이 물건이 상점에 풀리는 누적 포인트 구간(ROOM_TIERS 인덱스).
 //  방이 넓어질수록 살 수 있는 것도 늘어난다.
@@ -24,8 +23,6 @@ export const ITEMS = {
   bed:   {name:'침대',      icon:'bed',      buy:900, furn:true, tier:2},
   sofa:  {name:'소파',      icon:'sofa',     buy:800, furn:true, tier:3},
 };
-// 가구 이름은 room.js 가 원본이다 — 두 곳이 어긋나면 배치 화면과 상점이 딴소리를 한다
-for (const k in ITEMS) if (ITEMS[k].furn) ITEMS[k].name = FURNITURE[k].name;
 
 // 조합: 재료를 소모해 결과 1개. 지금은 한 줄이지만 표로 둔다 — 레시피는 늘어난다.
 export const RECIPES = [
@@ -61,7 +58,6 @@ export const FRUIT_TREES = [
   {id:'ft-a', x:-11, z: 6}, {id:'ft-b', x: 11, z: 6}, {id:'ft-c', x:-13, z:-1},
   {id:'ft-d', x: 13, z:-2}, {id:'ft-e', x:-11, z:-13}, {id:'ft-f', x: 11, z:-13},
 ];
-export const FRUITS_PER_TREE = 3;
 
 /** 오늘 날짜 키 — 흔든 나무 기록이 자정에 리셋되는 기준 */
 export const dayKey = () => {

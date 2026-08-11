@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════
-//  Kenney 캐릭터 어댑터 — avatar.js / avatar-glb.js 와 **같은 API** 를 제공한다.
+//  Kenney 캐릭터 어댑터 — avatar.js(코드 아바타 폴백)와 **같은 API** 를 제공한다.
 //
 //    preload()                      맵 마운트 전 1회
 //    buildAvatar(look, body, opts) → rig
@@ -18,7 +18,7 @@
 //     ⚠ 반드시 NearestFilter 여야 한다. 선형 보간이면 인접 색 칸이 섞여
 //       옷 경계마다 엉뚱한 색 띠가 생긴다.
 //   · 파일에 부모 없는 Icosphere(42정점) 잔재가 있다 — 전처리에서 지웠다.
-//   · 표정·헤어는 메시에 그려져 있다. 얼굴 데칼(avatar-glb.js)이 필요 없고,
+//   · 표정·헤어는 메시에 그려져 있다. 얼굴을 따로 그릴 필요가 없고,
 //     꾸미기는 '어느 캐릭터를 고를까'로 바뀐다.
 // ══════════════════════════════════════════════════════════════════
 import * as THREE from 'three';
@@ -55,7 +55,6 @@ const CLIP = {
 
 // 한 번 재생하고 끝나는 동작(반복하면 안 되는 것들)
 const ONCE = new Set(['jump', 'pick', 'wave', 'point', 'yes', 'no']);
-export const ACTIONS = Object.keys(CLIP);
 
 const cache = new Map();          // model 이름 → {scene, height}
 let CLIPS = null;                 // AnimationClip[] — 전 캐릭터가 공유한다

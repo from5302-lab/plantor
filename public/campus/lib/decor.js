@@ -105,8 +105,8 @@ export function preloadDecor(){
   return loadKit([...new Set(DECOR.map(d => d.kit))]);
 }
 
-/** 배치된 한 항목의 실제 크기(m). 충돌 상자와 스냅 판정에 쓴다. */
-export function decorSize(it){
+/** 배치된 한 항목의 실제 크기(m). decorBox 가 쓴다. */
+function decorSize(it){
   const d = DECOR_BY_ID[it.t];
   if (!d) return null;
   const k = kitSize(d.kit);

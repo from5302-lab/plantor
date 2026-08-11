@@ -31,7 +31,7 @@ export async function mountCampus(){
   //  모든 게임플레이는 y=0 단일 평면. 계단·단차 없음.
   //
   //  ⚠ 실내 룸의 x/z 는 슬라이스 1과 **똑같이 유지한다.**
-  //    자습실 가구 배치가 월드 절대좌표로 저장돼 있어서(room.js ROOM_BOUNDS,
+  //    내 방 가구 배치가 월드 절대좌표로 저장돼 있어서(room.js ROOM_FULL,
   //    DEFAULT_ROOM), 룸을 옮기면 이미 저장된 배치가 벽 밖으로 나간다.
   //    레벨을 나누되 좌표는 건드리지 않는다.
   // ══════════════════════════════════════════════════════════════════
@@ -328,16 +328,6 @@ export async function mountCampus(){
     m.position.set(cx, y, cz);
     world.add(m);
     return m;
-  }
-  function signAt(text, x, y, z, faceZ, hue = 0x1f7a33, w = 4.4){
-    const s = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, w/4),
-      track(bend(new THREE.MeshBasicMaterial({
-        map: track(labelTexture(text, '#' + hue.toString(16).padStart(6,'0'))), transparent:true}))));
-    s.position.set(x, y, z);
-    s.rotation.y = faceZ === 1 ? 0 : Math.PI;
-    world.add(s);
-    return s;
   }
   function trees(list){
     if (KIT_OK){
