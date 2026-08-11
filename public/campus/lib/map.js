@@ -1478,27 +1478,23 @@ export async function mountCampus(){
     frameStage();
   }
   /**
-   * 캐릭터를 무대에 맞춘다 — 거리를 상수로 박아 두면 모델이 바뀌거나(모자·긴머리)
-   * 무대 비율이 달라질 때 잘린다. **실제 바운딩**에서 매번 계산한다.
-   * 세로로 긴 화면에서는 가로가 먼저 넘치므로 둘 다 본다.
+   * 무대는 **언제나 전신 풀샷**이다. 부위를 고를 때마다 화면이 움직이면 어지럽고,
+   * 바뀐 부분이 어디인지도 오히려 놓친다.
+   *
+   * 바운딩을 재서 맞추던 걸 걷어냈다 — 캐릭터 키는 어차피 1.30m 로 고정이라
+   * 잴 이유가 없었고, 잴 때마다 값이 어긋나 몸이 화면 밖으로 나가곤 했다.
+   * 세로 1.6m 가 보이게 세워 두면 1.30m 캐릭터가 넉넉히 들어온다.
    */
+  const STAGE_H = 1.62, STAGE_W = 1.5, STAGE_LOOK = 0.66;
   function frameStage(){
-    if (!pv || !pv.rig) return;
-    // ⚠ 월드 행렬을 먼저 갱신해야 한다. 씬에 막 넣은 것은 아직 갱신 전이라
-    //   Box3 가 스케일·바닥맞춤이 반영되지 않은 값을 준다 — 캐릭터가 엉뚱한
-    //   높이에 있는 것으로 계산돼 화면 아래로 잘렸다.
-    pv.rig.root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(pv.rig.root);
-    box.min.y = Math.min(box.min.y, -0.05);            // 발판까지 화면에 들어오게
-    const h = Math.max(0.1, box.max.y - box.min.y);
-    const w = Math.max(0.1, Math.max(box.max.x - box.min.x, box.max.z - box.min.z));
-    pv.look = (box.max.y + box.min.y) / 2;
-    const vFov = pv.cam.fov * Math.PI / 180;
-    const dH = (h * 1.15 / 2) / Math.tan(vFov / 2);
+    if (!pv) return;
+    const t = Math.tan(pv.cam.fov * Math.PI / 360);
     const aspect = pv.cam.aspect || 1;
-    const dW = (w * 1.15 / 2) / (Math.tan(vFov / 2) * aspect);
-    pv.cam.position.set(0, pv.look, Math.max(dH, dW));
+    const d = Math.max(STAGE_H / 2 / t, STAGE_W / 2 / (t * aspect));
+    pv.look = STAGE_LOOK;
+    pv.cam.position.set(0, STAGE_LOOK, d);
   }
+
   function previewStop(){
     if (!pv) return;
     cancelAnimationFrame(pv.raf); pv.raf = 0;
