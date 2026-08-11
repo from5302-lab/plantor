@@ -133,7 +133,7 @@ def apply_override(nm, agg):
     return agg
 
 if __name__ == '__main__':
-    table = {}
+    table, builtin = {}, []
     for path in sorted(glob.glob('public/campus/models/kenney/*.glb')):
         nm = os.path.basename(path)[:-4]
         prims, groups, px = load(path)
@@ -157,8 +157,16 @@ if __name__ == '__main__':
         # (런타임은 정점마다 이 열쇠를 만들어 표에서 부위를 찾는다)
         table[nm] = {f'{k[0]},{k[1]},{k[2]},{k[3]}': EN[p]
                      for p, a in agg.items() for k in sorted(a['keys'])}
+        # 안경이 이미 메시에 박혀 있는 캐릭터에 소품 안경을 또 씌우면 두 겹이 된다.
+        # 렌즈는 연회청 계열(3,3)에 **귀에서 귀까지** 걸쳐 있다 — 폭으로 가른다
+        # (male-b 에도 같은 계열이 있지만 폭 0.03 짜리 작은 조각이다).
+        lens = [pr['pos'][i] for pr in prims for i, k in enumerate(pr['key'])
+                if k[0] == 'h' and (k[1], k[2]) == (3, 3)]
+        if lens:
+            xs = [p[0] for p in lens]
+            if max(xs) - min(xs) > 0.25: builtin.append(nm)
         print()
     out = 'public/campus/models/kenney/part-cells.json'
-    json.dump({'family': [CELL, CELL*2], 'models': table},
+    json.dump({'family': [CELL, CELL*2], 'models': table, 'builtinGlasses': builtin},
               open(out, 'w'), ensure_ascii=False, indent=0, separators=(',', ':'))
     print('wrote', out)

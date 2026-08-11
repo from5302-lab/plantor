@@ -230,6 +230,13 @@
   .campus-root .swatch.on{box-shadow:0 0 0 2px var(--panel), 0 0 0 4px var(--primary)}
   .campus-root .swatch:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
  @media (prefers-reduced-motion: reduce){ .campus-root .swatch{transition:none} }
+  /* 소품은 색이 아니라 물건이라 이름으로 고른다 — 동그라미로는 뭔지 알 수 없다 */
+  .campus-root .aidbtn{border:1px solid rgba(31,122,51,.28);border-radius:6px;background:#fff;
+       color:var(--primary);font:inherit;font-size:12px;font-weight:700;
+       padding:6px 12px;cursor:pointer;white-space:nowrap}
+  .campus-root .aidbtn:hover{background:var(--primary-soft)}
+  .campus-root .aidbtn.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .campus-root .aidbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
  @media(max-width:760px){
     .campus-root .tools{top:12px;right:12px;gap:6px}

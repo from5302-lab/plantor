@@ -177,5 +177,9 @@
 "b,1,3,leg":"shoes",
 "h,0,3,head":"hair"
 }
-}
+},
+"builtinGlasses":[
+"male-a",
+"male-e"
+]
 }

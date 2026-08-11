@@ -186,6 +186,63 @@ function recolor(model, modelName, colors, owned){
   });
 }
 
+// ══ 소품 ══════════════════════════════════════════════════════════
+//
+//  같은 팩(mini-characters)의 접근성 소품이다. 캐릭터와 달리 **뼈가 없는 정적
+//  메시**고, 전부 원점에 놓여 있다 — 붙일 자리는 우리가 정해야 한다.
+//
+//  자리는 눈대중이 아니라 실측이다. male-a·male-e 는 안경이 메시에 박혀 있는데,
+//  그 렌즈의 위치가 곧 정답이다(y 0.468~0.514 · z -0.019~0.170). 소품 안경은
+//  폭·깊이가 그것과 일치한다 — 같은 모델을 원점에 옮겨 둔 것이다.
+//
+//  offset 은 **머리 뼈 기준**이다. 머리 뼈는 12종 모두 (0, 0.343, -0.003) 에 있고
+//  회전이 없다. 뼈에 붙여야 끄덕임·점프에서 같이 움직인다.
+//
+//  마스크(aid-mask)와 보청기(aid_hearing)는 뺐다 — 마스크는 튜브 달린 의료용
+//  산소마스크고, 보청기는 캠퍼스 카메라 거리에서 보이지 않는다.
+const AID_BASE = BASE + 'aid/';
+export const ACCESSORIES = [
+  {id:'glasses',    name:'안경',   file:'aid-glasses',    offset:[0, 0.100, 0.079]},
+  {id:'sunglasses', name:'선글라스', file:'aid-sunglasses', offset:[0, 0.100, 0.079]},
+];
+const aidCache = new Map();
+
+export async function ensureAid(id){
+  const a = ACCESSORIES.find(x => x.id === id);
+  if (!a || aidCache.has(id)) return !!a;
+  const gltf = await loader.loadAsync(AID_BASE + a.file + '.glb');
+  prepare(gltf.scene);                        // NearestFilter — 소품도 같은 팔레트다
+  aidCache.set(id, gltf.scene);
+  return true;
+}
+
+export async function preloadAids(){
+  await Promise.all(ACCESSORIES.map(a => ensureAid(a.id).catch(() => false)));
+}
+
+/** 이 캐릭터가 안경을 이미 쓰고 있나 — 소품 안경을 또 씌우면 두 겹이 된다. */
+export function hasBuiltinGlasses(modelName){
+  return !!(PART_CELLS && (PART_CELLS.builtinGlasses || []).includes(modelName));
+}
+
+function attachAid(model, id, owned){
+  const a = ACCESSORIES.find(x => x.id === id);
+  const src = a && aidCache.get(id);
+  if (!src) return;
+  let head = null;
+  model.traverse(o => { if (o.isBone && o.name === 'head') head = o; });
+  if (!head) return;
+  const node = src.clone(true);
+  node.traverse(o => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;
+    o.material = bend(o.material.clone());    // 곡면은 캐릭터와 같이 굽어야 한다
+    owned.push(o.material);
+  });
+  node.position.set(a.offset[0], a.offset[1], a.offset[2]);
+  head.add(node);
+}
+
 /** 맵 마운트 전에 한 번. buildAvatar 가 동기라 기본 캐릭터는 미리 받아 둔다. */
 export async function preload(){
   // 표는 색을 쓸 때만 필요하다. 못 받아도 캐릭터는 그대로 선다.
@@ -224,8 +281,9 @@ const modelOf = look => {
 };
 
 /**
- * @param look {model, colors} — model 은 12종 중 하나.
+ * @param look {model, colors, aid} — model 은 12종 중 하나.
  *             colors 는 {skin, hair, top, bottom} → PALETTE 의 id. 없으면 원래 색.
+ *             aid 는 ACCESSORIES 의 id 하나(머리에 붙는다). 없으면 안 붙인다.
  * @param body (미사용)
  */
 export function buildAvatar(look = {}, body = null, opts = {}){
@@ -248,6 +306,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
 
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
   if (look.colors && Object.keys(look.colors).length) recolor(model, name, look.colors, owned);
+  if (look.aid) attachAid(model, look.aid, owned);
 
   const root = new THREE.Group();
   root.add(model);

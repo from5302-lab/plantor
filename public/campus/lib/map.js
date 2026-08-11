@@ -1330,6 +1330,7 @@ export async function mountCampus(){
       `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody"><div class="pempty">불러오는 중…</div></div>`;
     await Avatar.preloadAll?.();
+    Avatar.preloadAids?.();                 // 소품은 기다리지 않는다 — 눌릴 때 확인한다
     for (const n of (Avatar.MODELS || [])){
       if (charThumbs.has(n)) continue;
       const g = Avatar.previewOf?.(n);
@@ -1352,17 +1353,36 @@ export async function mountCampus(){
       }).join('');
       return `<div class="psec">${part.name}</div><div class="swrow">${cells}</div>`;
     }).join('');
+    // 소품 — 안경이 이미 메시에 박힌 캐릭터는 빼 준다(씌우면 두 겹이 된다)
+    const builtin = Avatar.hasBuiltinGlasses?.(cur);
+    const aids = builtin ? '' :
+      `<div class="psec">소품</div><div class="swrow">` +
+      (Avatar.ACCESSORIES || []).map(a =>
+        `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
+        `${a.name}</button>`).join('') + `</div>`;
     elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
       `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody"><div class="dgrid">` +
       (Avatar.MODELS || []).map(n =>
         `<button class="dcell ${n === cur ? 'on' : ''}" data-char="${n}">` +
         `<img src="${charThumbs.get(n) || ''}" alt="" draggable="false"></button>`).join('') +
-      `</div>${swatches}</div>`;
+      `</div>${swatches}${aids}</div>`;
   }
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-close')){ elChars.hidden = true; charOpen = false; return; }
+    if (b.dataset.aid){
+      // 같은 소품을 다시 누르면 벗는다
+      const next = myLook.aid === b.dataset.aid ? null : b.dataset.aid;
+      if (next) await Avatar.ensureAid?.(next);
+      myLook = {...myLook, aid: next};
+      rebuildPlayer();
+      const r = await saveCharacter(myLook, myBody);
+      if (r.ok && net) net.updateMeta(myLook, myBody);
+      drawChars();
+      if (!r.ok) toast('저장 실패: ' + r.error);
+      return;
+    }
     if (b.dataset.part){
       // 같은 색을 다시 누르면 원래 색으로 되돌린다 — 되돌릴 길이 없으면 못 눌러 본다.
       const cur = (myLook.colors || {})[b.dataset.part];
@@ -1379,7 +1399,9 @@ export async function mountCampus(){
     }
     const n = b.dataset.char;
     if (!n) return;
-    myLook = {...myLook, model: n};
+    // 안경이 박힌 캐릭터로 갈아입으면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
+    const aid = Avatar.hasBuiltinGlasses?.(n) ? null : myLook.aid;
+    myLook = {...myLook, model: n, aid};
     await Avatar.ensure?.(n);
     rebuildPlayer();
     const r = await saveCharacter(myLook, myBody);
