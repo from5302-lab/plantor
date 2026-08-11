@@ -1721,6 +1721,8 @@ export async function mountCampus(){
           : dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요');
   }
 
+  document.getElementById('dressBtn').onclick = openChars;
+
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
   // 패널은 innerHTML 로 매번 다시 그린다 — 항목이 10개 남짓이라 diff 를 관리할
   // 이유가 없다. 클릭은 패널 단위 위임으로 받는다.
