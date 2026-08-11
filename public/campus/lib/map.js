@@ -127,6 +127,17 @@ export async function mountCampus(){
     s.scale.set(1.5, 0.375, 1); s.renderOrder = 10;
     return s;
   }
+  /**
+   * 이름표를 머리 바로 위에 단다. 캐릭터 키는 1.30m(avatar-kenney 의 TARGET_H)이고
+   * 스프라이트는 **중심** 기준이라 절반 높이를 더해야 아랫변이 머리 위에 온다.
+   * 높이를 호출부마다 적어 두면 크기가 다른 표(내 것 0.5 / 남의 것 0.375)끼리
+   * 간격이 어긋난다 — 여기서 한 번에 계산한다.
+   */
+  const TAG_GAP = 0.17;                       // 머리와 이름표 아랫변 사이
+  function placeTag(tag, w, h){
+    tag.scale.set(w, h, 1);
+    tag.position.set(0, 1.30 + TAG_GAP + h/2, 0);
+  }
 
   // lift = 자체발광 비율. 조명을 올리지 않고 재질만 밝힌다
   // (조명을 올리면 캐릭터 툰 셰이딩이 흰색으로 포화된다).
@@ -833,7 +844,7 @@ export async function mountCampus(){
       const rig = buildAvatar(n.preset.look, n.preset.body);
       rig.root.position.set(n.x, 0, n.z);
       rig.root.rotation.y = n.yaw;
-      const tag = nameTag(n.name); tag.position.set(0, 3.45, 0); rig.root.add(tag);
+      const tag = nameTag(n.name); placeTag(tag, 1.5, 0.375); rig.root.add(tag);
       scene.add(rig.root);
       return {rig, phase: Math.random()*6};
     });
@@ -897,8 +908,7 @@ export async function mountCampus(){
   let player = buildAvatar(myLook, myBody);
   scene.add(player.root);
   const meTag = nameTag(MY_LABEL);
-  meTag.position.set(0, 3.45, 0); player.root.add(meTag);
-  meTag.scale.set(2.0, 0.5, 1);
+  placeTag(meTag, 2.0, 0.5); player.root.add(meTag);
 
   const P = {x: 0, z: 16, yaw: Math.PI, walkT: 0};
   //  앉기 — 앉아 있는 동안에는 이동 입력을 '일어서기'로 해석한다.
@@ -966,7 +976,7 @@ export async function mountCampus(){
 
   function addRemote(uid, info){
     const rig = buildAvatar(info.look, info.body, {outline:false});
-    const tag = nameTag(info.name); tag.position.set(0, 3.45, 0); rig.root.add(tag);
+    const tag = nameTag(info.name); placeTag(tag, 1.5, 0.375); rig.root.add(tag);
     rig.root.visible = false;          // 첫 좌표가 오기 전엔 숨긴다(원점에서 미끄러져 오는 것 방지)
     scene.add(rig.root);
     remotes.set(uid, {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0,
@@ -1295,7 +1305,7 @@ export async function mountCampus(){
     player.root.position.set(P.x, sitting && seat ? seat.h + SIT_LIFT : 0, P.z);
     player.root.rotation.y = P.yaw;
     const tag = nameTag(MY_LABEL);
-    tag.position.set(0, 3.45, 0); tag.scale.set(2.0, 0.5, 1);
+    placeTag(tag, 2.0, 0.5);
     player.root.add(tag);
     scene.add(player.root);
   }
