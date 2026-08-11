@@ -26,7 +26,9 @@ const SECRETS = [autovocaId, classcardId, teacherPw, autovocaHmacSecret];
 function norm(s: unknown) { return String(s ?? "").replace(/\s+/g, ""); }
 function todayKst() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
 
-async function runBatch(date: string) {
+// replay=true 면 지난 날짜를 '그날인 것처럼' 다시 계산한다(표기 규칙을 고친 뒤 과거 카드 갱신용).
+// 그냥 돌리면 만회(×0.7)로 깎이고 하루 요약 카드도 안 만들어진다 — rewards.ts awardRewards 주석 참고.
+async function runBatch(date: string, replay = false) {
   // 전체 children 로드 → 이름/외부아이디 매핑
   const snap = await db.collection("children").get();
   const children = snap.docs.map((d) => ({
@@ -56,7 +58,7 @@ async function runBatch(date: string) {
       if (!childId) { summary.autovoca.miss++; continue; }
       const avScraped = { source: "autovoca", units: s.units, totalStudyMinutes: s.totalStudyMinutes, wrongReview: s.wrongReview ?? null };
       await writeAutoLog({ childId, serviceSlug: "autovoca", date, autoStatus: s.autoStatus, scrapedData: avScraped });
-      await awardRewards({ childId, serviceSlug: "autovoca", date, autoStatus: s.autoStatus, scrapedData: avScraped });
+      await awardRewards({ childId, serviceSlug: "autovoca", date, autoStatus: s.autoStatus, scrapedData: avScraped, replay });
       // 배치는 리포트에 나온 학생만 처리 → 확정 판정. 완료는 done, 그 외는 미인증 자기체크 해제.
       await reconcileAutoChecks(childId, "autovoca", date, autovocaDonePartSlugs(s.units), s.autoStatus === "완료", autovocaDonePartCounts(s.units) ?? undefined).catch(() => undefined);
       if (s.loginId && !byAv.has(s.loginId.toLowerCase())) await db.collection("children").doc(childId).update({ autovocaLoginId: s.loginId.toLowerCase() }).catch(() => undefined);
@@ -72,7 +74,7 @@ async function runBatch(date: string) {
       if (!childId) { summary.dailykor.miss++; continue; }
       const dkScraped = { source: "dailykor", units: s.units, totalStudyMinutes: 0, detail: s.detail ?? null, elementary: s.elementary ?? null, voca: s.voca ?? null };
       await writeAutoLog({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: dkScraped });
-      await awardRewards({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: dkScraped });
+      await awardRewards({ childId, serviceSlug: "dailykor", date, autoStatus: s.autoStatus, scrapedData: dkScraped, replay });
       // sreport 완료 → daily 파트, 오늘 어휘 세트 있으면 vocab-center 파트. 그 외는 미인증 자기체크 해제.
       const dkParts = s.autoStatus === "완료" ? [...DAILYKOR_REPORT_PARTS] : [];
       if ((s.voca?.length ?? 0) > 0) dkParts.push("vocab-center");
@@ -96,7 +98,7 @@ async function runBatch(date: string) {
       if (!childId) { summary.classcard.miss++; continue; }
       const ccScraped = { source: "classcard", units: s.units, totalStudyMinutes: s.units.reduce((a, u) => a + (u.studyMinutes || 0), 0) };
       await writeAutoLog({ childId, serviceSlug: "classcard-middle", date, autoStatus: s.autoStatus, scrapedData: ccScraped });
-      await awardRewards({ childId, serviceSlug: "classcard-middle", date, autoStatus: s.autoStatus, scrapedData: ccScraped });
+      await awardRewards({ childId, serviceSlug: "classcard-middle", date, autoStatus: s.autoStatus, scrapedData: ccScraped, replay });
       // 파트 단위 정밀 체크: 완료 유닛 타입은 done, 그 외 오늘 과제의 미인증 자기체크는 해제.
       await reconcileAutoChecks(childId, "classcard-middle", date, classcardDonePartSlugs(s.units), s.autoStatus === "완료", classcardDonePartCounts(s.units)).catch(() => undefined);
       if (s.loginId && !byCc.has(s.loginId.toLowerCase())) {
@@ -114,7 +116,7 @@ async function runBatch(date: string) {
       if (!childId) { summary.class5.miss++; continue; }
       const c5Scraped = { source: "class5", units: s.units, totalStudyMinutes: 0 };
       await writeAutoLog({ childId, serviceSlug: "class5", date, autoStatus: s.autoStatus, scrapedData: c5Scraped });
-      await awardRewards({ childId, serviceSlug: "class5", date, autoStatus: s.autoStatus, scrapedData: c5Scraped });
+      await awardRewards({ childId, serviceSlug: "class5", date, autoStatus: s.autoStatus, scrapedData: c5Scraped, replay });
       // 파트(카테고리) 단위 정밀 체크: 완료 카테고리는 done, 그 외 오늘 과제의 미인증 자기체크는 해제.
       await reconcileAutoChecks(childId, "class5", date, class5DonePartSlugs(s.units), s.autoStatus === "완료", class5DonePartCounts(s.units)).catch(() => undefined);
       if (!byC5.has(s.studentId)) {
@@ -161,7 +163,10 @@ export const runAutoVerifyNow = onRequest(
     const token = req.headers.authorization?.replace("Bearer ", "") || String(req.query.key ?? "");
     if (token !== coworkSecret.value()) { res.status(403).json({ error: "no" }); return; }
     const date = String(req.query.date ?? todayKst());
-    const summary = await runBatch(date);
-    res.json({ ok: true, date, summary });
+    // ?replay=1 — 지난 날짜를 그날인 것처럼 다시 계산한다. 표기 규칙을 고친 뒤
+    // 과거 카드를 새 형식으로 채울 때만 쓴다(만회 감점·요약 누락을 피한다).
+    const replay = String(req.query.replay ?? "") === "1";
+    const summary = await runBatch(date, replay);
+    res.json({ ok: true, date, replay, summary });
   },
 );

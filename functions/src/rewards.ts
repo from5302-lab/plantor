@@ -780,6 +780,14 @@ export async function awardRewards(params: {
   date: string;
   autoStatus: string;
   scrapedData: Json | null;
+  /**
+   * 지난 날짜를 **그날인 것처럼** 다시 계산한다 (표기 규칙을 고친 뒤 과거 카드를 다시 그릴 때).
+   *
+   * 이게 없으면 백필이 그날 제때 한 학습을 만회(×0.7)로 깎고, 하루 요약 카드도 만들지 않는다
+   * (과거 만회는 피드를 어지럽히므로 일부러 안 만든다). 2026-08-11 에 실제로 8/10 원장 23건이
+   * 이렇게 깎였다. 운영자 백필 경로에서만 켠다.
+   */
+  replay?: boolean;
 }): Promise<AwardResult | null> {
   const { childId, serviceSlug, date, autoStatus, scrapedData } = params;
   if (!REWARD_SLUGS.includes(serviceSlug)) return null;
@@ -787,7 +795,7 @@ export async function awardRewards(params: {
   const childRef = db.collection("children").doc(childId);
   const statsRef = childRef.collection("stats").doc("summary");
   const ledgerRef = childRef.collection("xpLedger").doc(`${date}_${serviceSlug}`);
-  const late = date < todayKst();
+  const late = !params.replay && date < todayKst();
 
   // 구독 중인 자동인증 서비스 수 (올클리어 판정) — 트랜잭션 밖에서 미리 조회
   const subsSnap = await db.collection("subscriptions").where("childId", "==", childId).get();
