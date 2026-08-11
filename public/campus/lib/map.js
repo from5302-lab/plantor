@@ -1412,10 +1412,8 @@ export async function mountCampus(){
       const key = new THREE.DirectionalLight(0xfff6e8, 1.5);
       key.position.set(2.5, 4, 3);
       scene.add(key);
-      // 화각 30° · 거리 3.0m — 1.3m 캐릭터가 무대 높이의 80% 쯤을 채운다
       const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-      cam.position.set(0, 0.78, 3.0);
-      pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0};
+      pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0, look:0.65};
     } else pv.renderer.domElement !== canvas && (pv = pv);
     previewSync();
     const loop = () => {
@@ -1425,13 +1423,14 @@ export async function mountCampus(){
       if (w && h && (el.width !== w * pv.renderer.getPixelRatio() || pv.cam.aspect !== w/h)){
         pv.renderer.setSize(w, h, false);
         pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix();
+        frameStage();
       }
       if (pv.rig){
         pv.yaw += pv.spin * 0.02;
         pv.rig.root.rotation.y = pv.yaw;
         poseAvatar(pv.rig, 'idle', 'none', 0);
       }
-      pv.cam.lookAt(0, 0.66, 0);
+      pv.cam.lookAt(0, pv.look, 0);
       pv.renderer.render(pv.scene, pv.cam);
     };
     cancelAnimationFrame(pv.raf); loop();
@@ -1459,6 +1458,24 @@ export async function mountCampus(){
     // 이름표는 맵에서만 쓴다. 무대에서는 캐릭터만 본다.
     pv.rig.root.rotation.y = pv.yaw;
     pv.scene.add(pv.rig.root);
+    frameStage();
+  }
+  /**
+   * 캐릭터를 무대에 맞춘다 — 거리를 상수로 박아 두면 모델이 바뀌거나(모자·긴머리)
+   * 무대 비율이 달라질 때 잘린다. **실제 바운딩**에서 매번 계산한다.
+   * 세로로 긴 화면에서는 가로가 먼저 넘치므로 둘 다 본다.
+   */
+  function frameStage(){
+    if (!pv || !pv.rig) return;
+    const box = new THREE.Box3().setFromObject(pv.rig.root);
+    const h = Math.max(0.1, box.max.y - box.min.y);
+    const w = Math.max(0.1, Math.max(box.max.x - box.min.x, box.max.z - box.min.z));
+    pv.look = (box.max.y + box.min.y) / 2;
+    const vFov = pv.cam.fov * Math.PI / 180;
+    const dH = (h * 1.15 / 2) / Math.tan(vFov / 2);
+    const aspect = pv.cam.aspect || 1;
+    const dW = (w * 1.15 / 2) / (Math.tan(vFov / 2) * aspect);
+    pv.cam.position.set(0, pv.look, Math.max(dH, dW));
   }
   function previewStop(){
     if (!pv) return;
