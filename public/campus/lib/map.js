@@ -1408,6 +1408,27 @@ export async function mountCampus(){
       const key = new THREE.DirectionalLight(0xfff6e8, 1.5);
       key.position.set(2.5, 4, 3);
       scene.add(key);
+      // 발판과 접지 그림자 — 없으면 캐릭터가 공중에 뜬 것처럼 보인다.
+      // 그림자는 라이트를 켜는 대신 **그림자처럼 생긴 판**을 깐다(무대 하나에
+      // 그림자 맵을 켜는 건 값이 비싸고, 이 각도에선 티도 안 난다).
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      const g2 = cv.getContext('2d');
+      const grd = g2.createRadialGradient(64, 64, 4, 64, 64, 62);
+      grd.addColorStop(0, 'rgba(30,45,35,.34)');
+      grd.addColorStop(0.55, 'rgba(30,45,35,.13)');
+      grd.addColorStop(1, 'rgba(30,45,35,0)');
+      g2.fillStyle = grd; g2.fillRect(0, 0, 128, 128);
+      const shadow = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({map: new THREE.CanvasTexture(cv), transparent: true,
+                                     depthWrite: false}));
+      shadow.position.y = 0.004;
+      scene.add(shadow);
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.62, 0.62, 0.035, 48),
+        new THREE.MeshLambertMaterial({color: 0xf2f6f3}));
+      disc.position.y = -0.018;
+      scene.add(disc);
       const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
       pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0, look:0.65};
     } else pv.renderer.domElement !== canvas && (pv = pv);
@@ -1463,7 +1484,12 @@ export async function mountCampus(){
    */
   function frameStage(){
     if (!pv || !pv.rig) return;
+    // ⚠ 월드 행렬을 먼저 갱신해야 한다. 씬에 막 넣은 것은 아직 갱신 전이라
+    //   Box3 가 스케일·바닥맞춤이 반영되지 않은 값을 준다 — 캐릭터가 엉뚱한
+    //   높이에 있는 것으로 계산돼 화면 아래로 잘렸다.
+    pv.rig.root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(pv.rig.root);
+    box.min.y = Math.min(box.min.y, -0.05);            // 발판까지 화면에 들어오게
     const h = Math.max(0.1, box.max.y - box.min.y);
     const w = Math.max(0.1, Math.max(box.max.x - box.min.x, box.max.z - box.min.z));
     pv.look = (box.max.y + box.min.y) / 2;
