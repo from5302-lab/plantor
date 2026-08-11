@@ -68,6 +68,56 @@
   .campus-root .rot{position:absolute;bottom:16px;right:14px;display:flex;gap:8px}
   /* 키보드가 있으면 Q/E 로 돌린다 — 화면에 버튼을 겹쳐 둘 이유가 없다 */
  @media (pointer: fine){ .campus-root .rot{display:none} }
+  .campus-root .rot button{width:44px;height:44px;border-radius:var(--r-sm);background:var(--panel);
+              border:1px solid var(--line);color:var(--muted);display:grid;place-items:center;
+              backdrop-filter:blur(8px);box-shadow:var(--sh-card);
+              transition:background 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .rot button:hover{background:#f2f6f3}
+  .campus-root .rot button:active{background:var(--primary-soft);color:var(--primary)}
+  .campus-root .rot button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+ @media (prefers-reduced-motion: reduce){ .campus-root .rot button{transition:none} }
+
+  /* 아래쪽은 프롬프트·에딧바·현재위치가 이미 쓴다. 겹치지 않게 위로 올린다. */
+  .campus-root .toast{position:absolute;top:16px;left:50%;transform:translateX(-50%) translateY(-6px);
+         background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+         padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--ink);
+         backdrop-filter:blur(8px);box-shadow:var(--sh-card);white-space:nowrap;
+         opacity:0;pointer-events:none;
+         transition:opacity 250ms cubic-bezier(.16,1,.3,1), transform 250ms cubic-bezier(.16,1,.3,1)}
+  .campus-root .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* 레벨 전환 암전. 기본은 pointer-events:none 이라 평소엔 클릭을 안 막고,
+     .on 인 동안에만 조작을 삼킨다(전환 중 탭이 들어가면 새 레벨에서 엉뚱한 곳으로 걷는다). */
+  .campus-root .fade{position:absolute;inset:0;z-index:60;background:#eef3ee;
+        opacity:0;pointer-events:none;transition:opacity .22s ease}
+  .campus-root .fade.on{opacity:1;pointer-events:auto}
+ @media (prefers-reduced-motion: reduce){ .campus-root .fade{transition:none} }
+
+  .campus-root #err{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
+       background:#3b1f1c;color:#ffb4ab;padding:16px 20px;border-radius:10px;font-size:13px;
+       max-width:80vw;line-height:1.7}
+
+  /* ── 첫 로딩 화면 ── */
+  .campus-root .boot{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;
+       align-items:center;justify-content:center;gap:20px;background:#f4f8f5}
+  .campus-root .boot-mark{position:relative;width:88px;height:88px;display:grid;place-items:center}
+  .campus-root .boot-ring{position:absolute;inset:0;border-radius:50%;
+       border:3px solid rgba(31,122,51,.14);border-top-color:var(--primary);
+       animation:boot-spin 900ms linear infinite}
+  @keyframes boot-spin{to{transform:rotate(360deg)}}
+  .campus-root .boot-quip{font-size:13.5px;font-weight:600;color:var(--muted);
+       min-height:1.4em;text-align:center;padding:0 24px}
+  .campus-root .boot-fail{display:flex;flex-direction:column;align-items:center;gap:8px;
+       max-width:34ch;text-align:center}
+  .campus-root .boot-fail .boot-quip{color:var(--ink);font-weight:700}
+  .campus-root .boot-sub{font-size:12.5px;color:var(--muted);line-height:1.6;font-weight:500}
+  .campus-root .boot-retry{margin-top:8px;border:none;border-radius:var(--r-sm);
+       background:var(--primary);color:#fff;font:inherit;font-size:13px;font-weight:700;
+       padding:10px 20px;cursor:pointer}
+  .campus-root .boot-retry:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+ @media (prefers-reduced-motion: reduce){
+    .campus-root .boot-ring{animation-duration:2.4s}
+  }
 
   /* ── 가방·매점 패널 ── */
   .campus-root .panel{position:absolute;z-index:50;top:64px;right:16px;
