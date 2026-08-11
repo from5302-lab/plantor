@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
 import { solapiApiKey, solapiApiSecret, SITE_URL, BANK_NAME, BANK_ACCOUNT, BANK_HOLDER, KAKAO_TEMPLATES } from "./config";
 import { loadServiceMeta } from "./service-meta-loader";
-import { assertAdmin, db } from "./utils";
+import { assertAdmin, auth, db } from "./utils";
 import {
   fetchSolapiMessages,
   fetchSolapiBalance,
@@ -281,3 +281,34 @@ export const sendTestKakao = onCall(
     }
   }
 );
+
+// ─── 계정별 마지막 접속 시각 (어드민 전용) ───────────────────────────────────
+/**
+ * Auth 사용자 전원의 마지막 접속 시각. 어드민 회원 목록에서 가입일 옆에 띄운다.
+ *
+ * lastRefreshTime 을 먼저 쓴다 — lastSignInTime 은 '로그인 버튼을 누른 시각'이라
+ * 한 번 로그인해 두고 몇 달을 쓰는 학생은 값이 옛날에 멈춰 있다. 토큰 갱신 시각이
+ * 실제로 앱을 쓴 때에 가깝다. 갱신 기록이 없는 계정만 로그인 시각으로 떨어진다.
+ *
+ * 키는 둘 다 준다: uid(학부모는 카카오·구글 로그인이라 이메일이 제각각) 와
+ * plantor 아이디(학생·학부모의 {id}@plantor.app 계정).
+ */
+export const getLastSignIns = onCall(async (request) => {
+  await assertAdmin(request.auth as never);
+  const byUid: Record<string, string> = {};
+  const byLoginId: Record<string, string> = {};
+  let pageToken: string | undefined;
+  do {
+    const page = await auth.listUsers(1000, pageToken);
+    for (const u of page.users) {
+      const at = u.metadata.lastRefreshTime || u.metadata.lastSignInTime;
+      if (!at) continue;
+      const iso = new Date(at).toISOString();
+      byUid[u.uid] = iso;
+      const email = (u.email ?? "").toLowerCase();
+      if (email.endsWith("@plantor.app")) byLoginId[email.replace("@plantor.app", "")] = iso;
+    }
+    pageToken = page.pageToken;
+  } while (pageToken);
+  return { byUid, byLoginId };
+});

@@ -10,7 +10,7 @@ export {
   notifyParentOnScreenshot,
 } from "./notifications";
 export { cleanupExpiredScreenshots } from "./cleanup";
-export { getSolapiMessages, getSolapiBalance, sendBulkSms, uploadImageToSolapi, confirmDirectClassPayment, triggerExpirySms, previewExpirySms, getKakaoChannelList, sendTestKakao } from "./admin-api";
+export { getSolapiMessages, getSolapiBalance, sendBulkSms, uploadImageToSolapi, confirmDirectClassPayment, triggerExpirySms, previewExpirySms, getKakaoChannelList, sendTestKakao, getLastSignIns } from "./admin-api";
 export { onFeedLike, onFeedUnlike } from "./feed-events";
 export { autoLog } from "./auto-log";
 export { verifyAutoProgress } from "./verify-auto";

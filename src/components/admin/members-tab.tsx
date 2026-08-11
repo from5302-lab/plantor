@@ -12,6 +12,7 @@ import { ServiceIcon } from "@/components/ui/service-icon";
 import { formatDateTime, formatWon } from "@/lib/format";
 import { CenterMsg } from "@/components/ui/center-msg";
 import { CopyBtn } from "@/components/ui/copy-btn";
+import { useLastSignIns, sinceText } from "@/lib/hooks/useLastSignIns";
 import { useSendToast } from "@/lib/send-toast";
 import { StudentLearningGrid } from "@/components/shared/student-learning-grid";
 import { X, Settings, BarChart3, KeyRound } from "lucide-react";
@@ -127,6 +128,22 @@ function FinanceBox({ revenue, discount, agencyFee, profit, size, personal }: { 
 // ── 편집 가능한 학년 ──────────────────────────────────────────────────────────
 
 const GRADE_OPTIONS = ["미취학", "초1", "초2", "초3", "초4", "초5", "초6", "중1", "중2", "중3"];
+
+/**
+ * 마지막 접속. 목록에서 가입일 옆에 붙으므로 "3일 전" 처럼 짧게 쓰고,
+ * 정확한 시각은 호버(title)로 넘긴다. 한 번도 안 들어온 계정은 회색 '접속 없음'.
+ */
+function LastSeen({ at }: { at?: Date }) {
+  const since = sinceText(at);
+  return (
+    <span
+      title={at ? formatDateTime(at) : "접속 기록 없음"}
+      style={{ fontSize: 11, color: since ? "#615d59" : "#c9c5c0", whiteSpace: "nowrap" }}
+    >
+      접속 {since ?? "없음"}
+    </span>
+  );
+}
 
 function EditableGrade({ childId, grade }: { childId: string; grade: string }) {
   const [editing, setEditing] = useState(false);
@@ -2110,6 +2127,8 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
 }) {
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null);
   const [expandedLearningChildId, setExpandedLearningChildId] = useState<string | null>(null);
+  // 계정별 마지막 접속 — Auth metadata 라 Firestore 에 없다. 목록이 뜰 때 한 번만 받아 온다.
+  const lastSignIns = useLastSignIns(true);
   const today = new Date().toISOString().slice(0, 10);
   if (families.length === 0) return null;
   return (
@@ -2157,6 +2176,8 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                 <div style={{ marginTop: 6, fontSize: 12, color: "#a39e98", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
                   {family.phone && <span style={{ display: "flex", alignItems: "center", gap: 2 }}>{formatPhone(family.phone)}<CopyBtn text={family.phone} /></span>}
                   {family.createdAt && <span className="mt-family-createdat">가입 {formatDateTime(family.createdAt)}</span>}
+                  {/* 마지막 접속 — 학부모는 카카오·구글 로그인이라 uid 로 먼저 찾고, 없으면 plantor 아이디로 */}
+                  <LastSeen at={lastSignIns.byUid.get(family.userId ?? "") ?? lastSignIns.byLoginId.get(parentId.toLowerCase())} />
                 </div>
               </div>
 
@@ -2258,6 +2279,7 @@ function FamilyList({ families, allChildren, allSubs, onResetByFamily, onResetAt
                             {child.loginId || "-"}
                           </span>
                           {child.loginId && <CopyBtn text={child.loginId} />}
+                          <LastSeen at={lastSignIns.byLoginId.get((child.loginId ?? "").toLowerCase())} />
                           <KeyBtn onClick={() => onResetByFamily(family.id, child.loginId || parentId)} />
                           <EditableStudentPhone childId={child.id} phone={child.studentPhone ?? ""} />
                           <button
