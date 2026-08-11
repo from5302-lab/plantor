@@ -1471,7 +1471,7 @@ export async function mountCampus(){
   function previewSync(){
     if (!pv) return;
     if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); }
-    pv.rig = buildAvatar(draft || myLook, myBody);
+    pv.rig = buildAvatar(draft || myLook, myBody, {flat: true});
     // 이름표는 맵에서만 쓴다. 무대에서는 캐릭터만 본다.
     pv.rig.root.rotation.y = pv.yaw;
     pv.scene.add(pv.rig.root);
@@ -1539,7 +1539,7 @@ export async function mountCampus(){
   }
   function renderThumb(look, slot){
     thumbSetup();
-    const rig = buildAvatar({...look, colors: (draft || myLook).colors}, myBody);
+    const rig = buildAvatar({...look, colors: (draft || myLook).colors}, myBody, {flat: true});
     showOnly(rig, slot);
     rig.root.rotation.y = -0.38;          // 살짝 튼 3/4 — 옆머리·소매가 보인다
     rig.root.updateMatrixWorld(true);

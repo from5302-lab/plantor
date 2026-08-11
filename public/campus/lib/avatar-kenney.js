@@ -26,6 +26,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { bend } from '/campus/lib/curve.js';
 
+// 곡면(지평선) 셰이더는 **맵 카메라 기준**이다. uFocus 가 맵의 시야 좌표라, 카메라가
+// 다른 곳(꾸미기 무대·썸네일)에서 같은 재질을 쓰면 캐릭터가 0.8m 쯤 아래로 밀려
+// 몸이 화면 밖으로 나간다. 그 화면들은 굽히지 않는다.
+let FLAT = false;
+const bendIf = mat => FLAT ? mat : bend(mat);
+
 export const CREDIT = 'Kenney "Mini Characters" (CC0) — kenney.nl';
 
 const BASE = '/campus/models/kenney/';
@@ -273,7 +279,7 @@ function attachAid(model, id, owned){
   node.traverse(o => {
     if (!o.isMesh) return;
     o.frustumCulled = false;
-    o.material = bend(o.material.clone());    // 곡면은 캐릭터와 같이 굽어야 한다
+    o.material = bendIf(o.material.clone());    // 곡면은 캐릭터와 같이 굽어야 한다
     owned.push(o.material);
   });
   node.position.set(a.offset[0], a.offset[1], a.offset[2]);
@@ -397,7 +403,7 @@ function graftHair(baseHeadMesh, headName, owned){
   out.setAttribute('skinWeight', new THREE.BufferAttribute(dw, 4));
   out.setIndex(tri);
 
-  const mesh = new THREE.SkinnedMesh(out, bend(src.material.clone()));
+  const mesh = new THREE.SkinnedMesh(out, bendIf(src.material.clone()));
   mesh.name = 'hair-graft';
   mesh.frustumCulled = false;
   // ⚠ 원본 메시의 로컬 변환을 그대로 물려받아야 한다. 새 메시는 기본이 항등이라
@@ -431,7 +437,7 @@ function swapBody(model, bodyName, owned){
     }
   si.needsUpdate = true;
 
-  const mesh = new THREE.SkinnedMesh(g, bend(src.material.clone()));
+  const mesh = new THREE.SkinnedMesh(g, bendIf(src.material.clone()));
   mesh.name = src.name;
   mesh.frustumCulled = false;
   mesh.position.copy(src.position);
@@ -451,6 +457,7 @@ function swapBody(model, bodyName, owned){
  * @param body (미사용)
  */
 export function buildAvatar(look = {}, body = null, opts = {}){
+  FLAT = !!opts.flat;                      // 무대·썸네일은 굽히지 않는다
   const L = resolveLook(look);
   const name = L.base;
   // 아직 안 받은 모델이면 기본으로 세우고 뒤에서 받아 둔다(다음 빌드부터 제대로 나온다).
@@ -465,7 +472,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   model.traverse(o => {
     if (!o.isMesh) return;
     o.frustumCulled = false;
-    o.material = bend(o.material.clone());
+    o.material = bendIf(o.material.clone());
     owned.push(o.material);
   });
 
@@ -513,6 +520,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   const rig = { root, model, mixer, actions, cur: null, last: 0, lockUntil: 0,
                 kind: 'kenney', owned, modelName: name };
   play(rig, 'idle', 0);
+  FLAT = false;
   return rig;
 }
 
