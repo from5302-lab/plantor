@@ -50,8 +50,27 @@ function withFree(owned: Owned): Owned {
   return out;
 }
 
+/**
+ * 운영자는 전부 열려 있고 포인트가 무제한이다.
+ *
+ * 운영자에겐 자녀 문서가 없어서 resolveChild 가 실패한다(포인트가 children 에
+ * 있으므로). 그래서 상점 자체를 못 쓰는데, 어떻게 보이는지 확인하려면 열 수 있어야
+ * 한다. 깎을 포인트가 없으니 구매도 그냥 통과시킨다 — 남의 잔액을 건드리지 않는다.
+ */
+async function adminUnlimited(auth: { uid: string; token: Record<string, unknown> } | undefined) {
+  if (!auth) return false;
+  if (auth.token.admin === true) return true;
+  try { return (await db.collection("users").doc(auth.uid).get()).data()?.role === "admin"; }
+  catch { return false; }
+}
+
+const ALL: Owned = Object.fromEntries(SLOTS.map((s) => [s, MODELS]));
+
 /** 지갑 — 잔액과 가진 것. 캠퍼스가 꾸미기 화면을 열 때 한 번 부른다. */
 export const getCampusWardrobe = onCall(async (request) => {
+  if (await adminUnlimited(request.auth as never)) {
+    return { points: Number.MAX_SAFE_INTEGER, owned: ALL, price: PRICE, free: MODELS, open: OPEN, unlimited: true };
+  }
   const childDoc = await resolveChild(request.auth as never);
   const d = childDoc.data() ?? {};
   return {
@@ -70,6 +89,11 @@ export const buyCampusItem = onCall(async (request) => {
   if (!slot || !PRICE[slot]) throw new HttpsError("invalid-argument", "없는 칸입니다.");
   if (!id || !MODELS.includes(id)) throw new HttpsError("invalid-argument", "없는 물건입니다.");
   if (FREE.has(id)) throw new HttpsError("failed-precondition", "이미 가지고 있어요.");
+
+  // 운영자는 깎을 포인트가 없다. 소유만 인정하고 아무 문서도 건드리지 않는다.
+  if (await adminUnlimited(request.auth as never)) {
+    return { ok: true, already: true, points: Number.MAX_SAFE_INTEGER, owned: ALL, cost: 0 };
+  }
 
   const childRef = (await resolveChild(request.auth as never)).ref;
   const cost = PRICE[slot];
