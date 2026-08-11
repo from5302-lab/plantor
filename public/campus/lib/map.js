@@ -1357,41 +1357,56 @@ export async function mountCampus(){
     elChars.classList.remove('dress');
     elRoot && elRoot.classList.remove('dressing');
   }
+  //  캐릭터는 얼굴·헤어·옷 셋으로 쪼개진다(두개골이 12종 공통이라 남의 머리를
+  //  얹을 수 있고, 뼈가 같아 남의 옷을 입을 수 있다). 탭 하나가 슬롯 하나고,
+  //  ‹ › 는 **지금 탭의 슬롯**을 넘긴다 — 무엇을 고르는 중인지가 화면에 남는다.
+  const SLOTS = [{id:'base', name:'얼굴'}, {id:'head', name:'헤어'}, {id:'body', name:'옷'}];
+  const slotOf = tab => SLOTS.some(s => s.id === tab) ? tab : 'base';
+  /** 이 슬롯이 고를 수 있는 값들. 헤어에만 '없음'(대머리)이 있다. */
+  const optionsOf = slot => (slot === 'head' ? [Avatar.BALD] : []).concat(Avatar.MODELS || []);
+
   function drawChars(){
     if (!charOpen) return;
-    const models = Avatar.MODELS || [];
-    const cur = myLook.model || models[0];
-    const at = Math.max(0, models.indexOf(cur));
+    const L = Avatar.resolveLook ? Avatar.resolveLook(myLook) : {base: myLook.model};
     const colors = myLook.colors || {};
     const parts = Avatar.PARTS || [];
-    // 안경이 메시에 박힌 캐릭터에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
-    const withAid = !Avatar.hasBuiltinGlasses?.(cur);
-    const tabs = parts.map(p => ({id:p.id, name:p.name}))
-                      .concat(withAid ? [{id:'aid', name:'소품'}] : []);
+    // 안경이 메시에 박힌 얼굴에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
+    const withAid = !Avatar.hasBuiltinGlasses?.(L.base);
+    const tabs = SLOTS
+      .concat(parts.map(p => ({id: p.id, name: p.name + '색'})))
+      .concat(withAid ? [{id:'aid', name:'소품'}] : []);
     if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
 
-    const row = dressTab === 'aid'
-      ? (Avatar.ACCESSORIES || []).map(a =>
-          `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
-          `${a.name}</button>`).join('')
-      // 머리에는 색 말고 '없음'(대머리)이 있다 — 색이 아니라 상태라 맨 앞에 따로 낸다
-      : ((dressTab === 'hair' && Avatar.BALD
-            ? `<button class="aidbtn${colors.hair === Avatar.BALD ? ' on' : ''}" ` +
-              `data-part="hair" data-color="${Avatar.BALD}">없음</button>`
-            : '')
-        + (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
-          const c = (Avatar.PALETTE || []).find(p => p.id === id);
-          if (!c) return '';
-          const on = colors[dressTab] === id ? ' on' : '';
-          return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
-                 ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
-        }).join(''));
+    const slot = slotOf(dressTab);
+    const opts = optionsOf(slot);
+    const at = Math.max(0, opts.indexOf(L[slot]));
 
+    let row;
+    if (SLOTS.some(s => s.id === dressTab)){
+      row = opts.map((v, i) =>
+        `<button class="slotb${v === L[slot] ? ' on' : ''}" data-slot="${slot}" data-val="${v}">` +
+        `${v === Avatar.BALD ? '없음' : i + (opts[0] === Avatar.BALD ? 0 : 1)}</button>`).join('');
+    } else if (dressTab === 'aid'){
+      row = (Avatar.ACCESSORIES || []).map(a =>
+        `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
+        `${a.name}</button>`).join('');
+    } else {
+      row = (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
+        const c = (Avatar.PALETTE || []).find(p => p.id === id);
+        if (!c) return '';
+        const on = colors[dressTab] === id ? ' on' : '';
+        return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
+               ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
+      }).join('');
+    }
+
+    const label = SLOTS.find(s => s.id === slot).name;
     elChars.innerHTML =
       `<div class="dnav">` +
-        `<button class="navb" data-step="-1" aria-label="이전 캐릭터">${icon('chevron-left', 20)}</button>` +
-        `<span class="dcount">${at + 1} <i>/ ${models.length}</i></span>` +
-        `<button class="navb" data-step="1" aria-label="다음 캐릭터">${icon('chevron-right', 20)}</button>` +
+        `<button class="navb" data-step="-1" aria-label="이전 ${label}">${icon('chevron-left', 20)}</button>` +
+        `<span class="dcount">${L[slot] === Avatar.BALD ? '없음' : at + 1}` +
+        ` <i>/ ${opts.length}</i></span>` +
+        `<button class="navb" data-step="1" aria-label="다음 ${label}">${icon('chevron-right', 20)}</button>` +
         `<span class="sp"></span>` +
         `<button class="ddone" data-close>완료</button>` +
       `</div>` +
@@ -1405,11 +1420,13 @@ export async function mountCampus(){
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-close')){ closeChars(); return; }
     if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
+    if (b.dataset.slot){ await pickSlot(b.dataset.slot, b.dataset.val); return; }
     if (b.dataset.step){
-      const models = Avatar.MODELS || [];
-      const at = Math.max(0, models.indexOf(myLook.model || models[0]));
-      const n = models[(at + Number(b.dataset.step) + models.length) % models.length];
-      await pickModel(n);
+      const slot = slotOf(dressTab);
+      const opts = optionsOf(slot);
+      const L = Avatar.resolveLook(myLook);
+      const at = Math.max(0, opts.indexOf(L[slot]));
+      await pickSlot(slot, opts[(at + Number(b.dataset.step) + opts.length) % opts.length]);
       return;
     }
     if (b.dataset.aid){
@@ -1439,11 +1456,14 @@ export async function mountCampus(){
       return;
     }
   });
-  async function pickModel(n){
-    // 안경이 박힌 캐릭터로 갈아입으면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
-    const aid = Avatar.hasBuiltinGlasses?.(n) ? null : (myLook.aid || null);
-    myLook = {...myLook, model: n, aid};
-    await Avatar.ensure?.(n);
+  async function pickSlot(slot, value){
+    const L = Avatar.resolveLook(myLook);
+    const next = {...L, [slot]: value};
+    // 안경이 박힌 얼굴로 바꾸면 쓰고 있던 소품 안경은 벗는다(두 겹 방지)
+    const aid = Avatar.hasBuiltinGlasses?.(next.base) ? null : (myLook.aid || null);
+    // model 은 더 이상 안 쓴다 — 남겨 두면 옛 값이 되살아난다
+    myLook = {...myLook, ...next, model: undefined, aid};
+    if (value !== Avatar.BALD) await Avatar.ensure?.(value);
     rebuildPlayer();
     const r = await saveCharacter(myLook, myBody);
     if (r.ok && net) net.updateMeta(myLook, myBody);

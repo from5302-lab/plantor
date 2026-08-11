@@ -329,3 +329,15 @@
  @media (prefers-reduced-motion: reduce){
     .campus-root .navb,.campus-root .ddone,.campus-root .dtab{transition:none}
   }
+
+  /* 슬롯(얼굴·헤어·옷) 고르기 — 12개를 번호 칩으로. 큰 선택은 ‹ › 로 훑고,
+     이 줄은 "지금 몇 번째인지"와 직접 점프용이다 */
+  .campus-root .slotb{flex:none;min-width:34px;height:34px;padding:0 8px;
+       border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;
+       color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+       font-variant-numeric:tabular-nums;
+       transition:background 150ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .slotb:hover{background:var(--primary-soft);color:var(--primary)}
+  .campus-root .slotb.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .campus-root .slotb:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+ @media (prefers-reduced-motion: reduce){ .campus-root .slotb{transition:none} }

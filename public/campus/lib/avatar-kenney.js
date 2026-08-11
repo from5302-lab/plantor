@@ -144,15 +144,22 @@ const BONE_CLASS = {'head':'head', 'torso':'torso', 'root':'torso',
  * geometry 는 cloneSkinned 가 **공유**하므로, 손대기 전에 이 인스턴스 것으로 복제한다.
  * 안 그러면 같은 모델을 쓰는 다른 접속자의 캐릭터까지 같이 바뀐다.
  */
-function recolor(model, modelName, colors, owned){
-  const table = PART_CELLS && PART_CELLS.models[modelName];
-  if (!table) return;
+function recolor(model, L, colors, owned){
+  if (!PART_CELLS) return;
   const [fw, fh] = PART_CELLS.family;                     // 64 × 128
   const TEX = 512;
   model.traverse(o => {
     if (!o.isMesh || !o.geometry.attributes.uv) return;
-    o.geometry = o.geometry.clone();                      // ← 공유 해제
-    owned.push(o.geometry);                               // 복제했으니 버리는 것도 우리 몫
+    // 부위 표는 **그 메시가 온 모델** 것을 쓴다. 조합하면 머리카락·몸·얼굴이
+    // 서로 다른 모델에서 오므로, 하나의 표로 찾으면 엉뚱한 부위가 칠해진다.
+    const table = PART_CELLS.models[
+      o.name === 'hair-graft' ? L.head : o.name.charAt(0) === 'b' ? L.body : L.base];
+    if (!table) return;
+    // 이미 이 인스턴스 것으로 만든 geometry(이식한 머리·갈아입은 몸)는 다시 복제하지 않는다
+    if (!owned.includes(o.geometry)){
+      o.geometry = o.geometry.clone();                    // ← 공유 해제
+      owned.push(o.geometry);                             // 복제했으니 버리는 것도 우리 몫
+    }
     const uv = o.geometry.attributes.uv;
     const si = o.geometry.attributes.skinIndex;
     const sw = o.geometry.attributes.skinWeight;
@@ -187,7 +194,6 @@ function recolor(model, modelName, colors, owned){
                   v + (pick.f[1] - fy) * fh / TEX);
     }
     uv.needsUpdate = true;
-    if (colors.hair === BALD && o.name.charAt(0) === 'h') makeBald(o, modelName);
   });
 }
 
@@ -311,6 +317,125 @@ const modelOf = look => {
   return MODELS.includes(n) ? n : DEFAULT_MODEL;
 };
 
+// ══ 조합 ═══════════════════════════════════════════════════════════
+//
+//  12종을 통째로 고르는 대신 **얼굴 · 헤어 · 옷** 셋으로 쪼갠다. 근거는 에셋이다:
+//   · 두개골+귀가 11/12 바이트 단위로 동일하다 → 남의 머리카락이 정확히 맞는다
+//     (female-f 만 귀가 살짝 다르다)
+//   · 뼈 7개가 이름까지 같다 → 남의 몸을 그대로 물릴 수 있다
+//  상의/하의/신발을 따로 떼는 건 안 된다 — 덩어리가 부위와 안 맞는다.
+//
+//  look = {base, head, body}. 옛 look.model 은 셋 다 그 값으로 편다.
+
+/** 옛 저장분(model 하나)과 새 저장분(base/head/body)을 한 모양으로 만든다. */
+export function resolveLook(look = {}){
+  const fb = MODELS.includes(look.model) ? look.model : DEFAULT_MODEL;
+  const pick = (v) => MODELS.includes(v) ? v : fb;
+  return {
+    base: pick(look.base),
+    head: look.head === BALD ? BALD : pick(look.head),
+    body: pick(look.body),
+  };
+}
+
+/**
+ * 머리카락 이식 — head 모델의 머리카락 덩어리만 떼어 base 스켈레톤에 물린다.
+ *
+ * 정점 목록은 대머리에 쓰는 것과 **같은 목록**이다(오프라인에서 연결 요소로
+ * 골라 둔 것). 떼는 쪽과 붙이는 쪽이 같은 근거를 쓰므로 어긋날 일이 없다.
+ *
+ * ⚠ 뼈 순서는 모델마다 다를 수 있다. 번호를 그대로 쓰면 머리카락이 엉뚱한 뼈를
+ *   따라간다 — 이름으로 다시 짝지어 skinIndex 를 고쳐 쓴다.
+ */
+function graftHair(baseHeadMesh, headName, owned){
+  const hide = PART_CELLS && PART_CELLS.bald && PART_CELLS.bald[headName];
+  const entry = cache.get(headName);
+  if (!hide || !hide.length || !entry) return null;
+  let src = null;
+  entry.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') src = o; });
+  if (!src || !src.geometry.index) return null;
+
+  const keep = new Set(hide);
+  const g = src.geometry, idx = g.index;
+  const remap = new Map();                       // 원본 정점 → 새 정점
+  const tri = [];
+  for (let t = 0; t < idx.count; t += 3){
+    const v = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+    if (!v.every(i => keep.has(i))) continue;     // 머리카락 삼각형만
+    for (const i of v){
+      if (!remap.has(i)) remap.set(i, remap.size);
+      tri.push(remap.get(i));
+    }
+  }
+  if (!tri.length) return null;
+
+  // 뼈 이름 → base 스켈레톤에서의 번호
+  const baseBones = baseHeadMesh.skeleton.bones;
+  const byName = new Map(baseBones.map((b, i) => [b.name, i]));
+  const srcBones = src.skeleton.bones;
+
+  const n = remap.size;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']){
+    const a = g.attributes[name];
+    if (!a) continue;
+    const dst = new Float32Array(n * a.itemSize);
+    for (const [from, to] of remap)
+      for (let k = 0; k < a.itemSize; k++) dst[to * a.itemSize + k] = a.getComponent(from, k);
+    out.setAttribute(name, new THREE.BufferAttribute(dst, a.itemSize));
+  }
+  const si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  const di = new Uint16Array(n * 4), dw = new Float32Array(n * 4);
+  for (const [from, to] of remap){
+    for (let k = 0; k < 4; k++){
+      const b = srcBones[si.getComponent(from, k)];
+      di[to * 4 + k] = (b && byName.has(b.name)) ? byName.get(b.name) : 0;
+      dw[to * 4 + k] = sw.getComponent(from, k);
+    }
+  }
+  out.setAttribute('skinIndex', new THREE.BufferAttribute(di, 4));
+  out.setAttribute('skinWeight', new THREE.BufferAttribute(dw, 4));
+  out.setIndex(tri);
+
+  const mesh = new THREE.SkinnedMesh(out, bend(src.material.clone()));
+  mesh.name = 'hair-graft';
+  mesh.frustumCulled = false;
+  mesh.bind(baseHeadMesh.skeleton, baseHeadMesh.bindMatrix);
+  owned.push(out, mesh.material);
+  return mesh;
+}
+
+/** 몸 갈아입기 — body 모델의 몸 메시로 바꿔 끼운다. 뼈 이름이 같아 그대로 물린다. */
+function swapBody(model, bodyName, owned){
+  const entry = cache.get(bodyName);
+  if (!entry) return null;
+  let src = null, cur = null;
+  entry.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'b') src = o; });
+  model.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'b') cur = o; });
+  if (!src || !cur) return null;
+
+  const baseBones = cur.skeleton.bones;
+  const byName = new Map(baseBones.map((b, i) => [b.name, i]));
+  const srcBones = src.skeleton.bones;
+  const g = src.geometry.clone();
+  const si = g.attributes.skinIndex;
+  for (let i = 0; i < si.count; i++)
+    for (let k = 0; k < 4; k++){
+      const b = srcBones[si.getComponent(i, k)];
+      si.setComponent(i, k, (b && byName.has(b.name)) ? byName.get(b.name) : 0);
+    }
+  si.needsUpdate = true;
+
+  const mesh = new THREE.SkinnedMesh(g, bend(src.material.clone()));
+  mesh.name = src.name;
+  mesh.frustumCulled = false;
+  mesh.bind(cur.skeleton, cur.bindMatrix);
+  cur.parent.add(mesh);
+  cur.parent.remove(cur);
+  owned.push(g, mesh.material);
+  return mesh;
+}
+
 /**
  * @param look {model, colors, aid} — model 은 12종 중 하나.
  *             colors 는 {skin, hair, top, bottom} → PALETTE 의 id. 없으면 원래 색.
@@ -318,7 +443,8 @@ const modelOf = look => {
  * @param body (미사용)
  */
 export function buildAvatar(look = {}, body = null, opts = {}){
-  const name = modelOf(look);
+  const L = resolveLook(look);
+  const name = L.base;
   // 아직 안 받은 모델이면 기본으로 세우고 뒤에서 받아 둔다(다음 빌드부터 제대로 나온다).
   const entry = cache.get(name) || cache.get(DEFAULT_MODEL);
   if (!entry) throw new Error('preload() 를 먼저 호출해야 합니다');
@@ -335,8 +461,25 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     owned.push(o.material);
   });
 
+  // ── 조합 ── 순서가 있다: 몸을 갈아입고 · 머리를 갈아 끼운 뒤 · 색을 칠한다.
+  //   색은 **최종 메시** 기준으로 부위를 찾아야 하므로 마지막이다.
+  if (L.body !== name) swapBody(model, L.body, owned);
+
+  let headMesh = null;
+  model.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') headMesh = o; });
+  if (headMesh && L.head !== name){
+    // 원래 머리카락을 감춘다(대머리와 같은 목록). geometry 는 공유물이라 먼저 복제한다.
+    headMesh.geometry = headMesh.geometry.clone();
+    owned.push(headMesh.geometry);
+    makeBald(headMesh, name);
+    if (L.head !== BALD){
+      const hair = graftHair(headMesh, L.head, owned);
+      if (hair) headMesh.parent.add(hair);
+    }
+  }
+
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
-  if (look.colors && Object.keys(look.colors).length) recolor(model, name, look.colors, owned);
+  if (look.colors && Object.keys(look.colors).length) recolor(model, L, look.colors, owned);
   if (look.aid) attachAid(model, look.aid, owned);
 
   const root = new THREE.Group();
