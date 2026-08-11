@@ -34,17 +34,27 @@ check("[피드] 무비 줄도 같은 규칙", out.items[0].stats, [
   { name: "정답률", value: "100%" }, { name: "", value: "오전 10:49 ~ 오전 11:01" },
 ]);
 
-// 클래스5 리포트의 단계 항목을 그대로 싣는다(2026-08-10) — 사이트에는 보이는데 카드에는 없었다
+// 클래스5 리포트의 단계 항목을 그대로 싣는다(2026-08-10) — 사이트에는 보이는데 카드에는 없었다.
+// 정답률은 활동별로 적는다 — 하나로 뭉치면 어느 단계에서 막혔는지가 사라진다.
 const withSteps = [{
   type: "Movie", unitLabel: "Bluey / Dad Tries to Teach", completed: true, cardFirstTry: 96,
-  steps: ["암기", "무비보기", "쉐도잉", "더빙"], startAt: "15:06", endAt: "15:19",
+  steps: [{ n: "암기", p: 100 }, { n: "무비보기" }, { n: "쉐도잉" }, { n: "더빙" }],
+  startAt: "15:06", endAt: "15:19",
 }];
-check("[피드] 단계 항목이 하나씩, 정답률 앞에 온다", studySummary("class5", withSteps, null, { units: withSteps }).items[0].stats, [
-  { name: "", value: "암기" }, { name: "", value: "무비보기" },
-  { name: "", value: "쉐도잉" }, { name: "", value: "더빙" },
-  { name: "정답률", value: "96%" },
-  { name: "", value: "오후 3:06 ~ 오후 3:19" },
-]);
+check("[피드] 활동별 정답률 · 채점 안 하는 활동은 이름만 · 전체 정답률은 뺀다",
+  studySummary("class5", withSteps, null, { units: withSteps }).items[0].stats, [
+    { name: "암기", value: "100%" },
+    { name: "", value: "무비보기" }, { name: "", value: "쉐도잉" }, { name: "", value: "더빙" },
+    { name: "", value: "오후 3:06 ~ 오후 3:19" },
+  ]);
+
+// 활동별 값이 하나도 없으면(옛 로그는 문자열 배열이다) 전체 정답률을 대신 적는다
+const oldSteps = [{ type: "Reading", unitLabel: "Easy Link Starter 3", completed: true, cardFirstTry: 52, steps: ["암기", "본문듣기"] }];
+check("[피드] 옛 로그(문자열 steps)는 전체 정답률로 폴백",
+  studySummary("class5", oldSteps, null, { units: oldSteps }).items[0].stats, [
+    { name: "", value: "암기" }, { name: "", value: "본문듣기" },
+    { name: "정답률", value: "52%" },
+  ]);
 
 // 문법 게임은 백분율이 아니라 raw 점수 — % 를 붙이면 안 된다
 const withGame = [{ type: "Grammar", unitLabel: "Unit 05", completed: true, cardFirstTry: 88, gameScore: 32400 }];

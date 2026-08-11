@@ -410,15 +410,25 @@ export function studySummary(
     for (const u of units) {
       if (!u?.unitLabel) continue;
       const stats: StudyStat[] = [];
-      // 클래스5 리포트의 단계 카드(단어·무비보기·쉐도잉·더빙)와 같은 항목.
-      // 단계별 점수는 싣지 않는다 — 끝내면 전부 100점이라 네 번 적어도 아무 말도 안 된다.
-      // 무엇을 했는지는 항목 이름이 말하고, 얼마나 잘했는지는 아래 정답률이 말한다.
-      // 칩은 줄바꿈이 안 되므로(feed-event-card) 한 줄로 이어 붙이지 않고 항목마다 하나씩 낸다 —
-      // 사이트의 단계 카드 배열과도 그 편이 닮았고, 좁은 화면에서 넘치지 않는다.
-      const steps: string[] = Array.isArray(u?.steps) ? u.steps.map(String).filter(Boolean) : [];
-      for (const s of steps.slice(0, 6)) stats.push({ name: "", value: s });
+      // 클래스5 리포트의 단계 카드(암기·무비보기·쉐도잉·더빙…)와 같은 항목을 하나씩.
+      // 사이트가 주는 단계 '점수'는 끝내면 전부 100이라 안 싣고, 대신 그 단계의 **1회 정답률**을
+      // 활동별로 적는다 — 하나로 뭉치면 어느 단계에서 막혔는지가 사라진다.
+      // 채점하지 않는 활동(더빙·쉐도잉·무비보기)은 카드가 없어 이름만 남는다.
+      // 칩은 줄바꿈이 안 되므로(feed-event-card) 이어 붙이지 않고 항목마다 하나씩 낸다.
+      const steps: Json[] = Array.isArray(u?.steps) ? u.steps : [];
+      let anyPct = false;
+      for (const s of steps.slice(0, 6)) {
+        // 옛 로그는 문자열 배열이다(활동별 정답률을 붙이기 전에 긁힌 것)
+        const name = typeof s === "string" ? s : String(s?.n ?? "");
+        if (!name) continue;
+        const p = typeof s === "object" && s?.p != null ? toScore(s.p) : null;
+        if (p != null) anyPct = true;
+        stats.push(p != null ? { name, value: `${p}%` } : { name: "", value: name });
+      }
+      // 활동별로 적었으면 전체 정답률은 같은 말을 한 번 더 하는 셈이다.
+      // 활동별 값이 하나도 없을 때(옛 로그·카드 없는 과제)만 전체를 적는다.
       const acc = toScore(u?.cardFirstTry);
-      if (acc != null) stats.push({ name: "정답률", value: `${acc}%` });
+      if (acc != null && !anyPct) stats.push({ name: "정답률", value: `${acc}%` });
       // 문법 게임은 백분율이 아니라 2~5만점대 raw 점수다 — % 를 붙이면 안 된다
       const game = toScore(u?.gameScore);
       if (game != null) stats.push({ name: "게임", value: `${comma(game)}점` });

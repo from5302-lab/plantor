@@ -12,6 +12,9 @@ const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Appl
 
 export type Class5Creds = { id: string; pw: string };
 
+/** 활동 한 칸. n=이름, p=그 활동의 1회 정답률 %(채점하는 활동에만 있다) */
+export type Class5Step = { n: string; p?: number };
+
 // AutoUnit(클라이언트 types.ts) 호환: type=카테고리, unitLabel=교재/유닛, completed=is_end
 export type Class5Unit = {
   type: string;
@@ -24,8 +27,8 @@ export type Class5Unit = {
   durationSec?: number;
   /** 게임형 활동의 raw 점수 (백분율 아님 — 문법 게임은 2~5만점대) */
   gameScore?: number;
-  /** 그 과제에서 한 활동 이름들 — 클래스5 리포트의 단계 카드(단어·무비보기·쉐도잉·더빙)와 같은 항목 */
-  steps?: string[];
+  /** 그 과제에서 한 활동 — 클래스5 리포트의 단계 카드와 같은 항목. p 는 그 활동의 1회 정답률 % */
+  steps?: Class5Step[];
   /** 배정된 활동을 하나도 빠짐없이 끝냈는지 */
   allStepsDone?: boolean;
   movieType?: string;
@@ -185,25 +188,41 @@ const ACT_GRAMMAR: Record<number, string> = {
   1: "Words", 2: "Rules", 3: "Check", 4: "Practice", 5: "Upgrade", 6: "Master",
 };
 
-/** 그 과제에서 실제로 한 활동 이름들 (배정 순서 그대로, 중복 제거). */
-function activityNames(movieType: string | undefined, acts: Class5Activity[]): string[] {
+/**
+ * 그 과제에서 한 활동들 — 이름과 **활동별 1회 정답률**.
+ *
+ * 정답률을 하나로 뭉치면 어느 단계에서 막혔는지 안 보인다. 카드가 활동마다 따로 오므로
+ * 활동별로 계산할 수 있다. 채점하지 않는 활동(더빙·쉐도잉·무비보기)은 카드가 없어 이름만 남는다.
+ * 같은 이름이 두 번 오면(무비 표의 1·9번이 둘 다 '암기') 카드를 합쳐 한 줄로 만든다.
+ */
+function activitySteps(movieType: string | undefined, acts: Class5Activity[]): Class5Step[] {
   const t = String(movieType ?? "");
   const table = t === "book" || t === "read" ? ACT_BOOK
     : t === "write" ? ACT_WRITE
     : t === "grammar" ? ACT_GRAMMAR
     : ACT_MOVIE;                       // phonics·song·movie 는 같은 표를 쓴다
-  const names: string[] = [];
+  const acc = new Map<string, { ok: number; tot: number; graded: boolean }>();
   const unknown: unknown[] = [];
   for (const a of acts) {
     const code = Number(a.activity);
     // 송(song)만 1번이 '암기'가 아니라 '단어'다
     const name = t === "song" && code === 1 ? "단어" : table[code];
     if (!name) { unknown.push(a.activity); continue; }
-    if (!names.includes(name)) names.push(name);
+    const cards = a.card_list ?? [];
+    // 정답 카드가 하나도 없으면 채점 대상이 아니다(더빙·쉐도잉) — 0% 로 적으면 누명이다
+    const graded = cards.some((c) => String(c.is_correct) === "1");
+    const cur = acc.get(name) ?? { ok: 0, tot: 0, graded: false };
+    if (graded) {
+      cur.graded = true;
+      cur.tot += cards.length;
+      cur.ok += cards.filter((c) => String(c.try_cnt) === "1" && String(c.is_correct) === "1").length;
+    }
+    acc.set(name, cur);
   }
   // 표에 없는 코드가 오면 조용히 빠진다 — 클래스5가 활동을 늘렸다는 뜻이라 로그로 남긴다
   if (unknown.length) logger.warn("[class5] 모르는 activity 코드", { movieType: t, unknown });
-  return names;
+  return [...acc].map(([n, v]) =>
+    v.graded && v.tot > 0 ? { n, p: Math.round((100 * v.ok) / v.tot) } : { n });
 }
 
 /** 과제 1건의 상세 → 품질 지표. 채점하지 않는 활동(더빙 등)은 정답률 계산에서 뺀다. */
@@ -218,7 +237,7 @@ function summarizeUserItem(it: Class5UserItem): Pick<Class5Unit, "cardFirstTry" 
   // 백분율 범위를 벗어나는 score는 게임 raw 점수
   const gameScores = acts.map((a) => Number(a.score)).filter((n) => Number.isFinite(n) && n > 100);
   const ts = norm(it.last_ts);
-  const steps = activityNames(it.movie_type, acts);
+  const steps = activitySteps(it.movie_type, acts);
   return {
     cardFirstTry: firstTry,
     steps: steps.length ? steps : undefined,
