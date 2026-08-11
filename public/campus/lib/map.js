@@ -1035,18 +1035,10 @@ export async function mountCampus(){
   // 1.0 에서는 1.3m 캐릭터가 화면 높이의 1/10 쯤이라 표정이 안 읽혔다(동숲은 1/5~1/6).
   // 캐릭터 키(TARGET_H)를 올리는 쪽은 문틀·앉는 높이·이름표·충돌을 다 건드려야 해서
   // 카메라만 당긴다. 대신 건물도 같이 커져 한 화면에 들어오는 마을 범위가 줄어든다.
-  let zoom = 0.75;
-  const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
-  const camLook = new THREE.Vector3(P.x, 0.9, P.z);
-  //  키보드 줌 — 휠과 같은 값을 쓴다
-  function zoomBy(dir){
-    zoom = THREE.MathUtils.clamp(zoom + dir * 0.12, 0.18, 1.65);
-  }
-  addEventListener('wheel', e => {
-    // 하한을 0.34 → 0.18 로 낮췄다. GLB 캐릭터는 얼굴·표정이 있어서 더 가까이
-    // 볼 만한 값이 생겼다(코드 아바타 시절엔 당겨도 볼 게 없었다).
-    zoom = THREE.MathUtils.clamp(zoom + Math.sign(e.deltaY)*0.08, 0.18, 1.65);
-  }, {passive:true});
+  // 카메라 거리 배율. 예전엔 휠·+/− 로 조절했는데 걷어냈다 — 조작이 하나 줄고,
+  // 꾸미기 창의 목록을 굴릴 때 휠이 뒤의 맵까지 당기던 문제도 같이 없어진다.
+  // 이제 시점 조작은 **회전 하나**다.
+  const zoom = 0.75;
 
   // 카메라 기준 이동축 (화면 위 = 화면 안쪽). 카메라가 돌면 같이 돈다.
   const FWD = new THREE.Vector3(), RIGHT = new THREE.Vector3();
@@ -1135,7 +1127,7 @@ export async function mountCampus(){
   //    이동 ←↑↓→ · 달리기 D(누른 채) · 상호작용 F
   //    Space 는 **입장/나가기 전용** — 아무 데서나 눌러도 엉뚱한 게 열리지 않는다
   //    QWER 주기능: 앉기 · 점프 · 인사 · 끄덕임
-  //    회전 J/K · 줌 +/-
+  //    회전 J/K
   //  ⚠ e.key 를 쓰면 **한/영 상태에 따라 조작이 죽는다** — 한글 입력기가 켜져 있으면
   //    D 를 눌러도 e.key 가 'ㅇ' 로 온다(F→'ㄹ', J→'ㅓ'…). 방향키·Space 만 살아남아
   //    "달리기가 갑자기 안 된다"가 된다. 물리 키 위치인 e.code 로 읽으면 입력기와
@@ -1146,8 +1138,6 @@ export async function mountCampus(){
     if (c.startsWith('Arrow')) return c.toLowerCase();            // ArrowUp → arrowup
     if (c === 'Space') return ' ';
     if (c === 'Enter' || c === 'NumpadEnter') return 'enter';
-    if (c === 'Equal' || c === 'NumpadAdd')      return '=';
-    if (c === 'Minus' || c === 'NumpadSubtract') return '-';
     return e.key.toLowerCase();
   }
   addEventListener('keydown', e => {
@@ -1156,8 +1146,6 @@ export async function mountCampus(){
     if (k === 'd'){ keys['run'] = true; return; }
     if (k === 'j') turn(-1);
     if (k === 'k') turn(1);
-    if (k === '=' || k === '+') zoomBy(-1);
-    if (k === '-' || k === '_') zoomBy(1);
     if (k === 'q'){ toggleSit(); e.preventDefault(); }
     if (k === 'w'){ doJump(); e.preventDefault(); }
     if (k === 'e'){ doWave(); e.preventDefault(); }
