@@ -1036,10 +1036,6 @@ export async function mountCampus(){
   // 캐릭터 키(TARGET_H)를 올리는 쪽은 문틀·앉는 높이·이름표·충돌을 다 건드려야 해서
   // 카메라만 당긴다. 대신 건물도 같이 커져 한 화면에 들어오는 마을 범위가 줄어든다.
   let zoom = 0.75;
-  // 꾸미기 모드의 카메라 거리(배율). 27.7m × 0.17 ≈ 4.7m — 화각 30°에서 세로로
-  // 2.5m 가 보이므로 1.3m 캐릭터가 화면 높이의 절반을 차지한다.
-  const DRESS_ZOOM = 0.17;
-  let dressT = 0;                          // 0 = 평소, 1 = 꾸미기. 프레임 루프가 민다
   const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
   const camLook = new THREE.Vector3(P.x, 0.9, P.z);
   //  키보드 줌 — 휠과 같은 값을 쓴다
@@ -1310,12 +1306,7 @@ export async function mountCampus(){
 
   // ── 카메라 회전 ────────────────────────────────────────────────
   // 45°씩 끊어 돌린다. 자유 회전은 아이소메트릭 격자가 어긋나 보인다.
-  // 꾸미는 중에는 같은 키가 **캐릭터**를 돌린다(턴테이블). 카메라를 돌려 봐야
-  // 캐릭터가 계속 카메라를 보고 있어 화면이 그대로다.
-  function turn(dir){
-    if (charOpen) P.yaw += dir * Math.PI/4;
-    else camYawTo += dir * Math.PI/4;
-  }
+  function turn(dir){ camYawTo += dir * Math.PI/4; }
   document.getElementById('rotL').onclick = () => turn(-1);
   document.getElementById('rotR').onclick = () => turn(1);
 
@@ -1347,6 +1338,7 @@ export async function mountCampus(){
   //  넘기기는 ‹ › 로, 색은 **한 번에 한 부위만** 한 줄로 낸다(네 줄을 동시에 펴면
   //  그것만으로 화면이 다 찬다).
   let dressTab = 'base';
+  let elHead = null, elFoot = null;
   //  옷장 — 잔액·가진 것·값. 꾸미기 화면을 열 때 한 번 받아 온다.
   //  통화는 캠퍼스 사과가 아니라 **학습 포인트**다. 안 산 것도 입어는 볼 수 있게 하고
   //  (입어 봐야 산다), 저장은 가진 것만 한다.
@@ -1362,11 +1354,20 @@ export async function mountCampus(){
     charOpen = true;
     elChars.hidden = false;
     elChars.classList.add('dress');
-    // 꾸미는 동안에는 카메라를 마주 본다 — 뒷모습을 보며 얼굴색을 고를 수는 없다.
-    // P.yaw 를 직접 돌린다(프레임 루프가 이 값으로 캐릭터를 세운다).
-    P.yaw = camYaw;
     elRoot && elRoot.classList.add('dressing');
     savedLook = {...myLook};
+    elChars.innerHTML =
+      `<div class="dhead"></div>` +
+      `<div class="dstage"><canvas class="dcv"></canvas>` +
+        `<button class="dside dprev" data-spin="-1" aria-label="왼쪽으로 돌리기">` +
+          `${icon('chevron-left', 24)}</button>` +
+        `<button class="dside dnext" data-spin="1" aria-label="오른쪽으로 돌리기">` +
+          `${icon('chevron-right', 24)}</button>` +
+      `</div>` +
+      `<div class="dfoot"></div>`;
+    elHead = elChars.querySelector('.dhead');
+    elFoot = elChars.querySelector('.dfoot');
+    previewStart(elChars.querySelector('.dcv'));
     drawChars();
     await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
     Avatar.preloadAids?.();
@@ -1383,6 +1384,7 @@ export async function mountCampus(){
       rebuildPlayer();
       toast('사지 않은 것은 그대로 두었어요');
     }
+    previewStop();
     elChars.hidden = true; charOpen = false;
     elChars.classList.remove('dress');
     elRoot && elRoot.classList.remove('dressing');
@@ -1395,12 +1397,100 @@ export async function mountCampus(){
   /** 이 슬롯이 고를 수 있는 값들. 헤어에만 '없음'(대머리)이 있다. */
   const optionsOf = slot => (slot === 'head' ? [Avatar.BALD] : []).concat(Avatar.MODELS || []);
 
+  // ── 창 안의 캐릭터 ────────────────────────────────────────────────
+  //  맵 카메라를 당겨 보여 주면 뒤에 마을이 비치고, 회전도 맵 규칙에 묶인다.
+  //  꾸미기는 **자기 무대**를 가져야 한다 — 창 안에 작은 렌더러를 따로 둔다.
+  //  컨텍스트는 한 번 만들어 재사용한다(WebGL 컨텍스트를 여닫으면 브라우저가 늙는다).
+  let pv = null;                 // {renderer, scene, cam, rig, raf, yaw, spin}
+  function previewStart(canvas){
+    if (!pv){
+      const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe6e0, 2.2));
+      const key = new THREE.DirectionalLight(0xfff6e8, 1.5);
+      key.position.set(2.5, 4, 3);
+      scene.add(key);
+      // 화각 30° · 거리 3.0m — 1.3m 캐릭터가 무대 높이의 80% 쯤을 채운다
+      const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+      cam.position.set(0, 0.78, 3.0);
+      pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0};
+    } else pv.renderer.domElement !== canvas && (pv = pv);
+    previewSync();
+    const loop = () => {
+      pv.raf = requestAnimationFrame(loop);
+      const el = pv.renderer.domElement;
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w && h && (el.width !== w * pv.renderer.getPixelRatio() || pv.cam.aspect !== w/h)){
+        pv.renderer.setSize(w, h, false);
+        pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix();
+      }
+      if (pv.rig){
+        pv.yaw += pv.spin * 0.02;
+        pv.rig.root.rotation.y = pv.yaw;
+        poseAvatar(pv.rig, 'idle', 'none', 0);
+      }
+      pv.cam.lookAt(0, 0.66, 0);
+      pv.renderer.render(pv.scene, pv.cam);
+    };
+    cancelAnimationFrame(pv.raf); loop();
+    // 끌어서 돌린다 — 버튼보다 이게 먼저 손에 잡힌다
+    if (!canvas.dataset.spin){
+      canvas.dataset.spin = '1';
+      let last = null;
+      const down = e => { last = (e.touches ? e.touches[0] : e).clientX; };
+      const move = e => {
+        if (last === null) return;
+        const x = (e.touches ? e.touches[0] : e).clientX;
+        pv.yaw += (x - last) * 0.012; last = x;
+        e.preventDefault();
+      };
+      const up = () => { last = null; };
+      canvas.addEventListener('pointerdown', down);
+      addEventListener('pointermove', move, {passive:false});
+      addEventListener('pointerup', up);
+    }
+  }
+  function previewSync(){
+    if (!pv) return;
+    if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); }
+    pv.rig = buildAvatar(myLook, myBody);
+    // 이름표는 맵에서만 쓴다. 무대에서는 캐릭터만 본다.
+    pv.rig.root.rotation.y = pv.yaw;
+    pv.scene.add(pv.rig.root);
+  }
+  function previewStop(){
+    if (!pv) return;
+    cancelAnimationFrame(pv.raf); pv.raf = 0;
+    if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); pv.rig = null; }
+  }
+
+  // ── 모양 썸네일 ───────────────────────────────────────────────────
+  //  숫자로 고르게 하면 눌러 보기 전엔 무엇인지 알 수 없다. 실제로 입힌 모습을
+  //  찍어 보여 준다. 열쇠에 기준 얼굴을 넣는다 — 얼굴이 바뀌면 머리·옷도 달라 보인다.
+  const lookThumbs = new Map();
+  function thumbKey(slot, v, L){ return `${slot}:${v}:${L.base}`; }
+  function thumbFor(slot, v, L){
+    const k = thumbKey(slot, v, L);
+    if (lookThumbs.has(k)) return lookThumbs.get(k);
+    const look = slot === 'base' ? {base:v, head:v, body:v}
+                                 : {base:L.base, head:L.head, body:L.body, [slot]:v};
+    let url = '';
+    try {
+      const rig = buildAvatar({...look, colors: myLook.colors}, myBody);
+      url = thumbOf(rig.root);
+      disposeAvatar(rig);
+    } catch { url = ''; }
+    lookThumbs.set(k, url);
+    return url;
+  }
+
   function drawChars(){
     if (!charOpen) return;
     const L = Avatar.resolveLook ? Avatar.resolveLook(myLook) : {base: myLook.model};
     const colors = myLook.colors || {};
     const parts = Avatar.PARTS || [];
-    // 안경이 메시에 박힌 얼굴에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
     const withAid = !Avatar.hasBuiltinGlasses?.(L.base);
     const tabs = SLOTS
       .concat(parts.map(p => ({id: p.id, name: p.name + '색'})))
@@ -1411,52 +1501,45 @@ export async function mountCampus(){
     const opts = optionsOf(slot);
     const at = Math.max(0, opts.indexOf(L[slot]));
 
-    let row;
+    let grid;
     if (SLOTS.some(s => s.id === dressTab)){
-      row = opts.map((v, i) => {
+      grid = `<div class="dgrid2">` + opts.map(v => {
+        const on = v === L[slot] ? ' on' : '';
         const lock = ownsSlot(slot, v) ? '' : ' lock';
-        const label = v === Avatar.BALD ? '없음' : i + (opts[0] === Avatar.BALD ? 0 : 1);
-        return `<button class="slotb${v === L[slot] ? ' on' : ''}${lock}" ` +
-               `data-slot="${slot}" data-val="${v}">${label}</button>`;
-      }).join('');
+        if (v === Avatar.BALD)
+          return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}">` +
+                 `<span class="dnone">없음</span></button>`;
+        const url = thumbFor(slot, v, L);
+        return `<button class="dcard${on}${lock}" data-slot="${slot}" data-val="${v}">` +
+               (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
+               (lock ? `<span class="dlock">${icon('lock', 12)}</span>` : '') + `</button>`;
+      }).join('') + `</div>`;
     } else if (dressTab === 'aid'){
-      row = (Avatar.ACCESSORIES || []).map(a =>
+      grid = `<div class="swrow">` + (Avatar.ACCESSORIES || []).map(a =>
         `<button class="aidbtn${myLook.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
-        `${a.name}</button>`).join('');
+        `${a.name}</button>`).join('') + `</div>`;
     } else {
-      row = (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
+      grid = `<div class="swrow">` + (parts.find(p => p.id === dressTab) || {ids:[]}).ids.map(id => {
         const c = (Avatar.PALETTE || []).find(p => p.id === id);
         if (!c) return '';
         const on = colors[dressTab] === id ? ' on' : '';
         return `<button class="swatch${on}" data-part="${dressTab}" data-color="${id}"` +
                ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
-      }).join('');
+      }).join('') + `</div>`;
     }
 
     const label = SLOTS.find(s => s.id === slot).name;
-    // 90% 창. 가운데는 비워 둔다 — 거기에 유리를 깔면 뒤의 캐릭터가 같이 뭉개진다.
-    // 유리는 머리(제목)와 발치(조작)에만 깐다.
-    elChars.innerHTML =
-      `<div class="dhead">` +
-        `<b>캐릭터 꾸미기</b>` +
-        `<span class="dwhat">${label} · ${L[slot] === Avatar.BALD ? '없음' : at + 1}/${opts.length}</span>` +
-        `<span class="sp"></span>` +
-        (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
-           (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
-        `<button class="ddone" data-close>완료</button>` +
-      `</div>` +
-      `<button class="dside dprev" data-step="-1" aria-label="이전 ${label}">` +
-        `${icon('chevron-left', 26)}</button>` +
-      `<button class="dside dnext" data-step="1" aria-label="다음 ${label}">` +
-        `${icon('chevron-right', 26)}</button>` +
-      `<div class="dfoot">` +
-        `<div class="dtabs">` +
-          tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
-                        `data-tab="${t.id}">${t.name}</button>`).join('') +
-        `</div>` +
-        `<div class="swrow">${row}</div>` +
-        buyRow(L) +
-      `</div>`;
+    elHead.innerHTML =
+      `<b>캐릭터 꾸미기</b><span class="dwhat">${label} · ` +
+      `${L[slot] === Avatar.BALD ? '없음' : at + 1}/${opts.length}</span><span class="sp"></span>` +
+      (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
+         (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
+      `<button class="ddone" data-close>완료</button>`;
+    elFoot.innerHTML =
+      `<div class="dtabs">` +
+        tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
+                      `data-tab="${t.id}">${t.name}</button>`).join('') +
+      `</div>${grid}${buyRow(L)}`;
   }
   /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
   function buyRow(L){
@@ -1489,6 +1572,10 @@ export async function mountCampus(){
       return;
     }
     if (b.dataset.slot){ await pickSlot(b.dataset.slot, b.dataset.val); return; }
+    if (b.dataset.spin){
+      if (pv) pv.yaw += Number(b.dataset.spin) * Math.PI / 4;
+      return;
+    }
     if (b.dataset.step){
       const slot = slotOf(dressTab);
       const opts = optionsOf(slot);
@@ -1502,7 +1589,7 @@ export async function mountCampus(){
       const next = myLook.aid === b.dataset.aid ? null : b.dataset.aid;
       if (next) await Avatar.ensureAid?.(next);
       myLook = {...myLook, aid: next};
-      rebuildPlayer();
+      rebuildPlayer(); previewSync();
       const r = await saveCharacter(myLook, myBody);
       if (r.ok && net) net.updateMeta(myLook, myBody);
       drawChars();
@@ -1516,7 +1603,7 @@ export async function mountCampus(){
       if (cur === b.dataset.color) delete colors[b.dataset.part];
       else colors[b.dataset.part] = b.dataset.color;
       myLook = {...myLook, colors};
-      rebuildPlayer();
+      rebuildPlayer(); previewSync();
       const r = await saveCharacter(myLook, myBody);
       if (r.ok && net) net.updateMeta(myLook, myBody);
       drawChars();
@@ -1532,7 +1619,7 @@ export async function mountCampus(){
     // model 은 더 이상 안 쓴다 — 남겨 두면 옛 값이 되살아난다
     myLook = {...myLook, ...next, model: undefined, aid};
     if (value !== Avatar.BALD) await Avatar.ensure?.(value);
-    rebuildPlayer();
+    rebuildPlayer(); previewSync();
     if (!ownsSlot(slot, value)){ drawChars(); return; }   // 미리보기만 — 저장은 살 때
     const r = await saveCharacter(myLook, myBody);
     if (r.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
@@ -2066,19 +2153,9 @@ export async function mountCampus(){
     // ── 카메라: 위치와 look-at을 각각 스무딩 ──
     // 세로로 긴 화면(모바일)은 가로 시야가 좁다. 거리로 보정해 주변 맥락이 보이게 한다.
     const fit = Math.min(1.7, Math.max(1, 1.35 / camera.aspect));
-    // 꾸미기 중에는 캐릭터로 밀고 들어간다 — 고르는 대상이 화면에서 가장 커야 한다.
-    // 여기서는 aspect 보정(fit)을 쓰지 않는다. 그건 '주변을 보여 주려고' 뒤로
-    // 물러나는 값이라, 세로로 긴 모바일에서 캐릭터를 도로 작게 만든다.
-    dressT += ((charOpen ? 1 : 0) - dressT) * Math.min(1, dt * 4);
-    // 꾸미는 동안엔 내 이름표를 감춘다 — 이 거리에서는 얼굴만 하게 커져서
-    // 정작 고르는 대상을 가린다. 내 캐릭터인 건 이미 안다.
-    for (const c of player.root.children) if (c.isSprite) c.visible = dressT < 0.15;
-    const eDist = zoom * fit * (1 - dressT) + DRESS_ZOOM * dressT;
-    // 시선을 낮추면 캐릭터가 화면 위쪽으로 올라간다 — 아래는 조작 바가 덮는다.
-    const eLookY = 1.30 * (1 - dressT) + 0.62 * dressT;
-    tmp.copy(CAM_DIR).multiplyScalar(eDist).add(player.root.position);
+    tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(player.root.position);
     camPos.lerp(tmp, 1 - Math.exp(-6.5 * dt));
-    camLook.lerp(tmp.set(P.x, eLookY, P.z), 1 - Math.exp(-9 * dt));
+    camLook.lerp(tmp.set(P.x, 1.30, P.z), 1 - Math.exp(-9 * dt));
     camera.position.copy(camPos);
     camera.lookAt(camLook);
 

@@ -422,3 +422,53 @@
     .campus-root .dnext{right:8px}
   }
  @media (prefers-reduced-motion: reduce){ .campus-root .dside{transition:none} }
+
+  /* ══ 꾸미기 창 v2 — 캐릭터를 창 안에서 따로 그린다 ═══════════════
+     맵 카메라를 당겨 보여 주면 뒤에 마을이 비치고 회전도 맵 규칙에 묶인다.
+     무대를 따로 두면 유리를 제대로 깔 수 있다(뒤에 캔버스가 없으니 블러가
+     캐릭터를 뭉개지 않는다). */
+  .campus-root .panel.dress{background:rgba(255,255,255,.55);
+       -webkit-backdrop-filter:blur(28px) saturate(1.6);
+       backdrop-filter:blur(28px) saturate(1.6);
+       border:1px solid rgba(255,255,255,.75);
+       box-shadow:0 0 0 9999px rgba(16,26,20,.42), 0 32px 80px rgba(0,0,0,.22);
+       pointer-events:auto;
+       display:flex;flex-direction:column;gap:0;padding:12px}
+  .campus-root .panel.dress > *{pointer-events:auto}
+
+  .campus-root .dhead{position:static;display:flex;align-items:center;gap:10px;
+       padding:4px 6px 10px;background:none;backdrop-filter:none;border:none;box-shadow:none}
+
+  /* 무대 — 캐릭터만 있는 자리. 아주 옅은 그라데이션으로 바닥을 암시한다 */
+  .campus-root .dstage{position:relative;flex:1;min-height:0;border-radius:18px;
+       background:linear-gradient(180deg, rgba(255,255,255,.5), rgba(226,238,229,.72));
+       border:1px solid rgba(255,255,255,.8);overflow:hidden;
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
+  .campus-root .dcv{position:absolute;inset:0;width:100%;height:100%;display:block;
+       cursor:grab;touch-action:none}
+  .campus-root .dcv:active{cursor:grabbing}
+
+  .campus-root .dfoot{position:static;display:flex;flex-direction:column;gap:8px;
+       padding:10px 4px 2px;background:none;backdrop-filter:none;border:none;box-shadow:none}
+
+  /* 모양 카드 — 숫자가 아니라 실제로 입힌 모습을 찍어 보여 준다 */
+  .campus-root .dgrid2{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;
+       scrollbar-width:none;overscroll-behavior-x:contain}
+  .campus-root .dgrid2::-webkit-scrollbar{display:none}
+  .campus-root .dcard{position:relative;flex:none;width:72px;height:82px;padding:0;
+       border:1px solid var(--line);border-radius:var(--r-md);background:rgba(255,255,255,.8);
+       cursor:pointer;overflow:hidden;display:grid;place-items:center;
+       transition:transform 150ms cubic-bezier(.4,0,.2,1), border-color 150ms}
+  .campus-root .dcard img{width:100%;height:100%;object-fit:contain}
+  .campus-root .dcard .dph{width:40px;height:40px;border-radius:8px;background:#e7eee9}
+  .campus-root .dcard .dnone{font-size:12px;font-weight:700;color:var(--muted)}
+  .campus-root .dcard:hover{transform:translateY(-2px)}
+  .campus-root .dcard.on{border-color:var(--primary);border-width:2px;
+       background:var(--primary-soft)}
+  .campus-root .dcard:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .campus-root .dcard.lock{border-style:dashed}
+  .campus-root .dcard .dlock{position:absolute;top:4px;right:4px;width:18px;height:18px;
+       border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;
+       color:var(--muted);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+ @media (prefers-reduced-motion: reduce){ .campus-root .dcard{transition:none} }
