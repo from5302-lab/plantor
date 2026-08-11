@@ -400,6 +400,11 @@ function graftHair(baseHeadMesh, headName, owned){
   const mesh = new THREE.SkinnedMesh(out, bend(src.material.clone()));
   mesh.name = 'hair-graft';
   mesh.frustumCulled = false;
+  // ⚠ 원본 메시의 로컬 변환을 그대로 물려받아야 한다. 새 메시는 기본이 항등이라
+  //   원본에 위치·회전·크기가 걸려 있으면 엉뚱한 자리에 서거나 사라진다.
+  mesh.position.copy(src.position);
+  mesh.quaternion.copy(src.quaternion);
+  mesh.scale.copy(src.scale);
   mesh.bind(baseHeadMesh.skeleton, baseHeadMesh.bindMatrix);
   owned.push(out, mesh.material);
   return mesh;
@@ -429,6 +434,9 @@ function swapBody(model, bodyName, owned){
   const mesh = new THREE.SkinnedMesh(g, bend(src.material.clone()));
   mesh.name = src.name;
   mesh.frustumCulled = false;
+  mesh.position.copy(src.position);
+  mesh.quaternion.copy(src.quaternion);
+  mesh.scale.copy(src.scale);
   mesh.bind(cur.skeleton, cur.bindMatrix);
   cur.parent.add(mesh);
   cur.parent.remove(cur);
