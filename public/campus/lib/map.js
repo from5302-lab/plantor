@@ -1496,18 +1496,51 @@ export async function mountCampus(){
   //  숫자로 고르게 하면 눌러 보기 전엔 무엇인지 알 수 없다. 실제로 입힌 모습을
   //  찍어 보여 준다. 열쇠에 기준 얼굴을 넣는다 — 얼굴이 바뀌면 머리·옷도 달라 보인다.
   const lookThumbs = new Map();
-  function thumbKey(slot, v, L){ return `${slot}:${v}:${L.base}`; }
+  //  부위마다 **그 부위를 확대해서** 찍는다. 전신으로 찍으면 머리 차이가 몇 픽셀이라
+  //  무엇이 다른지 알 수 없다(레퍼런스의 아바타 편집기들이 그렇게 한다).
+  //  캐릭터 키는 1.30m — 아래 값은 그 안에서의 띠다.
+  const FOCUS = {
+    base: [0.74, 1.34],      // 얼굴 — 머리
+    head: [0.76, 1.40],      // 헤어 — 머리(높은 머리·모자까지)
+    body: [0.02, 0.98],      // 옷 — 몸통과 다리
+  };
+  const THUMB_W = 132, THUMB_H = 150;
+  let aR = null, aS = null, aC = null;
+  function thumbSetup(){
+    if (aR) return;
+    aR = new THREE.WebGLRenderer({antialias:true, alpha:true});
+    aR.setSize(THUMB_W, THUMB_H); aR.setPixelRatio(2);
+    aR.outputColorSpace = THREE.SRGBColorSpace;
+    aS = new THREE.Scene();
+    aS.add(new THREE.HemisphereLight(0xffffff, 0xe2e8e3, 2.2));
+    const k = new THREE.DirectionalLight(0xfff6e8, 1.4); k.position.set(2, 4, 3); aS.add(k);
+    // 정사영 — 원근이 섞이면 카드마다 크기가 달라 보여 비교가 안 된다
+    aC = new THREE.OrthographicCamera(-1, 1, 1, -1, -20, 40);
+  }
+  function renderThumb(look, slot){
+    thumbSetup();
+    const rig = buildAvatar({...look, colors: myLook.colors}, myBody);
+    // 살짝 튼 3/4 — 정면만 보면 옆머리·소매가 안 보인다
+    rig.root.rotation.y = -0.42;
+    aS.add(rig.root);
+    const [y0, y1] = FOCUS[slot] || [0, 1.32];
+    const h = (y1 - y0) / 2, w = h * (THUMB_W / THUMB_H);
+    aC.left = -w; aC.right = w; aC.top = h; aC.bottom = -h;
+    aC.position.set(0, (y0 + y1) / 2, 8);
+    aC.lookAt(0, (y0 + y1) / 2, 0);
+    aC.updateProjectionMatrix();
+    aR.render(aS, aC);
+    const url = aR.domElement.toDataURL('image/png');
+    aS.remove(rig.root); disposeAvatar(rig);
+    return url;
+  }
   function thumbFor(slot, v, L){
-    const k = thumbKey(slot, v, L);
+    const k = `${slot}:${v}:${L.base}:${JSON.stringify(myLook.colors || {})}`;
     if (lookThumbs.has(k)) return lookThumbs.get(k);
     const look = slot === 'base' ? {base:v, head:v, body:v}
                                  : {base:L.base, head:L.head, body:L.body, [slot]:v};
     let url = '';
-    try {
-      const rig = buildAvatar({...look, colors: myLook.colors}, myBody);
-      url = thumbOf(rig.root);
-      disposeAvatar(rig);
-    } catch { url = ''; }
+    try { url = renderThumb(look, slot); } catch { url = ''; }
     lookThumbs.set(k, url);
     return url;
   }
