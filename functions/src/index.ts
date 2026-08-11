@@ -21,3 +21,4 @@ export { gradeWriting } from "./writing";
 export { class5Library } from "./class5-proxy";
 export { purchaseShopItem, equipAvatarItem, markBadgesSeen, equipBadges, setFeedOptOut } from "./rewards-api";
 export { sendFamilyMail, openFamilyMail } from "./family-mail";
+export { publishCampusLook } from "./campus-look";

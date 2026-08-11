@@ -7,7 +7,16 @@ import { BG_STYLE, RARITY, SHOP_BY_ID } from "@/lib/rewards/catalog";
 
 type Equipped = Record<string, string | null | undefined>;
 
-export function AvatarView({ equipped, size = 56 }: { equipped: Equipped; size?: number }) {
+export function AvatarView({ equipped, size = 56, shot }: {
+  equipped: Equipped;
+  size?: number;
+  /**
+   * 캠퍼스 캐릭터 얼굴 스냅샷 URL(children.campusFaceShot).
+   * 주면 이모지 대신 이 얼굴을 그린다 — 작은 자리(피드·상점 목록)에서 정체성만 잇는 용도다.
+   * 없으면 지금까지 그리던 이모지 그대로. 캠퍼스 캐릭터가 없는 학생이 아직 대부분이다.
+   */
+  shot?: string | null;
+}) {
   const bg = BG_STYLE[String(equipped.background ?? "bg-plain")] ?? BG_STYLE["bg-plain"];
   const frame = equipped.frame ? SHOP_BY_ID.get(String(equipped.frame)) : undefined;
   const ring = frame ? RARITY[frame.rarity].ring : "rgba(0,0,0,0.08)";
@@ -38,7 +47,18 @@ export function AvatarView({ equipped, size = 56 }: { equipped: Equipped; size?:
         aria-hidden
         style={{ position: "absolute", inset: 0, borderRadius: "50%", background: bg, pointerEvents: "none" }}
       />
-      {base && (
+      {shot ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={shot}
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            objectFit: "cover", borderRadius: "50%", pointerEvents: "none",
+          }}
+        />
+      ) : base && (
         <span
           aria-hidden
           style={{
