@@ -220,6 +220,17 @@
   .campus-root .dcell.on{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
   .campus-root .dcell:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
+  /* 색 고르기 — 색 자체가 라벨이라 글씨를 넣지 않는다. 대신 고른 것에 테두리를 준다
+     (색만으로 선택을 표시하면 흰색·크림처럼 옅은 색에서 안 보인다) */
+  .campus-root .swrow{display:flex;flex-wrap:wrap;gap:6px;margin:2px 2px 4px}
+  .campus-root .swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;
+       border:1px solid rgba(0,0,0,.14);padding:0;
+       transition:transform 120ms cubic-bezier(.4,0,.2,1)}
+  .campus-root .swatch:hover{transform:scale(1.12)}
+  .campus-root .swatch.on{box-shadow:0 0 0 2px var(--panel), 0 0 0 4px var(--primary)}
+  .campus-root .swatch:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+ @media (prefers-reduced-motion: reduce){ .campus-root .swatch{transition:none} }
+
  @media(max-width:760px){
     .campus-root .tools{top:12px;right:12px;gap:6px}
     .campus-root .chipbtn{padding:7px 10px;font-size:12px}

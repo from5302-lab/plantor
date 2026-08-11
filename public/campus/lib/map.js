@@ -1340,17 +1340,43 @@ export async function mountCampus(){
   function drawChars(){
     if (!charOpen) return;
     const cur = myLook.model || 'male-a';
+    const colors = myLook.colors || {};
+    // 색 줄 — 부위마다 고를 수 있는 색만 낸다(피부에 초록을 내면 실수로만 눌린다).
+    const swatches = (Avatar.PARTS || []).map(part => {
+      const cells = part.ids.map(id => {
+        const c = (Avatar.PALETTE || []).find(p => p.id === id);
+        if (!c) return '';
+        const on = colors[part.id] === id ? ' on' : '';
+        return `<button class="swatch${on}" data-part="${part.id}" data-color="${id}"` +
+               ` style="background:${c.hex}" title="${c.name}" aria-label="${part.name} ${c.name}"></button>`;
+      }).join('');
+      return `<div class="psec">${part.name}</div><div class="swrow">${cells}</div>`;
+    }).join('');
     elChars.innerHTML = `<div class="phead">캐릭터 고르기<span class="sp"></span>` +
       `<button class="x" data-close aria-label="닫기">${icon('x', 16)}</button></div>` +
       `<div class="pbody"><div class="dgrid">` +
       (Avatar.MODELS || []).map(n =>
         `<button class="dcell ${n === cur ? 'on' : ''}" data-char="${n}">` +
         `<img src="${charThumbs.get(n) || ''}" alt="" draggable="false"></button>`).join('') +
-      `</div></div>`;
+      `</div>${swatches}</div>`;
   }
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-close')){ elChars.hidden = true; charOpen = false; return; }
+    if (b.dataset.part){
+      // 같은 색을 다시 누르면 원래 색으로 되돌린다 — 되돌릴 길이 없으면 못 눌러 본다.
+      const cur = (myLook.colors || {})[b.dataset.part];
+      const colors = {...(myLook.colors || {})};
+      if (cur === b.dataset.color) delete colors[b.dataset.part];
+      else colors[b.dataset.part] = b.dataset.color;
+      myLook = {...myLook, colors};
+      rebuildPlayer();
+      const r = await saveCharacter(myLook, myBody);
+      if (r.ok && net) net.updateMeta(myLook, myBody);
+      drawChars();
+      if (!r.ok) toast('저장 실패: ' + r.error);
+      return;
+    }
     const n = b.dataset.char;
     if (!n) return;
     myLook = {...myLook, model: n};

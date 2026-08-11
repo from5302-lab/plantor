@@ -88,8 +88,111 @@ async function load(name){
   return entry;
 }
 
+// ══ 색 바꾸기 ══════════════════════════════════════════════════════
+//
+//  팔레트(512×512)는 세로로 짝지어져 있다 — 같은 열의 두 줄이 한 색의 밝은/어두운
+//  쌍이다. 그래서 색의 단위는 64px 칸이 아니라 **64×128 계열**(가로 8 × 세로 4)이다.
+//
+//  색을 바꾸는 방법은 '칠하기'가 아니라 **UV 이사**다. 계열 안에 명암 램프가 이미
+//  들어 있으므로, 정점의 UV 를 다른 계열로 평행이동하면 음영이 그대로 산 채 색만
+//  바뀐다. 텍스처는 12종이 계속 한 장을 공유한다 — 사람마다 복제하는 건 UV 뿐이다.
+//
+//  ⚠ 칸을 칠하는 방식은 못 쓴다. 계열은 색 단위지 부위가 아니라서, 같은 색이면
+//    부위가 달라도 한 계열을 나눠 쓴다(검정 머리와 검정 신발). 칠하면 같이 바뀐다.
+//
+//  어느 정점이 어느 부위인지는 오프라인에서 뽑아 둔 표를 읽는다
+//  (scripts/campus-part-cells.py → models/kenney/part-cells.json).
+//  열쇠는 정점의 (메시, 계열x, 계열y, 뼈부류) 다.
+
+/** 쓸 수 있는 색. y2 줄은 옷 색, y3 줄은 중립·피부다(빈 계열은 검정이라 안 쓴다). */
+export const PALETTE = [
+  {id:'cream',  name:'크림',   hex:'#fde4c7', f:[0,2]},
+  {id:'green',  name:'초록',   hex:'#61cb8b', f:[1,2]},
+  {id:'yellow', name:'노랑',   hex:'#ffd565', f:[2,2]},
+  {id:'orange', name:'주황',   hex:'#ff9d44', f:[3,2]},
+  {id:'red',    name:'다홍',   hex:'#fe6c40', f:[4,2]},
+  {id:'blue',   name:'파랑',   hex:'#6794d9', f:[5,2]},
+  {id:'sky',    name:'연하늘', hex:'#d0e8ff', f:[6,2]},
+  {id:'purple', name:'보라',   hex:'#a878e8', f:[7,2]},
+  {id:'ink',    name:'먹색',   hex:'#464957', f:[0,3]},
+  {id:'gray',   name:'회색',   hex:'#868ba1', f:[1,3]},
+  {id:'slate',  name:'청회색', hex:'#565c74', f:[2,3]},
+  {id:'mist',   name:'연회청', hex:'#c4cdf6', f:[3,3]},
+  {id:'white',  name:'흰색',   hex:'#ffffff', f:[4,3]},
+  {id:'tan',    name:'살구',   hex:'#f1976c', f:[5,3]},
+  {id:'brown',  name:'갈색',   hex:'#b06041', f:[6,3]},
+  {id:'peach',  name:'밝은살', hex:'#f2bf99', f:[7,3]},
+];
+const BY_ID = new Map(PALETTE.map(p => [p.id, p]));
+/** 피부에 초록·보라를 보여 주면 실수로만 눌린다. 살색 계열만 낸다. */
+export const SKIN_IDS = ['peach', 'tan', 'brown', 'cream'];
+export const PARTS = [
+  {id:'skin',   name:'피부',   ids: SKIN_IDS},
+  {id:'hair',   name:'머리',   ids: PALETTE.map(p => p.id)},
+  {id:'top',    name:'상의',   ids: PALETTE.map(p => p.id)},
+  {id:'bottom', name:'하의',   ids: PALETTE.map(p => p.id)},
+];
+
+let PART_CELLS = null;                       // {family:[w,h], models:{name:{key:part}}}
+
+const BONE_CLASS = {'head':'head', 'torso':'torso', 'root':'torso',
+                    'arm-left':'arm', 'arm-right':'arm',
+                    'leg-left':'leg', 'leg-right':'leg'};
+
+/**
+ * 정점마다 UV 를 목표 계열로 옮긴다. 표에 없는 부위(이목구비 등)는 건드리지 않는다.
+ * geometry 는 cloneSkinned 가 **공유**하므로, 손대기 전에 이 인스턴스 것으로 복제한다.
+ * 안 그러면 같은 모델을 쓰는 다른 접속자의 캐릭터까지 같이 바뀐다.
+ */
+function recolor(model, modelName, colors, owned){
+  const table = PART_CELLS && PART_CELLS.models[modelName];
+  if (!table) return;
+  const [fw, fh] = PART_CELLS.family;                     // 64 × 128
+  const TEX = 512;
+  model.traverse(o => {
+    if (!o.isMesh || !o.geometry.attributes.uv) return;
+    o.geometry = o.geometry.clone();                      // ← 공유 해제
+    owned.push(o.geometry);                               // 복제했으니 버리는 것도 우리 몫
+    const uv = o.geometry.attributes.uv;
+    const si = o.geometry.attributes.skinIndex;
+    const sw = o.geometry.attributes.skinWeight;
+    const bones = o.skeleton ? o.skeleton.bones : [];
+    const tag = o.name.charAt(0);                         // 'b' / 'h'
+    for (let i = 0; i < uv.count; i++){
+      const u = uv.getX(i), v = uv.getY(i);
+      const fx = Math.floor(Math.min(Math.floor(u * TEX), TEX - 1) / fw);
+      const fy = Math.floor(Math.min(Math.floor(v * TEX), TEX - 1) / fh);
+      // 뼈부류 — 가중치가 가장 큰 뼈가 그 정점의 주인이다
+      let cls = 'torso', best = -1;
+      if (si && sw){
+        const w = {};
+        for (let k = 0; k < 4; k++){
+          const wk = sw.getComponent(i, k);
+          if (wk <= 0) continue;
+          const b = bones[si.getComponent(i, k)];
+          const c = b ? BONE_CLASS[b.name] : null;
+          if (!c) continue;
+          w[c] = (w[c] || 0) + wk;
+          if (w[c] > best){ best = w[c]; cls = c; }
+        }
+      }
+      const part = table[`${tag},${fx},${fy},${cls}`];
+      const pick = part && BY_ID.get(colors[part]);
+      if (!pick) continue;
+      uv.setXY(i, u + (pick.f[0] - fx) * fw / TEX,
+                  v + (pick.f[1] - fy) * fh / TEX);
+    }
+    uv.needsUpdate = true;
+  });
+}
+
 /** 맵 마운트 전에 한 번. buildAvatar 가 동기라 기본 캐릭터는 미리 받아 둔다. */
 export async function preload(){
+  // 표는 색을 쓸 때만 필요하다. 못 받아도 캐릭터는 그대로 선다.
+  if (!PART_CELLS){
+    try { PART_CELLS = await (await fetch(BASE + 'part-cells.json')).json(); }
+    catch { PART_CELLS = null; }
+  }
   await load(DEFAULT_MODEL);                 // 클립도 여기서 들어온다
   return cache.get(DEFAULT_MODEL);
 }
@@ -121,8 +224,8 @@ const modelOf = look => {
 };
 
 /**
- * @param look {model} — 12종 중 하나. 나머지 필드(skin/hair/top…)는 안 쓴다.
- *                       Kenney 캐릭터는 색이 메시에 박혀 있다.
+ * @param look {model, colors} — model 은 12종 중 하나.
+ *             colors 는 {skin, hair, top, bottom} → PALETTE 의 id. 없으면 원래 색.
  * @param body (미사용)
  */
 export function buildAvatar(look = {}, body = null, opts = {}){
@@ -142,6 +245,9 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     o.material = bend(o.material.clone());
     owned.push(o.material);
   });
+
+  // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
+  if (look.colors && Object.keys(look.colors).length) recolor(model, name, look.colors, owned);
 
   const root = new THREE.Group();
   root.add(model);
@@ -215,7 +321,8 @@ export function disposeAvatar(rig){
   if (!rig) return;
   rig.mixer.stopAllAction();
   rig.mixer.uncacheRoot(rig.model);
-  // 지오메트리·텍스처는 캐시된 템플릿 것을 공유한다. 복제한 재질만 버린다.
+  // 텍스처는 캐시된 템플릿 것을 공유한다. 복제한 것만 버린다 —
+  // 재질은 항상, geometry 는 색을 골라 UV 를 고쳤을 때만 복제돼 있다.
   rig.owned.forEach(m => m.dispose());
   rig.root.parent && rig.root.parent.remove(rig.root);
 }
