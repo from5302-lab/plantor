@@ -1603,13 +1603,16 @@ export async function mountCampus(){
     const swatches = (partId) => {
       const p = parts.find(x => x.id === partId);
       if (!p) return '';
-      return `<div class="drow"><span class="dlabel">${p.name}</span><div class="swrow">` +
+      const cur = (Avatar.PALETTE || []).find(x => x.id === colors[partId]);
+      return `<div class="drow"><span class="dlabel">${p.name}` +
+        (cur ? `<i>${cur.name}</i>` : `<i>기본</i>`) + `</span><div class="swrow">` +
         p.ids.map(id => {
           const c = (Avatar.PALETTE || []).find(x => x.id === id);
           if (!c) return '';
           const on = colors[partId] === id ? ' on' : '';
           return `<button class="swatch${on}" data-part="${partId}" data-color="${id}"` +
-                 ` style="background:${c.hex}" aria-label="${c.name}"></button>`;
+                 ` style="background:${c.hex}" title="${c.name}" aria-label="${p.name} ${c.name}"` +
+                 `${on ? ' aria-pressed="true"' : ''}></button>`;
         }).join('') + `</div></div>`;
     };
 

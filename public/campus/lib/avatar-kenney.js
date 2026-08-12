@@ -66,6 +66,20 @@ const cache = new Map();          // model 이름 → {scene, height}
 let CLIPS = null;                 // AnimationClip[] — 전 캐릭터가 공유한다
 const loader = new GLTFLoader();
 
+//  살색이 넷뿐이라 빈 계열에 여섯을 더 찍어 둔 팔레트(scripts/campus-skin-tones.py).
+//  GLB 12개를 다시 굽지 않으려고 **바깥 PNG** 로 두고 런타임에서 갈아 끼운다.
+let PALETTE_TEX = null;
+function paletteTexture(){
+  if (!PALETTE_TEX){
+    PALETTE_TEX = new THREE.TextureLoader().load(BASE + 'colormap.png');
+    PALETTE_TEX.flipY = false;             // glTF 와 같은 방향이어야 UV 가 맞는다
+    PALETTE_TEX.colorSpace = THREE.SRGBColorSpace;
+    PALETTE_TEX.magFilter = PALETTE_TEX.minFilter = THREE.NearestFilter;
+    PALETTE_TEX.generateMipmaps = false;
+  }
+  return PALETTE_TEX;
+}
+
 function prepare(scene){
   scene.updateMatrixWorld(true);
   scene.traverse(o => {
@@ -73,11 +87,8 @@ function prepare(scene){
     o.frustumCulled = false;                 // 스킨드는 바운딩이 어긋나 사라진다
     const m = o.material;
     if (m && m.map){
-      // 팔레트 아틀라스 — 보간하면 색 칸이 섞인다
-      m.map.magFilter = THREE.NearestFilter;
-      m.map.minFilter = THREE.NearestFilter;
-      m.map.generateMipmaps = false;
-      m.map.needsUpdate = true;
+      m.map = paletteTexture();            // 살색을 더 넣은 팔레트로 갈아 끼운다
+      m.needsUpdate = true;
     }
   });
   return scene;
@@ -128,15 +139,26 @@ export const PALETTE = [
   {id:'tan',    name:'살구',   hex:'#f1976c', f:[5,3]},
   {id:'brown',  name:'갈색',   hex:'#b06041', f:[6,3]},
   {id:'peach',  name:'밝은살', hex:'#f2bf99', f:[7,3]},
+  // 아래 여섯은 빈 계열에 새로 찍은 살색이다(scripts/campus-skin-tones.py).
+  // 기존 램프의 명암을 그대로 두고 색조만 옮겨 만들었다 — 음영이 살아 있다.
+  {id:'porcelain', name:'아주밝은', hex:'#f0ceb8', f:[0,0]},
+  {id:'ivory',     name:'밝은',     hex:'#e3be9f', f:[1,0]},
+  {id:'honey',     name:'중간',     hex:'#d39779', f:[2,0]},
+  {id:'almond',    name:'중간진한', hex:'#b5755d', f:[3,0]},
+  {id:'chestnut',  name:'진한',     hex:'#8c5142', f:[4,0]},
+  {id:'espresso',  name:'아주진한', hex:'#663b32', f:[5,0]},
 ];
 const BY_ID = new Map(PALETTE.map(p => [p.id, p]));
 /** 피부에 초록·보라를 보여 주면 실수로만 눌린다. 살색 계열만 낸다. */
-export const SKIN_IDS = ['peach', 'tan', 'brown', 'cream'];
+export const SKIN_IDS = ['porcelain', 'ivory', 'peach', 'honey', 'tan',
+                         'almond', 'brown', 'chestnut', 'espresso', 'cream'];
+/** 옷·머리에는 원래 16색만 낸다 — 새로 찍은 살색까지 섞으면 목록이 살색으로 덮인다 */
+const WEAR_IDS = PALETTE.slice(0, 16).map(p => p.id);
 export const PARTS = [
   {id:'skin',   name:'피부',   ids: SKIN_IDS},
-  {id:'hair',   name:'머리',   ids: PALETTE.map(p => p.id)},
-  {id:'top',    name:'상의',   ids: PALETTE.map(p => p.id)},
-  {id:'bottom', name:'하의',   ids: PALETTE.map(p => p.id)},
+  {id:'hair',   name:'머리',   ids: WEAR_IDS},
+  {id:'top',    name:'상의',   ids: WEAR_IDS},
+  {id:'bottom', name:'하의',   ids: WEAR_IDS},
 ];
 
 let PART_CELLS = null;                       // {family:[w,h], models:{name:{key:part}}}

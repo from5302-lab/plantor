@@ -554,3 +554,17 @@
     /* 색 줄 둘(상의·하의)은 한 덩어리로 아래에 붙는다 */
     .campus-root .panel.dress .drow{grid-row:auto}
   }
+
+  /* P0 썸네일이 카드보다 3~4px 커서 턱이 잘리고 아래 카드와 겹쳐 보였다.
+     place-items:center 가 늘리기를 막아 object-fit 이 안 먹었다 —
+     이미지를 카드에 절대배치해 항상 안에 들어오게 한다 */
+  .campus-root .dcard{display:block;aspect-ratio:132/150}
+  .campus-root .dcard img{position:absolute;inset:0;width:100%;height:100%;
+       object-fit:contain}
+  .campus-root .dcard .dnone,
+  .campus-root .dcard .dph{position:absolute;inset:0;display:grid;place-items:center}
+
+  /* 색 줄에 지금 고른 색 이름을 붙인다 — 네모만 늘어놓으면 눌러 봐야 안다 */
+  .campus-root .dlabel{display:flex;flex-direction:column;gap:1px;width:44px}
+  .campus-root .dlabel i{font-style:normal;font-size:10.5px;font-weight:600;
+       color:var(--primary);white-space:nowrap}
