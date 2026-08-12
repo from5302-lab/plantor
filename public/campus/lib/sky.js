@@ -121,7 +121,7 @@ export function createSky(scene){
 
   //  별 — **지평선 바로 위부터** 뿌린다. 부감 카메라에서 보이는 하늘은 지평선
   //  위 몇 도짜리 띠뿐이라, 높은 데만 별을 두면 하나도 안 보인다(실제로 그랬다).
-  const starN = 320, pos = new Float32Array(starN * 3);
+  const starN = 960, pos = new Float32Array(starN * 3);   // 320 → 960 (사용자: 3배)
   for (let i = 0; i < starN; i++){
     const a = RND() * Math.PI * 2, y = 0.04 + RND() * 0.9, r = 120;
     const rr = Math.sqrt(Math.max(0, 1 - y * y));
