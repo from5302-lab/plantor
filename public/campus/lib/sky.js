@@ -119,21 +119,31 @@ export function createSky(scene){
     clouds.push(b);
   }
 
-  //  별 — **지평선 바로 위부터** 뿌린다. 부감 카메라에서 보이는 하늘은 지평선
-  //  위 몇 도짜리 띠뿐이라, 높은 데만 별을 두면 하나도 안 보인다(실제로 그랬다).
-  const starN = 960, pos = new Float32Array(starN * 3);   // 320 → 960 (사용자: 3배)
+  //  별 — **지평선 바로 위부터, 낮은 하늘에 몰아** 뿌린다. 부감 카메라에서
+  //  보이는 하늘은 지평선 위 몇 도짜리 띠뿐이라, 반구에 고르게 뿌리면 개수를
+  //  아무리 올려도 화면에는 몇십 개다(960개일 때 실측 ~15개). pow 곡선으로
+  //  절반쯤을 보이는 띠 안에 내려놓는다.
+  //  반짝임 — 점마다 흔들려면 셰이더가 필요하다. 대신 **4개 그룹**으로 나눠
+  //  그룹 밝기를 어긋난 위상으로 흔든다. 그룹이 공간에 고루 섞여 있어
+  //  눈에는 낱개가 깜빡이는 것으로 읽힌다. 크기도 그룹마다 달리해 깊이를 준다.
+  const starN = 2200, STAR_GROUPS = 4;
+  const starBuckets = Array.from({length: STAR_GROUPS}, () => []);
   for (let i = 0; i < starN; i++){
-    const a = RND() * Math.PI * 2, y = 0.04 + RND() * 0.9, r = 120;
+    const a = RND() * Math.PI * 2, y = 0.04 + 0.9 * Math.pow(RND(), 2.2), r = 120;
     const rr = Math.sqrt(Math.max(0, 1 - y * y));
-    pos[i*3] = Math.cos(a) * rr * r; pos[i*3+1] = y * r; pos[i*3+2] = Math.sin(a) * rr * r;
+    starBuckets[i % STAR_GROUPS].push(Math.cos(a) * rr * r, y * r, Math.sin(a) * rr * r);
   }
-  const starGeo = new THREE.BufferGeometry();
-  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const starMat = new THREE.PointsMaterial({color: 0xffffff, size: 1.5,
-                                            transparent: true, opacity: 0, fog: false,
-                                            sizeAttenuation: true, depthWrite: false});
-  const stars = new THREE.Points(starGeo, starMat);
-  root.add(stars);
+  const starMats = starBuckets.map((b, gi) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b), 3));
+    const mat = new THREE.PointsMaterial({color: 0xffffff, size: 1.1 + gi * 0.3,
+                                          transparent: true, opacity: 0, fog: false,
+                                          sizeAttenuation: true, depthWrite: false});
+    mat.userData = {phase: RND() * Math.PI * 2, speed: 0.9 + RND() * 1.6};
+    root.add(new THREE.Points(geo, mat));
+    return mat;
+  });
+  let twinkleT = 0;
 
   //  해와 달 — **같은 궤도를 반나절씩 나눠 탄다.** 해는 6시 동쪽에서 떠 18시
   //  서쪽으로, 달은 18시에 떠 6시에 진다. 카메라가 북쪽을 보므로 궤도는 북쪽
@@ -215,7 +225,12 @@ export function createSky(scene){
       }
       cloudMat.opacity = 0.9 - s.night * 0.55;
       cloudMat.color.setHex(lerpHex(0xffffff, 0x6a7ba8, s.night));
-      starMat.opacity = Math.max(0, s.night - 0.35) * 1.4;
+      //  반짝임 — 그룹별 위상·속도로 밝기를 흔든다. 바닥은 0.68 로 받쳐
+      //  전멸하는 그룹이 없게 한다(밤하늘이 통째로 숨 쉬면 고장처럼 보인다).
+      twinkleT += dt;
+      const starBase = Math.max(0, s.night - 0.35) * 1.4;
+      for (const m of starMats)
+        m.opacity = starBase * (0.68 + 0.32 * Math.sin(twinkleT * m.userData.speed + m.userData.phase));
       //  해: 6→18시. 달: 18→다음날 6시. 궤도 밖 시간엔 지평선 아래(투명)다.
       const sunT = (h - 6) / 12;
       if (sunT >= 0 && sunT <= 1){ orbit(sun, sunT); sunMat.opacity = 1 - s.night; }
