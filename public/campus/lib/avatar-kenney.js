@@ -325,6 +325,43 @@ export async function preloadAll(){
   await Promise.all(MODELS.map(n => load(n).catch(() => null)));
 }
 
+/**
+ * 같은 모양을 두 번 보여 주지 않는다.
+ *
+ * Kenney 캐릭터 12종은 얼굴·옷은 다 다르지만 **표정은 네 가지뿐**이다
+ * (남자 다섯이 한 벌, male-f 한 벌, 여자 다섯이 한 벌, female-f 한 벌).
+ * 머리카락도 male-b 와 male-d 가 같다. 열두 칸을 늘어놓으면 고르는 사람은
+ * "왜 다 똑같지" 하고 자기 눈을 의심한다 — 뽑을 때 미리 접는다.
+ *
+ * 판단 근거는 **정점 좌표**다. 이름이나 손으로 적은 표가 아니라 실제 기하라
+ * 에셋이 바뀌면 결과도 따라 바뀐다.
+ *
+ * 아직 안 받아진 모델이 있으면 접지 않고 전부 돌려준다 — 반쯤 받아진 상태에서
+ * 접으면 "같다"는 판단 자체가 틀린다. 다 받아진 뒤 다시 그릴 때 접힌다.
+ */
+const distinctCache = new Map();
+export function distinctModels(part){          // 'face' | 'bald'(헤어)
+  if (distinctCache.has(part)) return distinctCache.get(part);
+  const cells = PART_CELLS && PART_CELLS[part];
+  if (!cells || !MODELS.every(m => cache.has(m))) return MODELS;
+  const seen = new Map(), out = [];
+  for (const m of MODELS){
+    const e = cache.get(m);
+    let hm = null;
+    e.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') hm = o; });
+    const list = cells[m] || [];
+    if (!hm || !list.length){ out.push(m); continue; }
+    const p = hm.geometry.attributes.position.array;
+    let h = 0;
+    for (const i of list)
+      for (let a = 0; a < 3; a++) h = (h * 31 + Math.round(p[i * 3 + a] * 1e4)) | 0;
+    if (seen.has(h)) continue;
+    seen.set(h, m); out.push(m);
+  }
+  distinctCache.set(part, out);
+  return out;
+}
+
 /** 미리보기용 사본. 씬에 넣었다 빼고 버린다. */
 export function previewOf(name){
   const e = cache.get(MODELS.includes(name) ? name : DEFAULT_MODEL);

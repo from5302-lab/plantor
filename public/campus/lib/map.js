@@ -1414,10 +1414,17 @@ export async function mountCampus(){
    */
   const optionsOf = (slot, L) => {
     if (slot === 'eyewear'){
-      const own = Avatar.hasBuiltinGlasses?.(L ? L.base : '') ? ['own'] : [];
-      return own.concat(['none'], (Avatar.ACCESSORIES || []).map(a => a.id));
+      // 얼굴에 박힌 안경은 소품 '안경'과 **같은 물건**이다(정점 82개가 같다).
+      // 둘을 나란히 놓으면 똑같은 카드가 두 장 뜬다 — 박힌 쪽이 있으면 소품은 뺀다.
+      const builtin = Avatar.hasBuiltinGlasses?.(L ? L.base : '');
+      const aids = (Avatar.ACCESSORIES || []).map(a => a.id)
+        .filter(id => !(builtin && id === 'glasses'));
+      return (builtin ? ['own'] : []).concat(['none'], aids);
     }
-    return (slot === 'head' ? [Avatar.BALD] : []).concat(Avatar.MODELS || []);
+    if (slot === 'face') return Avatar.distinctModels?.('face') || Avatar.MODELS || [];
+    if (slot === 'head')
+      return [Avatar.BALD].concat(Avatar.distinctModels?.('bald') || Avatar.MODELS || []);
+    return Avatar.MODELS || [];
   };
 
   // ── 창 안의 캐릭터 ────────────────────────────────────────────────
