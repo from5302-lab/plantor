@@ -1355,7 +1355,7 @@ export async function mountCampus(){
     draft = {...myLook};
     elChars.innerHTML =
       `<div class="dhead"></div>` +
-      `<div class="dstage"><canvas class="dcv"></canvas>` +
+      `<div class="dstage">` +
         `<button class="dside dprev" data-spin="-1" aria-label="왼쪽으로 돌리기">` +
           `${icon('chevron-left', 24)}</button>` +
         `<button class="dside dnext" data-spin="1" aria-label="오른쪽으로 돌리기">` +
@@ -1364,7 +1364,7 @@ export async function mountCampus(){
       `<div class="dfoot"></div>`;
     elHead = elChars.querySelector('.dhead');
     elFoot = elChars.querySelector('.dfoot');
-    previewStart(elChars.querySelector('.dcv'));
+    previewStart(elChars.querySelector('.dstage'));
     // 닫는 길을 여럿 둔다. '취소'는 있었지만 '닫기'로 안 읽혔다 —
     // ESC 와 바깥 클릭은 창을 닫는 보편적인 방법이라 없으면 갇힌 느낌이 든다.
     escClose = e => { if (e.key === 'Escape' || e.code === 'Escape'){ e.preventDefault(); closeChars(); } };
@@ -1425,8 +1425,15 @@ export async function mountCampus(){
   //  꾸미기는 **자기 무대**를 가져야 한다 — 창 안에 작은 렌더러를 따로 둔다.
   //  컨텍스트는 한 번 만들어 재사용한다(WebGL 컨텍스트를 여닫으면 브라우저가 늙는다).
   let pv = null;                 // {renderer, scene, cam, rig, raf, yaw, spin}
-  function previewStart(canvas){
+  /**
+   * ⚠ 무대는 창을 열 때마다 innerHTML 로 새로 그린다. 캔버스를 그 안에 적어 두면
+   *   두 번째로 열었을 때 렌더러는 **버려진 옛 캔버스**에 계속 그린다 — 화면은
+   *   비어 있는데 아무 에러도 안 난다. 캔버스는 렌더러가 들고, 열 때마다 끼운다.
+   */
+  function previewStart(host){
     if (!pv){
+      const canvas = document.createElement('canvas');
+      canvas.className = 'dcv';
       const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1458,7 +1465,9 @@ export async function mountCampus(){
       scene.add(disc);
       const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
       pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0, look:0.65};
-    } else pv.renderer.domElement !== canvas && (pv = pv);
+    }
+    const canvas = pv.renderer.domElement;
+    host.prepend(canvas);
     previewSync();
     const loop = () => {
       pv.raf = requestAnimationFrame(loop);

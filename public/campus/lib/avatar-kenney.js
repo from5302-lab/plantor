@@ -366,13 +366,17 @@ export function resolveLook(look = {}){
   //    glasses:true 가 여기로 흘러 들어와 안경을 벗겨 버린다 — 이름을 갈라 둔다.
   // 얼굴에 안경이 없으면 'own' 과 'none' 은 같은 그림이다 — 하나로 모아
   // 두어야 고르기 화면에서 "지금 이거" 표시가 어디에도 안 붙는 일이 없다.
-  let eyewear = look.eyewear || 'own';
+  //  옛 저장분의 aid 는 안경 소품이었다. 그대로 두면 얼굴에 박힌 안경 위에
+  //  한 겹 더 씌워져 두 개가 겹친다 — 새 칸으로 옮겨 읽는다.
+  let eyewear = look.eyewear || look.aid || 'own';
   if (eyewear === 'own' && !hasBuiltinGlasses(base)) eyewear = 'none';
   return {
     base,
     head: look.head === BALD ? BALD : pick(look.head),
     body: pick(look.body),
-    face: pick(look.face),                 // 표정 — 눈썹·입
+    // ⚠ 표정만은 fb(기본 모델)로 떨어지면 안 된다. 표정을 안 고른 캐릭터가
+    //   전부 male-a 의 입을 달게 된다 — 제 얼굴을 기본값으로 둔다.
+    face: MODELS.includes(look.face) ? look.face : base,
     eyewear,
   };
 }
@@ -620,7 +624,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
 
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
   if (look.colors && Object.keys(look.colors).length) recolor(model, L, look.colors, owned);
-  const wear = (L.eyewear !== 'own' && L.eyewear !== 'none') ? L.eyewear : look.aid;
+  const wear = (L.eyewear !== 'own' && L.eyewear !== 'none') ? L.eyewear : null;
   if (wear) attachAid(model, wear, owned);
 
   const root = new THREE.Group();
