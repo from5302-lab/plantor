@@ -693,9 +693,10 @@ export async function mountCampus(){
         minZ:Math.min(hall.exitZ, hall.exitZ + eSide*2.2), maxZ:Math.max(hall.exitZ, hall.exitZ + eSide*2.2)});
     } else {
       // 현관 없는 건물 — 룸 문(동쪽만 쓴다)이 곧 바깥 문. 출구 존을 문 안쪽에 붙인다.
+      // ⚠ unshift — 현관이 없으면 문 앞도 룸 존 안이라, 뒤에 두면 영영 못 나간다.
       const r = rooms[0], x1 = r.x + r.w/2;
-      ZONES.push({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
-        minX:x1 - 2.2, maxX:x1,
+      ZONES.unshift({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
+        minX:x1 - 1.8, maxX:x1,
         minZ:r.z - DOOR_W/2 - 0.6, maxZ:r.z + DOOR_W/2 + 0.6});
     }
 
