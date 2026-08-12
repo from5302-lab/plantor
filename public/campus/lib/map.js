@@ -186,9 +186,11 @@ export async function mountCampus(){
     //   camH 6.0 → 12° : 화면 위 ~10% 가 진짜 하늘이 된다.
     outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:6.0, fog:[64, 130]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
-    // 우리집은 뒷모습으로 통일한다. 상점만 0 인 건 매점쌤(z=4.4)을 마주 보라는 뜻이다.
+    // 우리집은 뒷모습으로 통일한다.
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
-    union:   {id:'union',   name:'상점',     spawn:{x: 7.5, z:-4.6, yaw:0},       camR:16.0, camH:11.0, fog:[34, 70]},
+    // 상점 문은 **동쪽**(화면 오른쪽)이다 — 밖에서 걸어 들어온 방향이 이어져야
+    // 한다(사용자 결정). 스폰은 문 바로 안, 서향(-π/2)으로 매장을 향해 선다.
+    union:   {id:'union',   name:'상점',     spawn:{x:11.6, z:1,    yaw:-Math.PI/2}, camR:16.0, camH:11.0, fog:[34, 70]},
   };
 
   const ROOMS = [
@@ -196,16 +198,17 @@ export async function mountCampus(){
     {id:'office', level:'main',  name:'상담실',   sub:'충쌤에게 물어보기',                x: 7.5, z:-13.5, w:13, d:8, door:'s', hue:0x1f7a33},
     {id:'study',  level:'study', name:'내 방',    sub:'포인트로 넓히고 꾸미기',           x:-7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33,
      personal:true},
-    {id:'lounge', level:'union', name:'매장',     sub:'팔고 사기',                        x: 7.5, z:  1,   w:13, d:8, door:'n', hue:0x1f7a33},
+    {id:'lounge', level:'union', name:'매장',     sub:'팔고 사기',                        x: 7.5, z:  1,   w:13, d:8, door:'e', hue:0x1f7a33},
   ];
 
   // 실내 현관/복도. 여기서 건물 밖으로 나간다.
   //  main  은 룸 둘 사이의 복도가 그대로 현관을 겸한다(문 = 남쪽 z=-3).
-  //  study/union 은 룸이 하나뿐이라 문 앞에 현관 한 칸만 둔다(문 = 북쪽 z=-6).
+  //  study 는 룸이 하나뿐이라 문 앞에 현관 한 칸만 둔다(문 = 북쪽 z=-6).
+  //  union 은 현관이 없다 — 매장 문(동쪽)이 곧 바깥 문이다. 마트 안에
+  //  칸막이 벽이 서 있으면 매장이 아니라 사무실로 보인다(사용자 결정).
   const HALLS = {
     main:  {minX:-14, maxX: 14, minZ:-9, maxZ:-3, exitZ:-3, exitX:0,    exitSide:'s'},
     study: {minX:-14, maxX: -1, minZ:-6, maxZ:-3, exitZ:-6, exitX:-7.5, exitSide:'n'},
-    union: {minX:  1, maxX: 14, minZ:-6, maxZ:-3, exitZ:-6, exitX: 7.5, exitSide:'n'},
   };
 
   // 룸과 룸 사이에 남는 구간. 안 채우면 복도에서 들여다보이는 2칸짜리 막다른
@@ -251,36 +254,37 @@ export async function mountCampus(){
   prop('main', 'office-sofa', 7.5, -11.6, 3.6, 1.2, 0.66, 0xb3cbb8);
   prop('main', 'office-shelf', 13.2, -13.5, 0.8, 4.8, 1.9, 0xe9eeea);
   // 개인 자습실은 고정 가구가 없다 — 로그인 계정의 배치를 불러와 그린다(아래 applyRoom)
-  // 매장: Kenney Mini Market 레퍼런스. 문(7.5,-3)→계산대 큰길(x 7~9.5)은 비워 둔다.
-  //  계산대 2대 — 예전 카운터 자리. 매점 존(x9.6~13.6 z1.4~2.8)이 바로 앞이고
-  //  매점쌤(11.5, 4.4)이 뒤에 선다. 키패드가 +z(점원) 쪽이라 yaw 0.
-  prop('union', 'mm-register-a', 10.6, 3.5, 1.3, 1.3, 0.9, 0x8b93a8);
-  prop('union', 'mm-register-b', 12.3, 3.5, 1.3, 1.3, 0.9, 0x8b93a8);
-  //  동쪽 벽 냉장 쇼케이스 3대 — 1.5m 폭이 정확히 맞닿아 한 뱅크가 된다
-  prop('union', 'mm-fridge-a', 13.4, -1.8, 0.8, 1.5, 1.35, 0x8b93a8);
-  prop('union', 'mm-fridge-b', 13.4, -0.3, 0.8, 1.5, 1.35, 0x8b93a8);
-  prop('union', 'mm-fridge-c', 13.4,  1.2, 0.8, 1.5, 1.35, 0x8b93a8);
-  //  중앙 곤돌라 2줄 — 3칸이 맞닿아 한 줄. 줄 사이 통로 1.6m
-  prop('union', 'mm-shelf-a0', 3.9, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  prop('union', 'mm-shelf-a1', 5.0, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  prop('union', 'mm-shelf-a2', 6.1, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  prop('union', 'mm-shelf-b0', 3.9,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  prop('union', 'mm-shelf-b1', 5.0,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  prop('union', 'mm-shelf-b2', 6.1,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
-  //  서쪽 벽 엔드 진열대 2대 — 병음료. 동향(π/2)
-  prop('union', 'mm-wallshelf-a', 1.5, -0.3, 0.5, 1.0, 1.3, 0x9aa2b5);
-  prop('union', 'mm-wallshelf-b', 1.5,  0.85, 0.5, 1.0, 1.3, 0x9aa2b5);
+  // 매장: Kenney Mini Market 레퍼런스. 문은 **동쪽**(14, 1) — 들어서면 서쪽으로
+  //  매장이 펼쳐지고, 계산대·매점쌤이 입구 앞(북동)에 바로 보여야 한다.
+  //  계산대 2대 — 북동. 점원이 북쪽(벽 쪽)에 서므로 키패드(+z 모델)를 π로 돌린다.
+  prop('union', 'mm-register-a', 10.3, -1.2, 1.3, 1.3, 0.9, 0x8b93a8);
+  prop('union', 'mm-register-b', 11.8, -1.2, 1.3, 1.3, 0.9, 0x8b93a8);
+  //  서쪽 벽 냉장 쇼케이스 3대 — 1.5m 폭이 정확히 맞닿아 한 뱅크가 된다. 동향
+  prop('union', 'mm-fridge-a', 1.6, -1.8, 0.8, 1.5, 1.35, 0x8b93a8);
+  prop('union', 'mm-fridge-b', 1.6, -0.3, 0.8, 1.5, 1.35, 0x8b93a8);
+  prop('union', 'mm-fridge-c', 1.6,  1.2, 0.8, 1.5, 1.35, 0x8b93a8);
+  //  중앙 곤돌라 2줄 — 3칸이 맞닿아 한 줄. 문에서 들어와 줄 사이(z -0.3~1.3)를 걷는다
+  prop('union', 'mm-shelf-a0', 4.2, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-a1', 5.3, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-a2', 6.4, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b0', 4.2,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b1', 5.3,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b2', 6.4,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  //  북쪽 벽 엔드 진열대 2대 — 병음료. 남향(π)
+  prop('union', 'mm-wallshelf-a', 4.5, -2.45, 1.0, 0.5, 1.3, 0x9aa2b5);
+  prop('union', 'mm-wallshelf-b', 5.65, -2.45, 1.0, 0.5, 1.3, 0x9aa2b5);
   //  남서 코너 과일·빵 매대 — 정면이 +z 모델이라 방 쪽(-z)으로 π 돌린다
   prop('union', 'mm-display-fruit', 2.2, 4.0, 1.0, 1.0, 0.8, 0xd98f7a);
   prop('union', 'mm-display-bread', 3.6, 4.0, 1.2, 1.0, 0.8, 0xd9b98c);
   //  남쪽 벽 평대 냉동고 2대
   prop('union', 'mm-freezer-a', 5.6, 4.15, 1.5, 1.1, 0.65, 0x8b93a8);
   prop('union', 'mm-freezer-b', 7.2, 4.15, 1.5, 1.1, 0.65, 0x8b93a8);
-  //  입구 — 공병 수거기(서쪽)와 카트 주차(동쪽). 바구니는 밟고 지나가도 되는 소품
+  //  공병 수거기는 북서 코너. 카트·바구니는 문 옆 남동 코너 주차 —
+  //  출구 존(z ≤ 3.2)을 피해야 카트 앞에서 '나가기'가 뜨지 않는다
   prop('union', 'mm-bottle-return', 1.8, -2.35, 0.6, 0.6, 1.4, 0x2e7d5b);
-  prop('union', 'mm-cart-a', 9.6, -2.3, 0.5, 0.7, 0.55, 0x8b93a8);
-  prop('union', 'mm-cart-b', 10.2, -2.05, 0.5, 0.7, 0.55, 0x8b93a8);
-  prop('union', 'mm-basket', 8.8, -2.5, 0.45, 0.45, 0.35, 0x2e7d5b, false);
+  prop('union', 'mm-cart-a', 12.9, 3.6, 0.5, 0.7, 0.55, 0x8b93a8);
+  prop('union', 'mm-cart-b', 12.35, 4.05, 0.5, 0.7, 0.55, 0x8b93a8);
+  prop('union', 'mm-basket', 11.6, 4.3, 0.45, 0.45, 0.35, 0x2e7d5b, false);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
 
@@ -572,19 +576,19 @@ export async function mountCampus(){
     // 매장 (Mini Market) — 스케일은 캐릭터 1.3m 기준 실측.
     //  진열대 ≈ 가슴(1.15m) · 계산대 ≈ 허리(0.9m) · 쇼케이스 ≈ 키(1.35m).
     //  정면은 전부 +z 모델이다 — 쇼케이스는 서향(-π/2), 매대는 방 쪽(π)으로 돌린다.
-    'mm-register-a':    {name:'mm-register',      scale:1.5,  yaw:0},
-    'mm-register-b':    {name:'mm-register',      scale:1.5,  yaw:0},
-    'mm-fridge-a':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
-    'mm-fridge-b':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
-    'mm-fridge-c':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
+    'mm-register-a':    {name:'mm-register',      scale:1.5,  yaw:Math.PI},
+    'mm-register-b':    {name:'mm-register',      scale:1.5,  yaw:Math.PI},
+    'mm-fridge-a':      {name:'mm-fridge',        scale:1.5,  yaw:Math.PI/2},
+    'mm-fridge-b':      {name:'mm-fridge',        scale:1.5,  yaw:Math.PI/2},
+    'mm-fridge-c':      {name:'mm-fridge',        scale:1.5,  yaw:Math.PI/2},
     'mm-shelf-a0':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
     'mm-shelf-a1':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
     'mm-shelf-a2':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
     'mm-shelf-b0':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
     'mm-shelf-b1':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
     'mm-shelf-b2':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
-    'mm-wallshelf-a':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI/2},
-    'mm-wallshelf-b':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI/2},
+    'mm-wallshelf-a':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI},
+    'mm-wallshelf-b':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI},
     'mm-display-fruit': {name:'mm-display-fruit', scale:1.6,  yaw:Math.PI},
     'mm-display-bread': {name:'mm-display-bread', scale:1.6,  yaw:Math.PI},
     'mm-freezer-a':     {name:'mm-freezer',       scale:1.8,  yaw:0},
@@ -646,17 +650,19 @@ export async function mountCampus(){
     const bb = rooms.reduce((a, r) => ({
       minX: Math.min(a.minX, r.x - r.w/2), maxX: Math.max(a.maxX, r.x + r.w/2),
       minZ: Math.min(a.minZ, r.z - r.d/2), maxZ: Math.max(a.maxZ, r.z + r.d/2),
-    }), {minX:hall.minX, maxX:hall.maxX, minZ:hall.minZ, maxZ:hall.maxZ});
+    }), hall ? {minX:hall.minX, maxX:hall.maxX, minZ:hall.minZ, maxZ:hall.maxZ}
+             : {minX:Infinity, maxX:-Infinity, minZ:Infinity, maxZ:-Infinity});
     floorPlate(bb.minX - 1, bb.maxX + 1, bb.minZ - 1, bb.maxZ + 1, 0xe6e9e5, 2, 0);   // 룸 사이 여백
-    floorPlate(hall.minX, hall.maxX, hall.minZ, hall.maxZ, 0xfafbf9, 2, 0.01);        // 복도 = 흰 타일
+    if (hall)
+      floorPlate(hall.minX, hall.maxX, hall.minZ, hall.maxZ, 0xfafbf9, 2, 0.01);      // 복도 = 흰 타일
 
     for (const r of rooms){
       floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2, 0xf4f3ef, 2, 0.01);
       const x0 = r.x - r.w/2, x1 = r.x + r.w/2, z0 = r.z - r.d/2, z1 = r.z + r.d/2;
       wallWithDoor('x', z0, x0, x1, r.door === 'n' ? r.x : null);
       wallWithDoor('x', z1, x0, x1, r.door === 's' ? r.x : null);
-      wallWithDoor('z', x0, z0, z1, null);
-      wallWithDoor('z', x1, z0, z1, null);
+      wallWithDoor('z', x0, z0, z1, r.door === 'w' ? r.z : null);
+      wallWithDoor('z', x1, z0, z1, r.door === 'e' ? r.z : null);
 
       ZONES.push({kind:'room', room:r, name:r.name, sub:r.sub,
         minX:x0 + 1, maxX:x1 - 1, minZ:z0 + 1, maxZ:z1 - 1});
@@ -674,16 +680,24 @@ export async function mountCampus(){
                       minZ:f.z - f.d/2, maxZ:f.z + f.d/2, top:3.0});
     }
 
-    // 복도 외벽 — 나가는 문 한 곳만 뚫는다
-    addWall(hall.minX, hall.minZ, hall.minX, hall.maxZ);
-    addWall(hall.maxX, hall.minZ, hall.maxX, hall.maxZ);
-    wallWithDoor('x', hall.exitZ, hall.minX, hall.maxX, hall.exitX);
+    if (hall){
+      // 복도 외벽 — 나가는 문 한 곳만 뚫는다
+      addWall(hall.minX, hall.minZ, hall.minX, hall.maxZ);
+      addWall(hall.maxX, hall.minZ, hall.maxX, hall.maxZ);
+      wallWithDoor('x', hall.exitZ, hall.minX, hall.maxX, hall.exitX);
 
-    // 출구 존 — 문 안쪽에 붙는다
-    const eSide = hall.exitSide === 's' ? -1 : 1;
-    ZONES.push({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
-      minX:hall.exitX - DOOR_W/2 - 0.6, maxX:hall.exitX + DOOR_W/2 + 0.6,
-      minZ:Math.min(hall.exitZ, hall.exitZ + eSide*2.2), maxZ:Math.max(hall.exitZ, hall.exitZ + eSide*2.2)});
+      // 출구 존 — 문 안쪽에 붙는다
+      const eSide = hall.exitSide === 's' ? -1 : 1;
+      ZONES.push({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
+        minX:hall.exitX - DOOR_W/2 - 0.6, maxX:hall.exitX + DOOR_W/2 + 0.6,
+        minZ:Math.min(hall.exitZ, hall.exitZ + eSide*2.2), maxZ:Math.max(hall.exitZ, hall.exitZ + eSide*2.2)});
+    } else {
+      // 현관 없는 건물 — 룸 문(동쪽만 쓴다)이 곧 바깥 문. 출구 존을 문 안쪽에 붙인다.
+      const r = rooms[0], x1 = r.x + r.w/2;
+      ZONES.push({kind:'exit', name:'캠퍼스', sub:'건물 밖으로',
+        minX:x1 - 2.2, maxX:x1,
+        minZ:r.z - DOOR_W/2 - 0.6, maxZ:r.z + DOOR_W/2 + 0.6});
+    }
 
     if (KIT_OK){
       if (floorSpots.length){
@@ -707,10 +721,11 @@ export async function mountCampus(){
         minX:6.0, maxX:9.0, minZ:-15.6, maxZ:-13.6});
     }
     // 매점 존 — 룸 존보다 앞에 둔다. 존 판정이 첫 일치에서 멈추는데,
-    // 카운터 앞은 휴게실 존 안쪽이라 뒤에 두면 영영 안 잡힌다.
+    // 계산대 앞은 매장 존 안쪽이라 뒤에 두면 영영 안 잡힌다.
+    // 동쪽 끝(x>12.4)은 출구 존 자리라 물러난다 — 문 앞에서 매점이 뜨면 못 나간다.
     if (level === 'union'){
       ZONES.unshift({kind:'shop', name:'매점', sub:'사과 팔기 · 가구 사기',
-        minX:9.6, maxX:13.6, minZ:1.4, maxZ:2.8});
+        minX:9.4, maxX:12.4, minZ:-0.5, maxZ:0.7});
     }
   }
 
@@ -832,7 +847,8 @@ export async function mountCampus(){
   // 레벨별 고정 NPC. 충쌤은 원장실 사람이라 본관에만 있다.
   const NPC_DEFS = [
     {level:'main',  name:'충쌤',   preset:TEACHER,    x:7.5,  z:-16.2, yaw:0},
-    {level:'union', name:'매점쌤', preset:SHOPKEEPER, x:11.5, z:4.4,   yaw:Math.PI},
+    //  매점쌤은 계산대 뒤(북쪽)에서 남쪽 손님을 본다 — 문에서 들어서면 바로 보인다
+    {level:'union', name:'매점쌤', preset:SHOPKEEPER, x:11.05, z:-2.3, yaw:0},
   ];
   let NPCS = [];
 
