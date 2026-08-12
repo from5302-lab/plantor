@@ -159,6 +159,7 @@ export const PARTS = [
   {id:'hair',   name:'머리',   ids: WEAR_IDS},
   {id:'top',    name:'상의',   ids: WEAR_IDS},
   {id:'bottom', name:'하의',   ids: WEAR_IDS},
+  {id:'glass',  name:'안경',   ids: WEAR_IDS},
 ];
 
 let PART_CELLS = null;                       // {family:[w,h], models:{name:{key:part}}}
@@ -226,6 +227,32 @@ function recolor(model, L, colors, owned){
   });
 }
 
+/**
+ * 안경 색 — 본체 recolor 와 달리 부위 표가 없어 **테의 계열**을 기하로 찾는다.
+ * 안경다리는 귀까지 뻗으므로 |x| 가 가장 큰 정점이 반드시 테다. 그 정점의
+ * 팔레트 계열과 같은 계열만 목표 색으로 옮긴다 — 렌즈(다른 계열)는 남는다.
+ */
+function shiftFrameUVs(geom, indices, colorId){
+  const pick = BY_ID.get(colorId);
+  if (!pick || !PART_CELLS || !geom.attributes.uv) return;
+  const [fw, fh] = PART_CELLS.family, TEX = 512;
+  const uv = geom.attributes.uv, pos = geom.attributes.position;
+  const list = indices || Array.from({length: uv.count}, (_, i) => i);
+  if (!list.length) return;
+  let far = list[0];
+  for (const i of list) if (Math.abs(pos.getX(i)) > Math.abs(pos.getX(far))) far = i;
+  const fam = i => [Math.floor(Math.min(Math.floor(uv.getX(i) * TEX), TEX - 1) / fw),
+                    Math.floor(Math.min(Math.floor(uv.getY(i) * TEX), TEX - 1) / fh)];
+  const [ffx, ffy] = fam(far);
+  for (const i of list){
+    const [gx, gy] = fam(i);
+    if (gx !== ffx || gy !== ffy) continue;
+    uv.setXY(i, uv.getX(i) + (pick.f[0] - gx) * fw / TEX,
+                uv.getY(i) + (pick.f[1] - gy) * fh / TEX);
+  }
+  uv.needsUpdate = true;
+}
+
 /** 머리 색 대신 고를 수 있는 '없음'. 색이 아니라 상태라 id 를 따로 둔다. */
 export const BALD = 'none';
 
@@ -291,7 +318,7 @@ export function hasBuiltinGlasses(modelName){
   return !!(PART_CELLS && (PART_CELLS.builtinGlasses || []).includes(modelName));
 }
 
-function attachAid(model, id, owned){
+function attachAid(model, id, owned, colorId){
   const a = ACCESSORIES.find(x => x.id === id);
   const src = a && aidCache.get(id);
   if (!src) return;
@@ -304,6 +331,11 @@ function attachAid(model, id, owned){
     o.frustumCulled = false;
     o.material = bendIf(o.material.clone());    // 곡면은 캐릭터와 같이 굽어야 한다
     owned.push(o.material);
+    if (colorId){
+      o.geometry = o.geometry.clone();          // UV 를 만지니 공유를 끊는다
+      owned.push(o.geometry);
+      shiftFrameUVs(o.geometry, null, colorId);
+    }
   });
   node.position.set(a.offset[0], a.offset[1], a.offset[2]);
   head.add(node);
@@ -340,26 +372,161 @@ export async function preloadAll(){
  * 접으면 "같다"는 판단 자체가 틀린다. 다 받아진 뒤 다시 그릴 때 접힌다.
  */
 const distinctCache = new Map();
-export function distinctModels(part){          // 'face' | 'bald'(헤어)
+export function distinctModels(part){
+  // 'face'·'bald' 는 그 부위의 정점만, 'base'·'body' 는 메시 전체를 지문으로 삼는다.
   if (distinctCache.has(part)) return distinctCache.get(part);
+  if (!MODELS.every(m => cache.has(m))) return MODELS;
+  const whole = part === 'base' || part === 'body';
   const cells = PART_CELLS && PART_CELLS[part];
-  if (!cells || !MODELS.every(m => cache.has(m))) return MODELS;
+  if (!whole && !cells) return MODELS;
+  const prefix = part === 'body' ? 'b' : 'h';
   const seen = new Map(), out = [];
   for (const m of MODELS){
     const e = cache.get(m);
-    let hm = null;
-    e.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') hm = o; });
-    const list = cells[m] || [];
-    if (!hm || !list.length){ out.push(m); continue; }
-    const p = hm.geometry.attributes.position.array;
+    let mesh = null;
+    e.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === prefix) mesh = o; });
+    const p = mesh && mesh.geometry.attributes.position.array;
+    if (!p){ out.push(m); continue; }
     let h = 0;
-    for (const i of list)
-      for (let a = 0; a < 3; a++) h = (h * 31 + Math.round(p[i * 3 + a] * 1e4)) | 0;
+    if (whole){ for (let i = 0; i < p.length; i++) h = (h * 31 + Math.round(p[i] * 1e4)) | 0; }
+    else {
+      const list = cells[m] || [];
+      if (!list.length){ out.push(m); continue; }
+      for (const i of list)
+        for (let a = 0; a < 3; a++) h = (h * 31 + Math.round(p[i * 3 + a] * 1e4)) | 0;
+    }
     if (seen.has(h)) continue;
     seen.set(h, m); out.push(m);
   }
   distinctCache.set(part, out);
   return out;
+}
+
+// ── 만든 표정 ────────────────────────────────────────────────────────
+//  Kenney 12종이 가진 표정은 넷뿐이다(다섯 명이 한 벌을 돌려쓴다). 눈썹과 입은
+//  얼굴 앞면에 붙은 **납작한 판**이라, 에셋 없이 도형만 그려도 같은 화법이 된다.
+//  좌표는 손으로 적지 않는다 — 두개골이 12종 공통이므로, 기본 모델의 원래
+//  눈썹·입 위치를 재서 그 자리에 그린다(anchorFace). 에셋이 바뀌면 따라 움직인다.
+export const SYNTH_FACES = [
+  {id:'grin', name:'활짝'}, {id:'wow', name:'놀람'}, {id:'sad', name:'시무룩'},
+  {id:'flat', name:'무표정'}, {id:'cat', name:'야옹'},
+];
+export function faceOptions(){
+  return distinctModels('face').concat(SYNTH_FACES.map(f => f.id));
+}
+let faceAnchor = null;
+function anchorFace(){
+  if (faceAnchor) return faceAnchor;
+  const cells = PART_CELLS && PART_CELLS.face && PART_CELLS.face[DEFAULT_MODEL];
+  const e = cache.get(DEFAULT_MODEL);
+  if (!cells || !cells.length || !e) return null;
+  let hm = null;
+  e.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') hm = o; });
+  if (!hm) return null;
+  const p = hm.geometry.attributes.position;
+  const pts = cells.map(i => [p.getX(i), p.getY(i), p.getZ(i)]);
+  let ymin = 1e9, ymax = -1e9, zmax = -1e9;
+  for (const [, y, z] of pts){ ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); zmax = Math.max(zmax, z); }
+  const ymid = (ymin + ymax) / 2;
+  const box = () => ({x0:1e9, x1:-1e9, y0:1e9, y1:-1e9});
+  const brow = box(), mouth = box();
+  for (const [x, y] of pts){
+    const b = y > ymid ? brow : mouth;
+    b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x);
+    b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y);
+  }
+  const mid = b => ({cx:(b.x0 + b.x1) / 2, cy:(b.y0 + b.y1) / 2, w:b.x1 - b.x0, h:b.y1 - b.y0});
+  faceAnchor = {z: zmax + 0.002, brow: mid(brow), mouth: mid(mouth)};
+  return faceAnchor;
+}
+//  도형 셋 — 호(웃음·울상), 기운 막대(눈썹), 점(놀란 입)
+function shpArc(cx, cy, r, a0, a1, w){
+  const s = new THREE.Shape();
+  s.absarc(cx, cy, r + w / 2, a0, a1, false);
+  s.absarc(cx, cy, Math.max(0.001, r - w / 2), a1, a0, true);
+  return s;
+}
+function shpBar(cx, cy, w, h, rot = 0){
+  const s = new THREE.Shape(), c = Math.cos(rot), n = Math.sin(rot);
+  const pts = [[-w/2, -h/2], [w/2, -h/2], [w/2, h/2], [-w/2, h/2]]
+    .map(([x, y]) => [cx + x * c - y * n, cy + x * n + y * c]);
+  s.moveTo(pts[0][0], pts[0][1]);
+  for (const [x, y] of pts.slice(1)) s.lineTo(x, y);
+  s.closePath();
+  return s;
+}
+function shpDot(cx, cy, rx, ry){
+  const s = new THREE.Shape();
+  s.absellipse(cx, cy, rx, ry, 0, Math.PI * 2, false, 0);
+  return s;
+}
+const PI = Math.PI;
+function synthShapes(id, a){
+  //  위 덩어리는 눈썹이 아니라 **눈**이다(8정점 팔각형 둘). 표정을 지우면 눈도
+  //  같이 사라지므로, 만든 표정은 눈과 입을 **둘 다** 그려야 한다.
+  const E = a.brow, M = a.mouth;
+  const ex = E.w * 0.31, ew = E.w * 0.19, eh = Math.max(0.012, E.h * 0.5);
+  const eye = (shape) => {                       // 좌우 한 쌍
+    const mk = (sx) => {
+      const s2 = new THREE.Shape();
+      if (shape === 'round') s2.absellipse(sx, E.cy, ew, eh * 1.25, 0, PI * 2, false, 0);
+      else if (shape === 'wide') s2.absellipse(sx, E.cy, ew * 1.18, eh * 1.6, 0, PI * 2, false, 0);
+      else if (shape === 'droop')
+        s2.absellipse(sx, E.cy, ew, eh, 0, PI * 2, false, sx < 0 ? 0.42 : -0.42);
+      return s2;
+    };
+    if (shape === 'lid')                          // 반쯤 감은 눈 — 가로 막대
+      return [shpBar(-ex + E.cx, E.cy, ew * 2.1, eh * 0.7),
+              shpBar(ex + E.cx, E.cy, ew * 2.1, eh * 0.7)];
+    if (shape === 'happy')                        // 웃어서 감긴 눈 — ∩ 호
+      return [shpArc(-ex + E.cx, E.cy - eh * 0.5, ew, PI * 0.15, PI * 0.85, eh * 0.65),
+              shpArc(ex + E.cx, E.cy - eh * 0.5, ew, PI * 0.15, PI * 0.85, eh * 0.65)];
+    return [mk(-ex + E.cx), mk(ex + E.cx)];
+  };
+  const r = M.w * 0.42, t = Math.max(0.012, M.h * 0.55);
+  const grinMouth = () => {                       // 웃느라 벌린 입 — 아래가 둥근 반원
+    const s2 = new THREE.Shape();
+    s2.moveTo(M.cx - r, M.cy + r * 0.30);
+    s2.lineTo(M.cx + r, M.cy + r * 0.30);
+    s2.absarc(M.cx, M.cy + r * 0.30, r, 0, PI, true);
+    s2.closePath();
+    return s2;
+  };
+  switch (id){
+    case 'grin': return [...eye('happy'), grinMouth()];
+    case 'wow':  return [...eye('wide'), shpDot(M.cx, M.cy, M.w * 0.16, M.w * 0.20)];
+    case 'sad':  return [...eye('droop'),
+                         shpArc(M.cx, M.cy - r * 0.45, r, PI * 0.22, PI * 0.78, t * 1.2)];
+    case 'flat': return [...eye('lid'), shpBar(M.cx, M.cy, M.w * 0.58, t)];
+    case 'cat':  return [...eye('round'),
+                         shpArc(M.cx - r * 0.40, M.cy - r * 0.15, r * 0.42, PI * 0.10, PI * 0.95, t * 0.8),
+                         shpArc(M.cx + r * 0.40, M.cy - r * 0.15, r * 0.42, PI * 0.05, PI * 0.90, t * 0.8)];
+  }
+  return null;
+}
+function synthFace(baseHeadMesh, id, owned){
+  const a = anchorFace();
+  const shapes = a && synthShapes(id, a);
+  if (!shapes) return null;
+  const g = new THREE.ShapeGeometry(shapes, 10);
+  g.translate(0, 0, a.z);
+  //  전부 head 뼈에 100%로 묶는다 — 원래 눈썹·입도 그랬다
+  const n = g.attributes.position.count;
+  const head = new Map(baseHeadMesh.skeleton.bones.map((b, i) => [b.name, i])).get('head') || 0;
+  const di = new Uint16Array(n * 4), dw = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++){ di[i * 4] = head; dw[i * 4] = 1; }
+  g.setAttribute('skinIndex', new THREE.BufferAttribute(di, 4));
+  g.setAttribute('skinWeight', new THREE.BufferAttribute(dw, 4));
+  const mesh = new THREE.SkinnedMesh(g,
+    bendIf(new THREE.MeshLambertMaterial({color: 0x2c2c31})));
+  mesh.name = 'face-synth';
+  mesh.frustumCulled = false;
+  mesh.position.copy(baseHeadMesh.position);
+  mesh.quaternion.copy(baseHeadMesh.quaternion);
+  mesh.scale.copy(baseHeadMesh.scale);
+  mesh.bind(baseHeadMesh.skeleton, baseHeadMesh.bindMatrix);
+  owned.push(g, mesh.material);
+  return mesh;
 }
 
 /** 미리보기용 사본. 씬에 넣었다 빼고 버린다. */
@@ -413,7 +580,8 @@ export function resolveLook(look = {}){
     body: pick(look.body),
     // ⚠ 표정만은 fb(기본 모델)로 떨어지면 안 된다. 표정을 안 고른 캐릭터가
     //   전부 male-a 의 입을 달게 된다 — 제 얼굴을 기본값으로 둔다.
-    face: MODELS.includes(look.face) ? look.face : base,
+    face: (MODELS.includes(look.face) || SYNTH_FACES.some(f => f.id === look.face))
+            ? look.face : base,
     eyewear,
   };
 }
@@ -642,7 +810,8 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   //   표정: base 의 눈썹·입을 지우고 face 모델 것을 얹는다
   //   안경: 얼굴에 박힌 안경을 벗길 수 있다('none'). 벗어야 소품 안경을 씌운다
   if (headMesh){
-    const wantFace = L.face !== name && cache.has(L.face);
+    const synth = SYNTH_FACES.some(f => f.id === L.face);
+    const wantFace = synth || (L.face !== name && cache.has(L.face));
     const dropGlass = L.eyewear !== 'own';
     if (wantFace || dropGlass){
       if (!owned.includes(headMesh.geometry)){
@@ -651,7 +820,8 @@ export function buildAvatar(look = {}, body = null, opts = {}){
       }
       if (wantFace){
         hideVerts(headMesh, PART_CELLS && PART_CELLS.face && PART_CELLS.face[name]);
-        const f = graftPart(headMesh, L.face, 'face', 'face-graft', owned);
+        const f = synth ? synthFace(headMesh, L.face, owned)
+                        : graftPart(headMesh, L.face, 'face', 'face-graft', owned);
         if (f) headMesh.parent.add(f);
       }
       if (dropGlass)
@@ -661,8 +831,17 @@ export function buildAvatar(look = {}, body = null, opts = {}){
 
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
   if (look.colors && Object.keys(look.colors).length) recolor(model, L, look.colors, owned);
+  const gcol = look.colors && look.colors.glass;
+  if (gcol && L.eyewear === 'own' && headMesh){    // 얼굴에 박힌 안경을 칠한다
+    if (!owned.includes(headMesh.geometry)){
+      headMesh.geometry = headMesh.geometry.clone();
+      owned.push(headMesh.geometry);
+    }
+    shiftFrameUVs(headMesh.geometry,
+                  PART_CELLS && PART_CELLS.glasses && PART_CELLS.glasses[name], gcol);
+  }
   const wear = (L.eyewear !== 'own' && L.eyewear !== 'none') ? L.eyewear : null;
-  if (wear) attachAid(model, wear, owned);
+  if (wear) attachAid(model, wear, owned, gcol);
 
   const root = new THREE.Group();
   root.add(model);

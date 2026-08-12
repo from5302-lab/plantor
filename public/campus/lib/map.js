@@ -1405,7 +1405,7 @@ export async function mountCampus(){
     {id:'face', name:'표정', slot:'face'},
     {id:'head', name:'헤어', slot:'head', colors:['hair']},
     {id:'body', name:'옷',   slot:'body', colors:['top', 'bottom']},
-    {id:'eyewear', name:'안경', slot:'eyewear'},
+    {id:'eyewear', name:'안경', slot:'eyewear', colors:['glass']},
   ];
   const slotOf = tab => (TABS.find(t => t.id === tab) || {}).slot || 'base';
   /**
@@ -1419,12 +1419,16 @@ export async function mountCampus(){
       const builtin = Avatar.hasBuiltinGlasses?.(L ? L.base : '');
       const aids = (Avatar.ACCESSORIES || []).map(a => a.id)
         .filter(id => !(builtin && id === 'glasses'));
-      return (builtin ? ['own'] : []).concat(['none'], aids);
+      // '안 씀'이 맨 앞 — 기본 상태부터 보여 준다
+      return ['none'].concat(builtin ? ['own'] : [], aids);
     }
-    if (slot === 'face') return Avatar.distinctModels?.('face') || Avatar.MODELS || [];
+    // 모든 슬롯이 기하(정점 좌표) 기준으로 중복을 접는다 — 같은 카드가 두 장
+    // 뜨는 일은 어느 탭에도 없어야 한다. 얼굴·옷은 지금 12종 전부 다르지만,
+    // 에셋이 늘거나 겹쳐도 여기가 걸러 준다.
+    if (slot === 'face') return Avatar.faceOptions?.() || Avatar.MODELS || [];
     if (slot === 'head')
       return [Avatar.BALD].concat(Avatar.distinctModels?.('bald') || Avatar.MODELS || []);
-    return Avatar.MODELS || [];
+    return Avatar.distinctModels?.(slot) || Avatar.MODELS || [];
   };
 
   // ── 창 안의 캐릭터 ────────────────────────────────────────────────
@@ -1659,8 +1663,10 @@ export async function mountCampus(){
         const on = v === L[slot] ? ' on' : '';
         const lock = ownsSlot(slot, v) ? '' : ' lock';
         if (v === Avatar.BALD || v === 'none')
-          return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}">` +
-                 `<span class="dnone">${v === 'none' ? '안 씀' : '없음'}</span></button>`;
+          return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}" ` +
+                 `aria-label="${slot === 'eyewear' ? '안경 안 씀' : '없음'}">` +
+                 `<span class="dnone">${slot === 'eyewear'
+                    ? icon('glasses-off', 34) : '없음'}</span></button>`;
         const url = thumbFor(slot, v, L);
         return `<button class="dcard${on}${lock}" data-slot="${slot}" data-val="${v}">` +
                (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +

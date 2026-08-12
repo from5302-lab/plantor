@@ -313,9 +313,12 @@
   .campus-root .dtab.on{background:var(--primary-soft);color:var(--primary);font-weight:700}
   .campus-root .dtab:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
-  /* 3행 — 고른 부위의 색만. 넘치면 가로로 흐른다(줄바꿈하면 바가 키를 키운다) */
-  .campus-root .panel.dress .swrow{flex-wrap:nowrap;overflow-x:auto;gap:8px;
-       margin:0;padding:2px 0 4px;scrollbar-width:none;overscroll-behavior-x:contain}
+  /* 3행 — 고른 부위의 색만. **두 줄 고정**, 넘치면 가로로 흐른다.
+     줄바꿈(3줄)은 바 높이를 들쭉하게 만들고, 한 줄은 목록이 길어 끝이 안 보인다 */
+  .campus-root .panel.dress .swrow{display:grid;grid-auto-flow:column;
+       grid-template-rows:repeat(2, auto);justify-content:start;gap:8px;
+       overflow-x:auto;margin:0;padding:2px 0 4px;
+       scrollbar-width:none;overscroll-behavior-x:contain}
   .campus-root .panel.dress .swrow::-webkit-scrollbar{display:none}
   .campus-root .panel.dress .swatch{width:34px;height:34px;flex:none}
 
