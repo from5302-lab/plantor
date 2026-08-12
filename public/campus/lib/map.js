@@ -255,8 +255,6 @@ export async function mountCampus(){
   prop('union', 'lounge-vending', 12.6, -1.2, 1.0, 1.6, 1.8, 0x7fae95);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
-  prop('outdoor', 'bench-a', -3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
-  prop('outdoor', 'bench-b',  3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
   // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
   prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
 
@@ -418,17 +416,18 @@ export async function mountCampus(){
 
     for (const p of PROPS.filter(p => p.level === 'outdoor')) addProp(p);
 
-    // 과일나무 자리(FRUIT_TREES)는 일반 나무 목록에서 뺐다 — 같은 자리에 두 그루가 겹친다
-    // 남쪽(카메라 쪽) 앞줄에는 큰 나무를 두지 않는다 — 마을을 통째로 가린다
-    trees([
-      [-12.8,-11.6],[-5.4,-12.4],[5.4,-12.4],[12.8,-11.6],
-      [-13.4,-5.4],[13.4,-5.4],[-13.4, 1.2],[13.4, 1.2],
-      [-13.4, 6.2],[13.4, 6.2],
-    ]);
-    buildFruitTrees();
-    buildFlowers();
+    //  기본 조경은 없다. 나무·꽃·울타리·벤치 전부 **꾸미기 배치**로 옮겼다 —
+    //  코드가 심으면 운영자가 못 치우고, 팔레트에 같은 게 다 있다.
+    //  (과일나무는 흔들기 보상이 붙어 있어 buildFruitTrees 를 남겨 두되 안 부른다)
 
-    buildFence();
+    //  경계 — 보이는 울타리는 없어도 밖으로 무한히 걸어 나가면 안 된다.
+    //  울타리를 세우고 싶으면 팔레트의 '울타리'로 이 선 위에 깔면 된다.
+    const T = 0.6;
+    COLLIDERS.push(
+      {minX:YARD.minX, maxX:YARD.maxX, minZ:YARD.maxZ - T/2, maxZ:YARD.maxZ + T/2, top:4},
+      {minX:YARD.minX, maxX:YARD.maxX, minZ:YARD.minZ - T/2, maxZ:YARD.minZ + T/2, top:4},
+      {minX:YARD.minX - T/2, maxX:YARD.minX + T/2, minZ:YARD.minZ, maxZ:YARD.maxZ, top:4},
+      {minX:YARD.maxX - T/2, maxX:YARD.maxX + T/2, minZ:YARD.minZ, maxZ:YARD.maxZ, top:4});
   }
 
   // ── 시계 ───────────────────────────────────────────────────────────
