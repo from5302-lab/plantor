@@ -100,6 +100,26 @@ export async function saveCharacter(look, body){
   }
 }
 
+/**
+ * 캠퍼스에서 보이는 이름을 바꾼다.
+ *
+ * users/{uid}.name 은 플랜토 전체가 쓰는 이름이라 여기서 고치면 다른 화면에도
+ * 반영된다 — 그게 맞다. 캠퍼스 전용 별명을 따로 두면 "여기선 A, 저기선 B" 가 된다.
+ */
+export async function saveName(name){
+  const me = await whenReady();
+  if (!me) return {ok:false, error:'로그인이 필요합니다.'};
+  const clean = String(name || '').trim().slice(0, 12);
+  if (!clean) return {ok:false, error:'이름을 적어 주세요.'};
+  try {
+    await setDoc(doc(db, 'users', me.uid), {name: clean}, {merge:true});
+    profile = {...profile, name: clean};       // 다시 읽지 않고 바로 반영
+    return {ok:true, name: clean};
+  } catch (e){
+    return {ok:false, error: e?.code || String(e)};
+  }
+}
+
 export async function clearCharacter(){
   const me = await whenReady();
   guestClear();

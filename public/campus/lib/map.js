@@ -7,7 +7,7 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import * as CodeAvatar from '/campus/lib/avatar.js';
 import { DEFAULT_LOOK, GUEST_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
 import { loadWardrobe, buyWardrobe,
-         loadCharacter, saveCharacter, loadRoom, saveRoom, loadPlace, savePlace,
+         loadCharacter, saveCharacter, saveName, loadRoom, saveRoom, loadPlace, savePlace,
          loadInv, saveInv, whenReady } from '/campus/lib/store.js';
 import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
@@ -18,6 +18,7 @@ import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDec
          thumbOf, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
+import { createSky } from '/campus/lib/sky.js';
 import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
 
 export async function mountCampus(){
@@ -86,13 +87,18 @@ export async function mountCampus(){
   const MOBILE = matchMedia('(max-width:760px)').matches || navigator.maxTouchPoints > 1;
   const PR_CAP = MOBILE ? 1.5 : 2;                          // 모바일 GPU 보호
   renderer.setPixelRatio(Math.min(devicePixelRatio, PR_CAP));
-  // 그림자 없음 — 실내에 그림자가 지면 천장 어딘가에 광원이 있다는 뜻이 된다.
-  // 여기 조명은 형태를 읽히게 하는 용도지 방 안의 전등이 아니다.
+  //  그림자 없음. 한 번 켜 봤다가 껐다 — 저폴리 톤에서는 그림자 경계가 모델의
+  //  각진 면과 싸워 지저분해진다. 시간의 흐름은 **조도와 하늘색**으로 말한다.
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf4f8f5);            // 거의 흰색
-  scene.fog = new THREE.Fog(0xf4f8f5, 44, 84);
+  //  하늘 — 거의 흰색이던 시절엔 지평선 위가 종이처럼 비어 보였다.
+  //  그라디언트·구름·별·달은 sky.js 가 맡고, 시각에 따라 낮과 밤이 흐른다.
+  //  ⚠ 안개 색은 **지평선 색을 따라가야** 한다. 고정해 두면 밤에 먼 나무만
+  //    대낮처럼 밝게 남아 하늘에서 오려낸 것처럼 보인다(프레임마다 맞춘다).
+  const sky = createSky(scene);
+  scene.background = sky.texture;
+  scene.fog = new THREE.Fog(0xf2f6ee, 44, 84);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 200);   // 긴 렌즈 = 디오라마 느낌
 
   // ── 재질 헬퍼 ──────────────────────────────────────────────────────
@@ -173,7 +179,9 @@ export async function mountCampus(){
     // 안개 46m 는 하필 울타리 자리였다(카메라→마을 끝 ≈45m). 부감을 내려 보이는
     // 땅이 60m 밖까지 늘어나자 마을 경계부터 흰색으로 빠졌다. 안개는 마을 **밖**
     // 에서만 걸려야 한다 — 지평선을 지우는 장치지 바닥을 지우는 장치가 아니다.
-    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:11.7, fog:[64, 130]},
+    // 부감 22°(22.0/8.9). 28° 에서는 지평선이 화면 밖이라 하늘이 한 뼘도 안 보였다 —
+    // 동숲의 하늘은 각도를 낮춰서 버는 것이다. 더 낮추면 건물 뒤가 안 보인다.
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:8.9, fog:[64, 130]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     // 우리집은 뒷모습으로 통일한다. 상점만 0 인 건 매점쌤(z=4.4)을 마주 보라는 뜻이다.
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
@@ -255,7 +263,8 @@ export async function mountCampus(){
   // 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
   // 밝기는 조명 세기가 아니라 재질의 밝은 색에서 나온다. 세기를 올려 밝히면
   // 툰 셰이딩이 흰색으로 포화돼 캐릭터 얼굴이 날아간다(민머리에서 특히 드러난다).
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xf0f5f1, 0.76));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xf0f5f1, 0.76);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfffdf7, 0.58);
   sun.position.set(14, 24, 14); sun.target.position.set(0, 0, -8);
   scene.add(new THREE.AmbientLight(0xffffff, 0.11));
@@ -356,10 +365,13 @@ export async function mountCampus(){
    *   많아 멀쩡하니 바닥만 바랜 것처럼 보인다), 땅은 아예 안 굽는다.
    *   4m 쯤마다 한 칸씩 쪼갠다. 삼각형 몇 천 개는 이 화면에서 공짜다.
    */
-  function plate(cx, cz, w, d, color, y){
+  function plate(cx, cz, w, d, color, y, lit){
     const seg = n => Math.min(96, Math.max(1, Math.round(n / 4)));
+    //  야외 바닥은 **빛을 받는 재질**이다. 해가 기울면 잔디도 같이 어두워져야
+    //  밤이 밤으로 읽힌다. 실내는 그대로 flat — 거긴 해가 없다.
     const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, d, seg(w), seg(d)).rotateX(-Math.PI/2), flat(color));
+      new THREE.PlaneGeometry(w, d, seg(w), seg(d)).rotateX(-Math.PI/2),
+      lit ? lam(color, null, 0.9) : flat(color));
     m.position.set(cx, y, cz);
     world.add(m);
     return m;
@@ -373,7 +385,7 @@ export async function mountCampus(){
       for (const [x, z] of list){
         const k = KINDS[Math.floor(rnd() * KINDS.length)];
         const g = placeKit(k, {x, z, yaw: rnd() * Math.PI * 2,
-          scale: (k === 'tree_small' ? 3.0 : 3.6) * (0.85 + rnd()*0.3),
+          scale: (k === 'tree_small' ? 2.6 : 3.0) * (0.85 + rnd()*0.3),
           track: m => junk.push(m)});
         if (g) world.add(g);
       }
@@ -399,7 +411,7 @@ export async function mountCampus(){
     // 바닥은 잔디다. 흙 한 판이던 시절엔 마을이 운동장처럼 보였다 —
     // 초록이 깔려야 '밖에 나왔다'가 읽힌다. 길은 에디터의 길·포장 타일로 깐다.
     // 잔디색 그대로는 나무·덤불과 한 덩어리로 붙어 보여서 한 톤 눌렀다.
-    plate(0, -4, 400, 400, KIT_OK ? 0x55b87d : 0x9fd3a8, -0.06);
+    plate(0, -4, 400, 400, KIT_OK ? 0x69d193 : 0xb4e0bb, -0.06, true);
 
     for (const b of BUILDINGS){
       // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
@@ -431,6 +443,12 @@ export async function mountCampus(){
         world.add(body, roof, door);
         parts.push(body, roof, door);
       }
+      //  시계는 학습센터 정면 **왼쪽 빈 벽**에. 가운데는 창문 둘이 나란히 있어서,
+      //  거기 걸면 창 하나를 통째로 덮는다(실제로 덮었다).
+      if (b.level === 'main'){
+        clockHands = null;
+        addClockFace(world, b.x - bw * 0.34, bh * 0.64, z1 + 0.06, Math.min(bw, bh) * 0.15);
+      }
       // 간판은 뗐다 — 3D 위에 얹은 캔버스 텍스트라 키트 톤과 겉돌았다.
       // 어디가 어디인지는 근처에 가면 뜨는 프롬프트가 알려 준다.
       OCCLUDERS.push({test:parts, meshes:parts});
@@ -454,6 +472,59 @@ export async function mountCampus(){
     buildFlowers();
 
     buildFence();
+  }
+
+  // ── 시계 ───────────────────────────────────────────────────────────
+  //  학습센터 정면에 걸린 **진짜 시계**다. 바늘은 이 컴퓨터의 시간을 그대로
+  //  가리킨다 — 게임 안 시간을 따로 두면 밖의 시계와 어긋나서 오히려 안 보게 된다.
+  //
+  //  ⚠ 처음엔 성 키트로 시계탑을 세웠다. 6.4m 로 줄여도 마을에서 제일 큰 것이
+  //    되어 학습센터를 뒷방 취급하게 만들었다. 랜드마크가 하나 더 필요한 게
+  //    아니라 **시간이 필요했던 것**이므로, 있는 건물의 얼굴에 건다.
+  let clockHands = null;                   // {hour, minute} — 프레임마다 각도만 고친다
+  function addClockFace(parent, x, y, z, r){
+    const cv2 = document.createElement('canvas');
+    cv2.width = cv2.height = 256;
+    const c2 = cv2.getContext('2d');
+    c2.fillStyle = '#f7f4ea'; c2.beginPath(); c2.arc(128, 128, 122, 0, Math.PI*2); c2.fill();
+    c2.strokeStyle = '#3a4a3f'; c2.lineWidth = 12;
+    c2.beginPath(); c2.arc(128, 128, 117, 0, Math.PI*2); c2.stroke();
+    c2.strokeStyle = '#5a6b60';
+    for (let i = 0; i < 12; i++){
+      const a = i * Math.PI / 6, long = i % 3 === 0;
+      c2.lineWidth = long ? 10 : 5;
+      const r1 = long ? 84 : 95, r2 = 108;
+      c2.beginPath();
+      c2.moveTo(128 + Math.sin(a)*r1, 128 - Math.cos(a)*r1);
+      c2.lineTo(128 + Math.sin(a)*r2, 128 - Math.cos(a)*r2);
+      c2.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv2);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const faceMat = bend(new THREE.MeshBasicMaterial({map: tex}));
+    //  축 캡 — 바늘이 **어디서 도는지**가 또렷해야 시계로 읽힌다
+    const handMat = bend(new THREE.MeshBasicMaterial({color: 0x2f3d34}));
+    junk.push({dispose: () => { tex.dispose(); faceMat.dispose(); handMat.dispose(); }});
+
+    const face = new THREE.Mesh(new THREE.CircleGeometry(r, 40), faceMat);
+    face.position.set(x, y, z);
+    const handGeo = (len, w) => new THREE.PlaneGeometry(w, len).translate(0, len/2 - w*0.6, 0);
+    const h = new THREE.Mesh(handGeo(r * 0.52, r * 0.13), handMat);
+    const m = new THREE.Mesh(handGeo(r * 0.82, r * 0.085), handMat);
+    h.position.z = m.position.z = 0.012;
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(r * 0.075, 16), handMat);
+    cap.position.z = 0.014;
+    face.add(h, m, cap);
+    parent.add(face);
+    clockHands = {hour: h, minute: m};
+  }
+  function tickClock(){
+    if (!clockHands) return;
+    const d = new Date();
+    const mA = (d.getMinutes() + d.getSeconds()/60) / 60 * Math.PI * 2;
+    const hA = ((d.getHours() % 12) + d.getMinutes()/60) / 12 * Math.PI * 2;
+    clockHands.hour.rotation.z = -hA;
+    clockHands.minute.rotation.z = -mA;
   }
 
   // ── 캠퍼스 울타리 ──────────────────────────────────────────────────
@@ -523,18 +594,21 @@ export async function mountCampus(){
     const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     const KINDS = ['tree_default', 'tree_oak', 'tree_pineRoundC'];
     const ring = [];
-    for (let x = YARD.minX - 3; x <= YARD.maxX + 3; x += 4.5){
-      ring.push([x, YARD.minZ - 3 - rnd()*3]);
-      ring.push([x, YARD.maxZ + 3 + rnd()*3]);
+    //  ⚠ 이 띠가 **지평선을 가린다.** 예전엔 울타리 바로 밖에 큰 나무를 둘렀는데,
+    //    부감을 낮춰 하늘을 보려 하자 화면 위쪽이 통째로 나무가 됐다. 멀리 밀고
+    //    낮춰서, 마을 끝은 가리되 그 너머 하늘은 남긴다.
+    for (let x = YARD.minX - 5; x <= YARD.maxX + 5; x += 5.2){
+      ring.push([x, YARD.minZ - 4.5 - rnd()*2.5]);
+      ring.push([x, YARD.maxZ + 4.5 + rnd()*2.5]);
     }
-    for (let z = YARD.minZ - 1; z <= YARD.maxZ + 1; z += 4.5){
-      ring.push([YARD.minX - 3 - rnd()*3, z]);
-      ring.push([YARD.maxX + 3 + rnd()*3, z]);
+    for (let z = YARD.minZ - 1; z <= YARD.maxZ + 1; z += 5.2){
+      ring.push([YARD.minX - 4.5 - rnd()*2.5, z]);
+      ring.push([YARD.maxX + 4.5 + rnd()*2.5, z]);
     }
     for (const [x, z] of ring){
       const k = KINDS[Math.floor(rnd() * KINDS.length)];
       const g = placeKit(k, {x, z, yaw: rnd()*Math.PI*2,
-        scale: 3.6 * (0.85 + rnd()*0.35), track: m => junk.push(m)});
+        scale: 2.5 * (0.85 + rnd()*0.3), track: m => junk.push(m)});
       if (g) world.add(g);
     }
   }
@@ -877,7 +951,7 @@ export async function mountCampus(){
   const ME = await whenReady();
   // 로그인 표시는 상단 네비바가 맡는다. 여기선 꾸미기 노출만 정한다.
   document.getElementById('dressBtn').hidden = !ME;
-  const MY_LABEL = ME ? ME.name : '방문자';
+  let MY_LABEL = ME ? ME.name : '방문자';   // 꾸미기에서 바꿀 수 있다
 
   // 비로그인은 저장분을 읽지 않는다 — 꾸미기 버튼이 없어 저장할 방법도 없으므로
   // localStorage 에 남아 있을 값은 게스트 꾸미기가 열려 있던 시절의 잔재뿐이다.
@@ -1373,16 +1447,30 @@ export async function mountCampus(){
   function makePetState(rig, x, z){
     return {rig, x, z, yaw:0, yawTo:0, moving:false, running:false};
   }
-  function petFollow(p, ox, oz, dt){
-    const dx = ox - p.x, dz = oz - p.z, d = Math.hypot(dx, dz);
-    const KEEP = 1.05;                     // 주인과 유지하는 거리
-    if (d > 30){ p.x = ox; p.z = oz - 1; } // 레벨 이동 — 걸어오게 두면 지평선 너머에서 온다
-    else if (d > KEEP){
-      const sp = Math.min((d - KEEP) * 6, d > 2.8 ? 6.6 : 3.4);
+  /**
+   * @param oyaw 주인이 보는 방향. 멈춰 서면 펫도 **옆에 나란히** 서서 같은 데를 본다.
+   *   뒤통수만 쫓아다니면 강아지가 아니라 그림자처럼 보인다 — 멈췄을 때
+   *   자기 자리(주인 왼쪽 0.8m)를 잡고 고개를 같이 돌리는 게 동행이다.
+   */
+  function petFollow(p, ox, oz, oyaw, moving, dt){
+    //  목표 자리 — 주인이 걸으면 뒤(따라가기), 멈추면 옆(나란히).
+    //  0.8m 로는 어깨가 겹쳐 펭귄이 팔에 가렸다. 캐릭터 폭이 0.7m 쯤이니
+    //  1.15m 는 되어야 둘이 나란히 서 있는 게 보인다.
+    const side = moving ? 0 : 1.15;
+    const back = moving ? 1.05 : 0.1;
+    const tx = ox - Math.sin(oyaw) * back - Math.cos(oyaw) * side;
+    const tz = oz - Math.cos(oyaw) * back + Math.sin(oyaw) * side;
+    const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+    if (d > 30){ p.x = tx; p.z = tz; }    // 레벨 이동 — 걸어오게 두면 지평선 너머에서 온다
+    else if (d > 0.12){
+      const sp = Math.min(d * 6, d > 2.8 ? 6.6 : 3.4);
       p.x += dx / d * sp * dt; p.z += dz / d * sp * dt;
       p.yawTo = Math.atan2(dx, dz);
-      p.moving = sp > 0.25; p.running = sp > 4;
-    } else p.moving = false;
+      p.moving = sp > 0.35; p.running = sp > 4;
+    } else {
+      p.moving = false;
+      p.yawTo = oyaw;                      // 다 왔으면 주인과 같은 데를 본다
+    }
     let a = p.yawTo - p.yaw;
     p.yaw += Math.atan2(Math.sin(a), Math.cos(a)) * Math.min(1, dt * 10);
     p.rig.play(p.moving ? (p.running ? 'run' : 'walk') : 'idle');
@@ -1462,6 +1550,7 @@ export async function mountCampus(){
     elRoot && elRoot.classList.add('dressing');
     savedLook = {...myLook};
     draft = {...myLook};
+    nameDraft = ME ? ME.name : '';
     lastDrawTab = null;                  // 새로 열면 목록은 맨 위에서 시작한다
     elChars.innerHTML =
       `<div class="dhead"></div>` +
@@ -1814,6 +1903,9 @@ export async function mountCampus(){
       `<button class="dcancel" data-close>닫기</button>` +
       `<button class="ddone" data-apply>적용</button>`;
     elFoot.innerHTML =
+      (ME ? `<div class="dname"><span class="dnlab">이름</span>` +
+            `<input data-name maxlength="12" value="${esc(nameDraft)}" ` +
+            `aria-label="캠퍼스에서 보이는 이름"></div>` : '') +
       `<div class="dtabs">` +
         tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
                       `data-tab="${t.id}">${t.name}</button>`).join('') +
@@ -1835,6 +1927,11 @@ export async function mountCampus(){
       `<button class="ddone" data-buy="${s.id}"${short ? ' disabled' : ''}>` +
       `${short ? '포인트 부족' : '사기'}</button></div>`;
   }
+  elChars.addEventListener('input', e => {
+    //  ⚠ 여기서 drawChars 를 부르면 안 된다. innerHTML 을 다시 쓰면 입력칸이
+    //    새로 만들어져 **한 글자 칠 때마다 커서가 날아간다.** 값만 담아 둔다.
+    if (e.target.hasAttribute('data-name')) nameDraft = e.target.value;
+  });
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-roll')){ await rollLook(); return; }
@@ -1924,19 +2021,27 @@ export async function mountCampus(){
     for (const sl of SLOTS) if (!ownsSlot(sl.id, L[sl.id])) back[sl.id] = Avatar.resolveLook(savedLook || {})[sl.id];
     const dropped = Object.keys(back).length;
     myLook = {...draft, ...back};
-    rebuildPlayer();
+    //  이름이 바뀌었으면 같이 저장한다. 실패해도 캐릭터 저장은 살린다 —
+    //  이름 때문에 옷까지 못 갈아입는 건 말이 안 된다.
+    let nameMsg = '';
+    if (ME && nameDraft.trim() && nameDraft.trim() !== ME.name){
+      const nr = await saveName(nameDraft);
+      if (nr.ok){ ME.name = nr.name; MY_LABEL = nr.name; }
+      else nameMsg = ' (이름은 못 바꿨어요)';
+    }
+    rebuildPlayer();                     // 이름표는 여기서 새로 붙는다
     const r = await saveCharacter(myLook, myBody);
     // 남들에게 알리다 실패해도 **내 저장은 이미 끝났다**. 여기서 예외가 새면
     // 창이 안 닫히고 알림도 안 떠, 저장이 안 된 것처럼 보인다.
     if (r.ok){
       savedLook = {...myLook};
-      try { net && net.updateMeta(myLook, myBody); }
+      try { net && net.updateMeta(myLook, myBody, MY_LABEL); }
       catch (e){ console.warn('[campus] 캐릭터 방송 실패', e); }
     }
     if (!r.ok && btn){ btn.disabled = false; btn.textContent = '적용'; }
     if (r.ok) closeChars();
     toast(!r.ok ? '저장 실패: ' + r.error
-          : dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요 ✓');
+          : (dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요 ✓') + nameMsg);
   }
 
   document.getElementById('dressBtn').onclick = openChars;
@@ -2109,6 +2214,7 @@ export async function mountCampus(){
   let editTarget = null;              // 'room' | 'place'
   let editSel = -1, placeType = null, decorReady = false, editGroup = null;
   let editListOpen = true;            // 고르면 접힌다 — 시트가 맵을 덮은 채로는 못 놓는다
+  let nameDraft = '';                 // 이름도 초안이다 — 적용을 눌러야 바뀐다
 
   //  격자 — 어디에 붙는지 **보여야** 스냅이 기능이다. 안 보이면 탭이 어긋난
   //  자리로 튀는 버그처럼 읽힌다. 칸은 고른 물건의 스냅을 따라간다.
@@ -2492,9 +2598,21 @@ export async function mountCampus(){
       r.rig.root.rotation.y = r.yaw;
       if (r.moving) r.walkT += dt * (r.act === 'run' ? RUN_SPEED : SPEED) * 1.55;
       poseAvatar(r.rig, r.act || 'idle', 'none', r.moving ? r.walkT/7 : t);
-      if (r.pet) petFollow(r.pet, r.x, r.z, dt);
+      if (r.pet) petFollow(r.pet, r.x, r.z, r.yaw, r.moving, dt);
     }
-    if (myPet) petFollow(myPet, P.x, P.z, dt);
+    if (myPet) petFollow(myPet, P.x, P.z, P.yaw, moving, dt);
+
+    // ── 하늘 ── 시각에 따라 색·구름·별·달. 실내에서는 끈다(천장 위 별 금지)
+    {
+      const s = sky.update(camera, dt, level === 'outdoor');
+      scene.fog.color.setHex(s.low);
+      //  밤에는 해를 낮추고 달빛처럼 푸르게. 완전히 끄면 캐릭터가 실루엣이 되어
+      //  누가 누군지 안 보인다 — 어둡게 하되 얼굴은 읽히는 선에서 멈춘다.
+      sun.intensity = 0.58 - s.night * 0.34;
+      sun.color.setHex(s.night > 0.5 ? 0xcfd8ff : 0xfffdf7);
+      hemi.intensity = 0.76 - s.night * 0.30;
+      hemi.color.setHex(s.night > 0.5 ? 0xaebbdd : 0xffffff);
+    }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
     CURVE.value += ((level === 'outdoor' ? CURVE_K : 0) - CURVE.value) * Math.min(1, dt*4);
@@ -2502,6 +2620,7 @@ export async function mountCampus(){
     FOCUS.value = tmp.copy(player.root.position).setY(0.9)
                      .applyMatrix4(camera.matrixWorldInverse).z;
     if (level === 'outdoor'){
+      tickClock();
       for (const ft of fruitTrees){
         if (ft.shakeT > 0){
           ft.shakeT = Math.max(0, ft.shakeT - dt);

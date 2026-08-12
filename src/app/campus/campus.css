@@ -226,8 +226,17 @@
   .campus-root .etab:hover{background:var(--primary-soft)}
   .campus-root .etab.on{background:var(--primary-soft);color:var(--primary)}
   .campus-root .etab:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-  .campus-root .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));
-       gap:6px;padding:10px 12px 14px;overflow-y:auto;overscroll-behavior:contain}
+  /*  목록은 **한 줄**이다. 스무 개가 세로로 펼쳐지면 창이 화면을 덮어 정작
+      놓을 자리가 안 보인다. 위아래로 접는 대신 **좌우로 흘린다** — 세로 스크롤은
+      창을 키워야 쓸모가 있지만, 가로 스크롤은 한 줄 높이로 끝까지 훑을 수 있다.
+      오른쪽 끝을 흐려 더 있음을 알린다(색 줄과 같은 장치). */
+  .campus-root .dgrid{display:flex;gap:6px;padding:10px 12px 14px;
+       overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+       scrollbar-width:none;
+       -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent);
+               mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent)}
+  .campus-root .dgrid::-webkit-scrollbar{display:none}
+  .campus-root .dgrid .dcell{width:78px}
   /* 칸 높이를 고정한다 — 내용에 맡기면 스크롤 줄마다 이미지가 잘렸다 */
   .campus-root .dcell{display:flex;flex-direction:column;align-items:center;gap:2px;
        flex:none;min-height:78px;
@@ -320,7 +329,9 @@
   .campus-root .ddone:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
   /* 2행 — 부위 탭. 네 부위의 색을 동시에 펴면 그것만으로 화면이 찬다 */
-  .campus-root .dtabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+  /* ⚠ flex:none 이 없으면 세로 flex 부모(.dfoot)가 자리가 모자랄 때 이 줄을
+     **높이 0 으로 눌러 버린다.** 이름 칸을 하나 더한 순간 탭이 통째로 사라졌다. */
+  .campus-root .dtabs{display:flex;flex:none;gap:4px;overflow-x:auto;scrollbar-width:none;
        overscroll-behavior-x:contain}
   .campus-root .dtabs::-webkit-scrollbar{display:none}
   .campus-root .dtab{flex:none;border:none;background:none;cursor:pointer;font:inherit;
@@ -494,6 +505,15 @@
 
  @media (prefers-reduced-motion: reduce){ .campus-root .dcard{transition:none} }
 
+  /* 이름 바꾸기 — 캐릭터를 고치는 자리에서 이름도 같이 고친다.
+     따로 화면을 만들면 "여기서 되는데 왜 저기선 안 되지"가 된다. */
+  .campus-root .dname{display:flex;align-items:center;gap:8px;padding:8px 2px 2px}
+  .campus-root .dname input{flex:1;min-width:0;border:1px solid var(--line);
+       border-radius:var(--r-sm);background:rgba(255,255,255,.8);color:var(--ink);
+       font:inherit;font-size:13px;font-weight:700;padding:8px 10px}
+  .campus-root .dname input:focus{outline:2px solid var(--primary);outline-offset:-1px}
+  .campus-root .dname .dnlab{flex:none;font-size:11.5px;font-weight:700;color:var(--muted)}
+
   /* 부위 한 탭 안에 모양 줄과 색 줄이 같이 온다. 색 줄엔 무엇의 색인지 이름을
      붙인다 — 옷 탭에는 상의·하의 두 줄이 오므로 이름이 없으면 구분이 안 된다 */
   .campus-root .drow{display:flex;align-items:center;gap:10px;min-width:0}
@@ -546,8 +566,16 @@
   .campus-root .panel.dress .drow{align-items:flex-start}
   .campus-root .panel.dress .dlabel{padding-top:8px}
 
-  /* P0 오른쪽 여백이 없어 마지막 칸이 경계에 붙었다 */
-  .campus-root .panel.dress .dfoot{padding-right:10px}
+  /* P0 오른쪽 여백이 없어 마지막 칸이 경계에 붙었다.
+     ⚠ 색 줄은 가로로 흐르는데 padding-right 만으로는 **마지막 스와치가 창 밖으로**
+       삐져나갔다(스크롤 컨테이너의 오른쪽 패딩은 스크롤 끝에서 안 잡힌다).
+       줄 자체에 여백을 주고, 아래 목록 칸이 넘치지 않게 min-width 를 0 으로 묶는다. */
+  .campus-root .panel.dress .dfoot{padding-right:10px;min-width:0}
+  .campus-root .panel.dress .drow{max-width:100%;min-width:0;flex:none}
+  .campus-root .panel.dress .dname{flex:none}
+  /* 색 줄 끝이 창 밖으로 삐져나갔다 — 스크롤 컨테이너는 오른쪽 패딩을 끝에서
+     안 잡아 준다. 마지막 칸 뒤에 여백을 '내용으로' 붙여야 안에서 끝난다. */
+  .campus-root .panel.dress .swrow::after{content:"";display:block;width:8px;flex:none}
 
   /* P1 695px 에서 5열이면 카드가 62px 이라 옷 모양이 안 읽힌다 */
   .campus-root .dgrid2{grid-template-columns:repeat(auto-fill, minmax(92px, 1fr))}
@@ -563,14 +591,22 @@
   }
 
   /* 리파인 — 목록 칸 전체가 스크롤되니 탭까지 같이 올라가 잘렸다.
-     탭과 색 줄은 고정하고 **카드 격자만** 굴린다 */
+     탭과 색 줄은 고정하고 **카드 격자만** 굴린다.
+
+     ⚠ 예전엔 grid-template-rows 로 세 줄(탭·카드·색)을 못 박았다. 이름 칸을
+       하나 더하자 줄이 통째로 밀려 탭이 minmax(0,1fr) 자리에 들어갔고,
+       공간이 모자라자 **높이 0 으로 눌려 사라졌다.** 줄 수가 상황마다 다르니
+       (게스트는 이름 칸이 없다) 자리를 못 박는 대신 flex 로 둔다 —
+       늘어나는 건 카드 격자 하나뿐이고 나머지는 제 높이를 지킨다. */
  @media (min-width: 640px){
-    .campus-root .panel.dress .dfoot{display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+    .campus-root .panel.dress .dfoot{display:flex;flex-direction:column;
          gap:8px;overflow:hidden}
-    .campus-root .panel.dress .dgrid2{overflow-y:auto;min-height:0;max-height:none;
-         align-content:start;padding-bottom:4px}
-    /* 색 줄 둘(상의·하의)은 한 덩어리로 아래에 붙는다 */
-    .campus-root .panel.dress .drow{grid-row:auto}
+    .campus-root .panel.dress .dgrid2{flex:1 1 auto;overflow-y:auto;min-height:0;
+         max-height:none;align-content:start;padding-bottom:4px}
+    .campus-root .panel.dress .dtabs,
+    .campus-root .panel.dress .dname,
+    .campus-root .panel.dress .drow,
+    .campus-root .panel.dress .dbuy{flex:none}
   }
 
   /* P0 썸네일이 카드보다 3~4px 커서 턱이 잘리고 아래 카드와 겹쳐 보였다.

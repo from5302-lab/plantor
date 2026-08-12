@@ -146,10 +146,11 @@ export function joinCampus(me, handlers){
    *   저장은 됐는데 아무 반응이 없어 보였다. 경계에서 턴다.
    */
   const noUndef = v => JSON.parse(JSON.stringify(v ?? null));
-  function updateMeta(look, body){
+  function updateMeta(look, body, name){
     const l = noUndef(look), b = noUndef(body);
-    meta = {...meta, look: l, body: b};
-    if (room) update(ref(db, `${ROOT}/${room}/${me.uid}/meta`), {look: l, body: b});
+    const n = name ? String(name).slice(0, 20) : meta.name;
+    meta = {...meta, look: l, body: b, name: n};
+    if (room) update(ref(db, `${ROOT}/${room}/${me.uid}/meta`), {look: l, body: b, name: n});
   }
 
   function leave(){
