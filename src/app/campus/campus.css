@@ -518,3 +518,28 @@
   .campus-root .swatch.on{box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--primary)}
   .campus-root .panel.dress .swatch{width:32px;height:32px}
   .campus-root .drow .swrow{padding:3px 0}
+
+  /* ── 뷰 최적화 ────────────────────────────────────────────────────
+     실측(695px · 1900px 두 화면)에서 나온 것들만 고친다. */
+
+  /* P0 색 줄이 패널 밖으로 잘렸다. 가로 스크롤인데 힌트가 없어 '잘림'으로 읽힌다 —
+     줄바꿈으로 바꾸면 16색이 2~3줄로 접히고 잘림이 사라진다 */
+  .campus-root .panel.dress .swrow{flex-wrap:wrap;overflow:visible}
+  .campus-root .panel.dress .drow{align-items:flex-start}
+  .campus-root .panel.dress .dlabel{padding-top:8px}
+
+  /* P0 오른쪽 여백이 없어 마지막 칸이 경계에 붙었다 */
+  .campus-root .panel.dress .dfoot{padding-right:10px}
+
+  /* P1 695px 에서 5열이면 카드가 62px 이라 옷 모양이 안 읽힌다 */
+  .campus-root .dgrid2{grid-template-columns:repeat(auto-fill, minmax(92px, 1fr))}
+
+  /* P2 카드가 늘면 무대가 눌린다 — 하한을 준다 */
+  .campus-root .dstage{min-height:38vh}
+
+ @media (min-width: 640px){
+    /* P1 오른쪽 칼럼이 넓어 아래가 텅 비었다. 좁히면 카드가 여러 줄로 접히며
+       빈 공간이 줄고 무대는 더 커진다 */
+    .campus-root .panel.dress{grid-template-columns:1fr minmax(300px, 32%)}
+    .campus-root .dstage{min-height:0}
+  }
