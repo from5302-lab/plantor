@@ -587,3 +587,14 @@
 
   /* 색 이름 텍스트는 뺀다 */
   .campus-root .dlabel i{display:none}
+
+  /* 겹침 — 높이를 콘텐츠/비율에 맡길 때마다 계산이 어긋났다(69px 로 무너져 150px
+     이미지가 넘쳤다). 썸네일과 **같은 고정 크기**로 못 박고 이미지는 그 안에 절대배치한다.
+     계산이 없으면 어긋날 것도 없다. */
+  .campus-root .panel.dress .dcard{width:100%;max-width:132px;height:150px;
+       aspect-ratio:auto;display:block;position:relative;overflow:hidden;line-height:1}
+  .campus-root .panel.dress .dcard img{position:absolute;inset:0;
+       width:100%;height:100%;object-fit:contain}
+  .campus-root .panel.dress .dcard .dnone,
+  .campus-root .panel.dress .dcard .dph{position:absolute;inset:0;width:auto;height:auto;
+       padding:0;display:grid;place-items:center}
