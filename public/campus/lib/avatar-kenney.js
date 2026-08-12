@@ -181,7 +181,8 @@ function recolor(model, L, colors, owned){
     // 부위 표는 **그 메시가 온 모델** 것을 쓴다. 조합하면 머리카락·몸·얼굴이
     // 서로 다른 모델에서 오므로, 하나의 표로 찾으면 엉뚱한 부위가 칠해진다.
     const table = PART_CELLS.models[
-      o.name === 'hair-graft' ? L.head : o.name.charAt(0) === 'b' ? L.body : L.base];
+      o.name === 'hair-graft' ? L.head : o.name === 'face-graft' ? L.face
+      : o.name.charAt(0) === 'b' ? L.body : L.base];
     if (!table) return;
     // 이미 이 인스턴스 것으로 만든 geometry(이식한 머리·갈아입은 몸)는 다시 복제하지 않는다
     if (!owned.includes(o.geometry)){
@@ -363,6 +364,9 @@ export function resolveLook(look = {}){
     base: pick(look.base),
     head: look.head === BALD ? BALD : pick(look.head),
     body: pick(look.body),
+    face: pick(look.face),                 // 표정 — 눈썹·입
+    // 안경: 'none'(벗기) · 'own'(얼굴에 붙은 그대로) · 소품 id
+    glasses: look.glasses === BALD ? BALD : (look.glasses || 'own'),
   };
 }
 
@@ -436,6 +440,74 @@ function graftHair(baseHeadMesh, headName, owned){
   mesh.bind(baseHeadMesh.skeleton, baseHeadMesh.bindMatrix);
   owned.push(out, mesh.material);
   return mesh;
+}
+
+/**
+ * 표정 이식 — face 모델의 눈썹·입 덩어리만 떼어 base 스켈레톤에 물린다.
+ * 머리카락(graftHair)과 같은 방식이고, 쓰는 목록만 다르다(PART_CELLS.face).
+ */
+function graftPart(baseHeadMesh, srcName, listKey, tag, owned){
+  const hide = PART_CELLS && PART_CELLS[listKey] && PART_CELLS[listKey][srcName];
+  const entry = cache.get(srcName);
+  if (!hide || !hide.length || !entry) return null;
+  let src = null;
+  entry.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') src = o; });
+  if (!src || !src.geometry.index) return null;
+  const keep = new Set(hide), g = src.geometry, idx = g.index;
+  const remap = new Map(); const tri = [];
+  for (let t = 0; t < idx.count; t += 3){
+    const v = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+    if (!v.every(i => keep.has(i))) continue;
+    for (const i of v){
+      if (!remap.has(i)) remap.set(i, remap.size);
+      tri.push(remap.get(i));
+    }
+  }
+  if (!tri.length) return null;
+  const byName = new Map(baseHeadMesh.skeleton.bones.map((b, i) => [b.name, i]));
+  const srcBones = src.skeleton.bones;
+  const n = remap.size, out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']){
+    const a = g.attributes[name];
+    if (!a) continue;
+    const dst = new Float32Array(n * a.itemSize);
+    for (const [from, to] of remap)
+      for (let k = 0; k < a.itemSize; k++) dst[to * a.itemSize + k] = a.getComponent(from, k);
+    out.setAttribute(name, new THREE.BufferAttribute(dst, a.itemSize));
+  }
+  const si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+  const di = new Uint16Array(n * 4), dw = new Float32Array(n * 4);
+  for (const [from, to] of remap)
+    for (let k = 0; k < 4; k++){
+      const b = srcBones[si.getComponent(from, k)];
+      di[to * 4 + k] = (b && byName.has(b.name)) ? byName.get(b.name) : 0;
+      dw[to * 4 + k] = sw.getComponent(from, k);
+    }
+  out.setAttribute('skinIndex', new THREE.BufferAttribute(di, 4));
+  out.setAttribute('skinWeight', new THREE.BufferAttribute(dw, 4));
+  out.setIndex(tri);
+  const mesh = new THREE.SkinnedMesh(out, bendIf(src.material.clone()));
+  mesh.name = tag;
+  mesh.frustumCulled = false;
+  mesh.position.copy(src.position);
+  mesh.quaternion.copy(src.quaternion);
+  mesh.scale.copy(src.scale);
+  mesh.bind(baseHeadMesh.skeleton, baseHeadMesh.bindMatrix);
+  owned.push(out, mesh.material);
+  return mesh;
+}
+
+/** 정점 목록에 든 삼각형을 인덱스에서 뺀다(대머리·표정 지우기·안경 벗기기 공용). */
+function hideVerts(mesh, list){
+  const idx = mesh.geometry.index;
+  if (!list || !list.length || !idx) return;
+  const drop = new Set(list), keep = [];
+  for (let t = 0; t < idx.count; t += 3){
+    const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+    if (drop.has(a) || drop.has(b) || drop.has(c)) continue;
+    keep.push(a, b, c);
+  }
+  mesh.geometry.setIndex(keep);
 }
 
 /** 몸 갈아입기 — body 모델의 몸 메시로 바꿔 끼운다. 뼈 이름이 같아 그대로 물린다. */
@@ -518,9 +590,31 @@ export function buildAvatar(look = {}, body = null, opts = {}){
     }
   }
 
+  // ── 표정·안경 ── 얼굴에 붙어 세트로 딸려 오던 것들을 떼어 낸다.
+  //   표정: base 의 눈썹·입을 지우고 face 모델 것을 얹는다
+  //   안경: 얼굴에 박힌 안경을 벗길 수 있다('none'). 벗어야 소품 안경을 씌운다
+  if (headMesh){
+    const wantFace = L.face !== name && cache.has(L.face);
+    const dropGlass = L.glasses === BALD || (L.glasses && L.glasses !== 'own');
+    if (wantFace || dropGlass){
+      if (!owned.includes(headMesh.geometry)){
+        headMesh.geometry = headMesh.geometry.clone();
+        owned.push(headMesh.geometry);
+      }
+      if (wantFace){
+        hideVerts(headMesh, PART_CELLS && PART_CELLS.face && PART_CELLS.face[name]);
+        const f = graftPart(headMesh, L.face, 'face', 'face-graft', owned);
+        if (f) headMesh.parent.add(f);
+      }
+      if (dropGlass)
+        hideVerts(headMesh, PART_CELLS && PART_CELLS.glasses && PART_CELLS.glasses[name]);
+    }
+  }
+
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
   if (look.colors && Object.keys(look.colors).length) recolor(model, L, look.colors, owned);
-  if (look.aid) attachAid(model, look.aid, owned);
+  const wear = (L.glasses && L.glasses !== 'own' && L.glasses !== BALD) ? L.glasses : look.aid;
+  if (wear) attachAid(model, wear, owned);
 
   const root = new THREE.Group();
   root.add(model);

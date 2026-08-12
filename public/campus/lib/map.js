@@ -1391,15 +1391,17 @@ export async function mountCampus(){
   //  캐릭터는 얼굴·헤어·옷 셋으로 쪼개진다(두개골이 12종 공통이라 남의 머리를
   //  얹을 수 있고, 뼈가 같아 남의 옷을 입을 수 있다). 탭 하나가 슬롯 하나고,
   //  ‹ › 는 **지금 탭의 슬롯**을 넘긴다 — 무엇을 고르는 중인지가 화면에 남는다.
-  const SLOTS = [{id:'base', name:'얼굴'}, {id:'head', name:'헤어'}, {id:'body', name:'옷'}];
+  const SLOTS = [{id:'base', name:'얼굴'}, {id:'face', name:'표정'},
+                 {id:'head', name:'헤어'}, {id:'body', name:'옷'}];
   //  탭은 **부위**다. 모양과 색을 다른 탭에 두면 머리를 고르다 색을 바꾸려고
   //  탭을 옮겨야 한다 — 같은 것을 만지는데 자리가 갈린다.
   //  한 탭 안에 '무엇을 입을까'(모양)와 '무슨 색으로'(색)를 같이 놓는다.
   const TABS = [
     {id:'base', name:'얼굴', slot:'base', colors:['skin']},
+    {id:'face', name:'표정', slot:'face'},
     {id:'head', name:'헤어', slot:'head', colors:['hair']},
     {id:'body', name:'옷',   slot:'body', colors:['top', 'bottom']},
-    {id:'aid',  name:'소품'},
+    {id:'aid',  name:'안경'},
   ];
   const slotOf = tab => (TABS.find(t => t.id === tab) || {}).slot || 'base';
   /** 이 슬롯이 고를 수 있는 값들. 헤어에만 '없음'(대머리)이 있다. */
@@ -1585,6 +1587,8 @@ export async function mountCampus(){
     // 옷은 얼굴을 감추므로 기준 몸을 써도 상관없다.
     const look = slot === 'base' ? {base:v, head:v, body:v}
                : slot === 'head' ? {base:L.base, head:v, body:L.body}
+               : slot === 'face' ? {base:L.base, head:L.head, body:L.body, face:v,
+                                    glasses:'none'}   // 안경이 표정을 가린다
                                  : {base:NEUTRAL, head:'none', body:v};
     let url = '';
     try { url = renderThumb(look, slot); } catch { url = ''; }
@@ -1634,13 +1638,15 @@ export async function mountCampus(){
       }).join('') + `</div>`;
       body += (tab.colors || []).map(swatches).join('');
     } else {
-      // 안경이 얼굴에 박힌 캐릭터는 소품 안경을 또 씌우면 두 겹이 된다.
-      // 탭을 숨기는 대신 왜 못 고르는지 적는다.
+      // 얼굴에 박힌 안경도 이제 벗을 수 있다(덩어리를 지운다).
+      const g = L.glasses;
+      const opt = [{id:'own', name: builtin ? '원래 안경' : '없음'},
+                   {id:'none', name:'안 씀'}]
+        .concat((Avatar.ACCESSORIES || []).map(a => ({id:a.id, name:a.name})));
       body += `<div class="drow"><div class="swrow">` +
-        (Avatar.ACCESSORIES || []).map(a =>
-          `<button class="aidbtn${D.aid === a.id ? ' on' : ''}" data-aid="${a.id}"` +
-          `${builtin ? ' disabled' : ''}>${a.name}</button>`).join('') + `</div></div>` +
-        (builtin ? `<p class="dnote">이 얼굴은 안경이 붙어 있어요. 벗으려면 다른 얼굴을 고르세요.</p>` : '');
+        opt.filter(o => !(o.id === 'none' && !builtin))
+           .map(o => `<button class="aidbtn${g === o.id ? ' on' : ''}" ` +
+                     `data-aid="${o.id}">${o.name}</button>`).join('') + `</div></div>`;
     }
 
     elHead.innerHTML =
@@ -1701,9 +1707,9 @@ export async function mountCampus(){
     }
     if (b.dataset.aid){
       // 같은 소품을 다시 누르면 벗는다
-      const next = draft.aid === b.dataset.aid ? null : b.dataset.aid;
-      if (next) await Avatar.ensureAid?.(next);
-      draft = {...draft, aid: next};
+      const v = b.dataset.aid;
+      if (v !== 'own' && v !== 'none') await Avatar.ensureAid?.(v);
+      draft = {...draft, glasses: v, aid: undefined};
       previewSync(); drawChars();
       return;
     }

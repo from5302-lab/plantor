@@ -167,6 +167,32 @@ def components(prim):
     for i in range(n): out.setdefault(find(i), []).append(i)
     return list(out.values())
 
+def face_parts(prims, tab):
+    """
+    표정(눈썹·입)과 안경 덩어리를 가른다. 둘 다 얼굴에 붙어 있어서 얼굴을 고르면
+    세트로 딸려 왔는데, 각각 **독립 덩어리**라 떼어 낼 수 있다.
+
+    · 표정 — 얼굴 앞면에 **납작하게** 붙은 작은 조각(눈썹 좌우 8 · 입 10).
+             z 가 한 값에 몰려 있고(두께가 없다) 눈~입 높이에 있다.
+    · 안경 — 귀에서 귀까지 걸쳐 있고(폭 0.3 이상) 앞뒤로 두께가 있다.
+    """
+    face, glasses = [], []
+    for pr in prims:
+        if pr['key'][0][0] != 'h': continue
+        for comp in components(pr):
+            parts = {tab.get(f'{k[0]},{k[1]},{k[2]},{k[3]}')
+                     for k in (pr['key'][i] for i in comp)}
+            if parts == {'skin'}: continue
+            a = np.array([pr['pos'][i] for i in comp])
+            xw = a[:,0].max() - a[:,0].min()
+            zw = a[:,2].max() - a[:,2].min()
+            ymid = (a[:,1].max() + a[:,1].min()) / 2
+            if len(comp) <= 20 and zw < 0.01 and 0.36 < ymid < 0.56:
+                face += comp                       # 눈썹·입
+            elif 55 <= len(comp) <= 110 and xw > 0.30 and zw > 0.10 and 0.40 < ymid < 0.56:
+                glasses += comp                    # 안경
+    return sorted(set(face)), sorted(set(glasses))
+
 def bald_hide(prims, tab):
     """대머리로 만들 때 감출 정점 — 머리 메시의 '머리카락 덩어리' 전부."""
     hide = []
@@ -189,7 +215,7 @@ def bald_hide(prims, tab):
     return sorted(set(hide))
 
 if __name__ == '__main__':
-    table, builtin, bald = {}, [], {}
+    table, builtin, bald, face, glass = {}, [], {}, {}, {}
     for path in sorted(glob.glob('public/campus/models/kenney/*.glb')):
         nm = os.path.basename(path)[:-4]
         prims, groups, px = load(path)
@@ -222,10 +248,11 @@ if __name__ == '__main__':
             xs = [p[0] for p in lens]
             if max(xs) - min(xs) > 0.25: builtin.append(nm)
         bald[nm] = bald_hide(prims, table[nm])
-        print(f'   대머리로 감출 정점 {len(bald[nm])}개')
+        face[nm], glass[nm] = face_parts(prims, table[nm])
+        print(f'   대머리 {len(bald[nm])} · 표정 {len(face[nm])} · 안경 {len(glass[nm])}')
         print()
     out = 'public/campus/models/kenney/part-cells.json'
     json.dump({'family': [CELL, CELL*2], 'models': table,
-               'builtinGlasses': builtin, 'bald': bald},
+               'builtinGlasses': builtin, 'bald': bald, 'face': face, 'glasses': glass},
               open(out, 'w'), ensure_ascii=False, indent=0, separators=(',', ':'))
     print('wrote', out)
