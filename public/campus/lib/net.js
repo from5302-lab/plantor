@@ -43,7 +43,7 @@ const MOVE_EPS = 0.05;
  * 캠퍼스에 입장한다.
  * @param me       {uid, name, look, body}
  * @param handlers {onJoin(uid, info), onLeave(uid), onPose(uid, pose)}
- * @returns {publish(x,z,yaw,act,roomId), updateMeta(look,body), leave()}
+ * @returns {publish(x,z,yaw,act,roomId,h), updateMeta(look,body,name), leave()}
  *
  * act 는 'idle' | 'walk' | 'run' | 'sit'. 예전에는 moving 불리언(m)만 보냈는데,
  * 달리기·앉기가 생기면서 상태가 넷이 됐다. 옛 클라이언트가 보낸 m 도 계속 읽는다.
@@ -100,7 +100,8 @@ export function joinCampus(me, handlers){
         if (typeof p.at === 'number' && Date.now() - p.at > STALE_MS) return;
         // a = 새 필드(동작 이름), m = 옛 필드(움직임 여부). 둘 다 받아 준다.
         const act = typeof p.a === 'string' ? p.a : (p.m ? 'walk' : 'idle');
-        handlers.onPose(uid, {x: p.x, z: p.z, yaw: p.y || 0, act});
+        //  h = 발 높이(새 필드). 옛 클라이언트는 안 보내므로 0 으로 읽는다.
+        handlers.onPose(uid, {x: p.x, z: p.z, yaw: p.y || 0, h: p.h || 0, act});
       });
       posSubs.set(uid, () => off(pRef, 'value', un));
     });
@@ -117,23 +118,25 @@ export function joinCampus(me, handlers){
   }
 
   // ── 내 좌표 발행 ────────────────────────────────────────────────
-  let lastSent = 0, lx = null, lz = null, ly = null, lm = null;
+  let lastSent = 0, lx = null, lz = null, ly = null, lm = null, lh = 0;
 
-  function publish(x, z, yaw, act, roomId){
+  //  ⚠ 전선의 y 는 **yaw** 다(옛 이름). 높이는 h 로 따로 보낸다 — 이름을 바꾸면
+  //    아직 옛 코드가 떠 있는 탭에서 캐릭터가 드러눕는다.
+  function publish(x, z, yaw, act, roomId, h = 0){
     if (roomId !== room) enterRoom(roomId);
 
     const now = Date.now();
     const movedEnough = lx === null
       || Math.hypot(x - lx, z - lz) > MOVE_EPS
       || Math.abs(yaw - ly) > MOVE_EPS;
-    const stateChanged = act !== lm;
+    const stateChanged = act !== lm || Math.abs(h - (lh || 0)) > MOVE_EPS;
     const beat = now - lastSent > BEAT_MS;
     if (!movedEnough && !stateChanged && !beat) return;
     if (now - lastSent < SEND_MS) return;
 
-    lastSent = now; lx = x; lz = z; ly = yaw; lm = act;
+    lastSent = now; lx = x; lz = z; ly = yaw; lm = act; lh = h;
     // m 도 같이 보낸다 — 아직 옛 코드가 떠 있는 탭이 있을 수 있다
-    update(posRef, {x: +x.toFixed(2), z: +z.toFixed(2), y: +yaw.toFixed(2),
+    update(posRef, {x: +x.toFixed(2), z: +z.toFixed(2), y: +yaw.toFixed(2), h: +h.toFixed(2),
                     a: act, m: act === 'walk' || act === 'run', at: serverTimestamp()});
   }
 

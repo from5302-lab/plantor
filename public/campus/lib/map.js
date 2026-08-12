@@ -17,7 +17,7 @@ import * as Pets from '/campus/lib/pets.js';
 import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDecor, decorThumb,
          thumbOf, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
-import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
+import { CURVE, FOCUS, bend } from '/campus/lib/curve.js';
 import { createSky } from '/campus/lib/sky.js';
 import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
 
@@ -300,6 +300,9 @@ export async function mountCampus(){
       minZ: Math.min(z1,z2) - WALL_T/2, maxZ: Math.max(z1,z2) + WALL_T/2,
     };
     if (seg.maxX - seg.minX < 0.01 || seg.maxZ - seg.minZ < 0.01) return;  // 길이 0 조각 버림
+    //  허리 벽이지만 top 은 3m 로 둔다 — 실제 높이(1.5)를 쓰면 뛰어넘어 방 밖으로
+    //  나간다. 여긴 놀이터가 아니라 방이다.
+    seg.top = 3.0;
     COLLIDERS.push(seg);
 
     if (KIT_OK){
@@ -456,7 +459,8 @@ export async function mountCampus(){
       OCCLUDERS.push({test:parts, meshes:parts});
 
       // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
-      COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1});
+      //  지붕에 올라가면 마을이 내려다보인다 — 그게 재미다. 실제 높이를 준다.
+      COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1, top:bh});
       ZONES.push({kind:'enter', level:b.level, name:b.name, sub:'건물 안으로',
         minX:b.x - DOOR_W/2 - 0.6, maxX:b.x + DOOR_W/2 + 0.6, minZ:z1 + 0.2, maxZ:z1 + 2.6});
     }
@@ -576,14 +580,17 @@ export async function mountCampus(){
         const pot = placeKit('planter', {x: gx, z: YARD.maxZ - 1.6, yaw: 0,
                                          scale: 4.0, track: m => junk.push(m)});
         if (pot) world.add(pot);
+        //  planter 원본 높이 0.177 × 4.0 배 = 0.71m (kitSize 실측)
         COLLIDERS.push({minX:gx - 0.8, maxX:gx + 0.8,
-                        minZ:YARD.maxZ - 2.2, maxZ:YARD.maxZ - 1.0});
+                        minZ:YARD.maxZ - 2.2, maxZ:YARD.maxZ - 1.0, top:0.71});
       }
     }
 
     // 충돌은 키트 유무와 상관없이 놓는다 — 모델이 없어도 밖으로 나가면 안 된다
     const T = 0.6;                                          // 울타리 두께(충돌용)
-    const wall = (minX, maxX, minZ, maxZ) => COLLIDERS.push({minX, maxX, minZ, maxZ});
+    //  ⚠ 실제 울타리는 1m 남짓이지만 top 은 4m 로 잡는다. 꾸미기로 상자를
+    //    계단처럼 쌓으면 마을 밖으로 걸어 나갈 수 있기 때문이다.
+    const wall = (minX, maxX, minZ, maxZ) => COLLIDERS.push({minX, maxX, minZ, maxZ, top:4});
     wall(YARD.minX, YARD.maxX,  YARD.maxZ - T/2, YARD.maxZ + T/2);   // 남
     wall(YARD.minX, YARD.maxX,  YARD.minZ - T/2, YARD.minZ + T/2);   // 북
     wall(YARD.minX - T/2, YARD.minX + T/2, YARD.minZ, YARD.maxZ);    // 서
@@ -652,7 +659,7 @@ export async function mountCampus(){
       }
       g.add(crown);
       world.add(g);
-      COLLIDERS.push({minX:ft.x-0.5, maxX:ft.x+0.5, minZ:ft.z-0.5, maxZ:ft.z+0.5});
+      COLLIDERS.push({minX:ft.x-0.5, maxX:ft.x+0.5, minZ:ft.z-0.5, maxZ:ft.z+0.5, top:2.4});
       ZONES.push({kind:'tree', tree:ft.id, name:'과일나무', sub:'흔들면 사과가 떨어진다',
         minX:ft.x-2.6, maxX:ft.x+2.6, minZ:ft.z-2.6, maxZ:ft.z+2.6});
       fruitTrees.push({id:ft.id, crown, fruits, shakeT:0, x:ft.x, z:ft.z});
@@ -773,7 +780,7 @@ export async function mountCampus(){
       if (d) world.add(d);
       if (c) world.add(c);
       if (d && p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
-                                        minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+                                        minZ:p.z - p.d/2, maxZ:p.z + p.d/2, top:p.h});
       if (d) return;
     }
     const k = KIT_OK ? PROP_KIT[p.id] : null;
@@ -783,7 +790,7 @@ export async function mountCampus(){
       if (g){
         g.name = p.id; world.add(g);
         if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
-                                     minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+                                     minZ:p.z - p.d/2, maxZ:p.z + p.d/2, top:p.h});
         if (k.seat) addSeat(p.x, p.z, k.seatYaw ?? k.yaw, k.seat, Math.max(p.w, p.d));
         return;
       }
@@ -796,7 +803,8 @@ export async function mountCampus(){
     const m = new THREE.Mesh(geo, lam(p.c, null, 0.24));
     m.position.set(p.x, p.h/2, p.z);
     m.name = p.id; world.add(m);
-    if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2, minZ:p.z - p.d/2, maxZ:p.z + p.d/2});
+    if (p.solid) COLLIDERS.push({minX:p.x - p.w/2, maxX:p.x + p.w/2,
+                                 minZ:p.z - p.d/2, maxZ:p.z + p.d/2, top:p.h});
   }
 
   // ── 실내 ───────────────────────────────────────────────────────────
@@ -836,7 +844,8 @@ export async function mountCampus(){
         m.position.set(f.x, LOW_H/2, f.z);
         world.add(m);
       }
-      COLLIDERS.push({minX:f.x - f.w/2, maxX:f.x + f.w/2, minZ:f.z - f.d/2, maxZ:f.z + f.d/2});
+      COLLIDERS.push({minX:f.x - f.w/2, maxX:f.x + f.w/2,
+                      minZ:f.z - f.d/2, maxZ:f.z + f.d/2, top:3.0});
     }
 
     // 복도 외벽 — 나가는 문 한 곳만 뚫는다
@@ -903,7 +912,7 @@ export async function mountCampus(){
       const d = DECOR_BY_ID[it.t];
       // 러그·바닥처럼 밟고 지나가는 것은 막지 않는다(높이로 판단한다)
       const box = decorBox(it);
-      if (box && d && !FLAT.has(it.t)) colliders.push(box);
+      if (box && d && !FLAT.has(it.t)) colliders.push(box);   // box.top = 실제 높이
     }
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
@@ -1019,7 +1028,9 @@ export async function mountCampus(){
   const meTag = nameTag(MY_LABEL);
   placeTag(meTag, 2.0, 0.5); player.root.add(meTag);
 
-  const P = {x: 0, z: 16, yaw: Math.PI, walkT: 0};
+  //  y = 발 높이, vy = 수직 속도. 예전엔 y 가 없어 점프가 그림뿐이었다.
+  const P = {x: 0, z: 16, y: 0, vy: 0, yaw: Math.PI, walkT: 0};
+  const GRAVITY = 18;                    // 0.7m 점프가 0.5초에 끝나는 값
   //  앉기 — 앉아 있는 동안에는 이동 입력을 '일어서기'로 해석한다.
   //  seat 가 있으면 벤치에 앉은 것이라 일어설 때 자리를 살짝 비켜 준다.
   let sitting = false, seat = null;
@@ -1061,12 +1072,14 @@ export async function mountCampus(){
     gestureUntil = performance.now() + ms;
   }
   //  점프는 애니메이션만으로는 제자리 뜀뛰기로 안 읽힌다 — 실제로 몸을 띄운다.
-  let jumpT = 0;
+  let grounded = true;                   // 땅(또는 어떤 면)에 발이 닿아 있나
   const JUMP_DUR = 0.5, JUMP_H = 0.7;
   function doJump(){
-    if (jumpT > 0) return;                 // 공중에서 또 뛰지 않는다
+    if (!grounded || sitting) return;      // 공중에서 또 뛰지 않는다
     gesture('jump', JUMP_DUR * 1000);
-    jumpT = JUMP_DUR;
+    //  올라갈 높이에서 초속을 거꾸로 구한다 — JUMP_H 를 고치면 알아서 맞는다
+    P.vy = Math.sqrt(2 * GRAVITY * JUMP_H);
+    grounded = false;
   }
   const doWave = () => gesture('wave', 700);
   const doNod  = () => gesture('yes', 700);
@@ -1119,8 +1132,9 @@ export async function mountCampus(){
     // 몸짓은 상태가 아니라 사건이다 — 받은 즉시 한 번 재생하고 이전 상태로 돌아간다
     if (GESTURES.has(act)) playOnce(r.rig, act);
     else { r.act = act; r.moving = act === 'walk' || act === 'run'; }
-    r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw;
-    if (r.first){ r.x = p.x; r.z = p.z; r.yaw = p.yaw; r.first = false; r.rig.root.visible = true; }
+    r.tx = p.x; r.tz = p.z; r.tyaw = p.yaw; r.th = p.h || 0;
+    if (r.first){ r.x = p.x; r.z = p.z; r.yaw = p.yaw; r.h = r.th;
+                  r.first = false; r.rig.root.visible = true; }
   }
 
   if (ME){
@@ -1337,14 +1351,42 @@ export async function mountCampus(){
   cv.addEventListener('pointerup', endPointer);
   cv.addEventListener('pointercancel', () => { stick.on = false; stick.vx = stick.vy = 0; stick.mag = 0; });
 
-  // ══ 충돌 해소 — 축 분리 방식이라 벽을 따라 미끄러진다 ═════════════
+  // ══ 충돌 해소 ═════════════════════════════════════════════════════
+  //
+  //  세계에 **높이**가 있다. 상자마다 윗면(top)이 있어서
+  //    · 내 발보다 낮으면 → 그 위를 걷는다(막지 않는다)
+  //    · 조금 높으면      → 걸어서 올라선다(계단·낮은 단)
+  //    · 많이 높으면      → 지금처럼 민다
+  //  top 이 없는 상자는 Infinity 로 읽어 예전과 똑같이 동작한다.
+  //
+  //  ⚠ 축 분리(x 따로 z 따로)는 그대로 둔다 — 벽을 따라 미끄러지는 감각이
+  //    이 게임의 걷기다. 한 번에 풀면 벽에 붙었을 때 걸음이 멈춘다.
   const R = 0.42;
+  const STEP_UP = 0.35;                  // 이만큼까지는 걸어서 오른다
+  const boxes = () => level === 'study'
+    ? COLLIDERS.concat(ROOM_COLLIDERS, PLACE_COLLIDERS)
+    : COLLIDERS.concat(PLACE_COLLIDERS);
+  const overlaps = (c, x, z) =>
+    !(x + R <= c.minX || x - R >= c.maxX || z + R <= c.minZ || z - R >= c.maxZ);
+
+  /** (x,z) 발밑에서 밟고 설 수 있는 가장 높은 면. 아무것도 없으면 0(땅). */
+  function groundAt(x, z, feet){
+    let g = 0;
+    for (const c of boxes()){
+      if (!overlaps(c, x, z)) continue;
+      const top = c.top ?? Infinity;
+      //  머리 위로 지나가는 것은 바닥이 아니다. 발보다 조금 높은 것까지만
+      //  '올라설 수 있는 면'으로 본다(그 이상은 벽이라 resolve 가 민다).
+      if (top <= feet + STEP_UP && top > g) g = top;
+    }
+    return g;
+  }
+
   function resolve(p, axis){
-    const list = level === 'study'
-      ? COLLIDERS.concat(ROOM_COLLIDERS, PLACE_COLLIDERS)
-      : COLLIDERS.concat(PLACE_COLLIDERS);
-    for (const c of list){
-      if (p.x + R <= c.minX || p.x - R >= c.maxX || p.z + R <= c.minZ || p.z - R >= c.maxZ) continue;
+    for (const c of boxes()){
+      if (!overlaps(c, p.x, p.z)) continue;
+      const top = c.top ?? Infinity;
+      if (top <= p.y + STEP_UP) continue;         // 밟고 넘어갈 수 있는 높이다
       if (axis === 'x') p.x = (p.x < (c.minX + c.maxX)/2) ? c.minX - R : c.maxX + R;
       else              p.z = (p.z < (c.minZ + c.maxZ)/2) ? c.minZ - R : c.maxZ + R;
     }
@@ -1454,7 +1496,7 @@ export async function mountCampus(){
    *   뒤통수만 쫓아다니면 강아지가 아니라 그림자처럼 보인다 — 멈췄을 때
    *   자기 자리(주인 왼쪽 0.8m)를 잡고 고개를 같이 돌리는 게 동행이다.
    */
-  function petFollow(p, ox, oz, oyaw, moving, dt){
+  function petFollow(p, ox, oz, oyaw, moving, dt, oy = 0){
     //  목표 자리 — 주인이 걸으면 뒤(따라가기), 멈추면 옆(나란히).
     //  0.8m 로는 어깨가 겹쳐 펭귄이 팔에 가렸다. 캐릭터 폭이 0.7m 쯤이니
     //  1.15m 는 되어야 둘이 나란히 서 있는 게 보인다.
@@ -1476,7 +1518,10 @@ export async function mountCampus(){
     let a = p.yawTo - p.yaw;
     p.yaw += Math.atan2(Math.sin(a), Math.cos(a)) * Math.min(1, dt * 10);
     p.rig.play(p.moving ? (p.running ? 'run' : 'walk') : 'idle');
-    p.rig.root.position.set(p.x, 0, p.z);
+    //  주인이 올라선 면 높이를 그대로 쓴다. 제 발밑을 따로 재면 상자 모서리에서
+    //  펫만 아래로 떨어져 주인을 올려다보는 그림이 된다.
+    p.y = (p.y ?? oy) + (oy - (p.y ?? oy)) * Math.min(1, dt * 12);
+    p.rig.root.position.set(p.x, p.y, p.z);
     p.rig.root.rotation.y = p.yaw;
     p.rig.mixer.update(dt);
   }
@@ -2485,7 +2530,7 @@ export async function mountCampus(){
   const RUN_SPEED = 7.6;             // 걷기의 1.65배 — sprint 클립 속도와 어울린다
   const RUN_MAG = 44;                // 조이스틱을 이만큼 밀면 달린다(px)
   const clock = new THREE.Clock();
-  const moveVec = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const moveVec = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
   const occRay = new THREE.Raycaster(), occDir = new THREE.Vector3();
 
   function resize(){
@@ -2574,10 +2619,18 @@ export async function mountCampus(){
       d = Math.atan2(Math.sin(d), Math.cos(d));            // 최단 회전
       P.yaw += d * Math.min(1, dt * 14);
     }
-    // 점프 높이 — 위로 솟았다 내려오는 반원. 착지 순간이 또렷하게 sin 을 쓴다
-    if (jumpT > 0) jumpT = Math.max(0, jumpT - dt);
-    const hop = jumpT > 0 ? Math.sin((1 - jumpT / JUMP_DUR) * Math.PI) * JUMP_H : 0;
-    player.root.position.set(P.x, (sitting && seat ? seat.h + SIT_LIFT : 0) + hop, P.z);
+    // ── 중력과 착지 ──
+    //  올라설 면은 **위로 향할 때는 안 본다.** 안 그러면 상자 옆면을 스치며
+    //  뛰어오르다 옆 상자 윗면에 빨려 붙는다.
+    P.vy -= GRAVITY * dt;
+    P.y += P.vy * dt;
+    const floor = groundAt(P.x, P.z, P.y);
+    if (P.vy <= 0 && P.y <= floor + 0.001){
+      P.y = floor; P.vy = 0; grounded = true;
+    } else if (P.y > floor + 0.02) grounded = false;
+    if (sitting) { P.y = 0; P.vy = 0; grounded = true; }
+
+    player.root.position.set(P.x, (sitting && seat ? seat.h + SIT_LIFT : P.y), P.z);
     player.root.rotation.y = P.yaw;
     const myAct = sitting ? 'sit' : running ? 'run' : moving ? 'walk' : 'idle';
     // 몸짓이 도는 동안엔 poseAvatar 가 기본 동작으로 덮지 않게 어댑터가 잠근다.
@@ -2596,13 +2649,14 @@ export async function mountCampus(){
       let dy = r.tyaw - r.yaw;
       dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       r.yaw += dy * Math.min(1, dt * 12);
-      r.rig.root.position.set(r.x, 0, r.z);
+      r.h = (r.h || 0) + ((r.th || 0) - (r.h || 0)) * k;
+      r.rig.root.position.set(r.x, r.h, r.z);
       r.rig.root.rotation.y = r.yaw;
       if (r.moving) r.walkT += dt * (r.act === 'run' ? RUN_SPEED : SPEED) * 1.55;
       poseAvatar(r.rig, r.act || 'idle', 'none', r.moving ? r.walkT/7 : t);
-      if (r.pet) petFollow(r.pet, r.x, r.z, r.yaw, r.moving, dt);
+      if (r.pet) petFollow(r.pet, r.x, r.z, r.yaw, r.moving, dt, r.h || 0);
     }
-    if (myPet) petFollow(myPet, P.x, P.z, P.yaw, moving, dt);
+    if (myPet) petFollow(myPet, P.x, P.z, P.yaw, moving, dt, P.y);
 
     // ── 하늘 ── 시각에 따라 색·구름·별·달. 실내에서는 끈다(천장 위 별 금지)
     {
@@ -2617,9 +2671,12 @@ export async function mountCampus(){
     }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
-    CURVE.value += ((level === 'outdoor' ? CURVE_K : 0) - CURVE.value) * Math.min(1, dt*4);
+    //  곡면은 껐다. 보이는 높이와 실제 높이가 어긋나면 발판 위에 정확히
+    //  내려앉는 재미가 통째로 사라진다 — 세계에 높이가 생긴 이상 둘은 같아야 한다.
+    //  (되살리려면 CURVE_K 를 다시 곱하면 된다. curve.js 는 그대로 둔다)
+    CURVE.value += (0 - CURVE.value) * Math.min(1, dt*4);
     // 굽힘 기준점 = 플레이어의 뷰공간 깊이. 여기서 변형량이 0 이라 발이 땅에 붙는다
-    FOCUS.value = tmp.copy(player.root.position).setY(0.9)
+    FOCUS.value = tmp.copy(player.root.position).setY(0.9 + P.y)
                      .applyMatrix4(camera.matrixWorldInverse).z;
     if (level === 'outdoor'){
       tickClock();
@@ -2668,7 +2725,7 @@ export async function mountCampus(){
     setZone(editing ? null : inZone);
 
     // 내 좌표 발행 — 채널이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
-    if (net) net.publish(P.x, P.z, P.yaw, wire, channelOf(inZone));
+    if (net) net.publish(P.x, P.z, P.yaw, wire, channelOf(inZone), P.y);
 
     zoom += (zoomTo - zoom) * Math.min(1, dt * 8);
     // 조감에서는 이름표가 서로 겹쳐 오히려 안 읽힌다 — 멀어지면 감춘다
@@ -2686,9 +2743,11 @@ export async function mountCampus(){
     // ── 카메라: 위치와 look-at을 각각 스무딩 ──
     // 세로로 긴 화면(모바일)은 가로 시야가 좁다. 거리로 보정해 주변 맥락이 보이게 한다.
     const fit = Math.min(1.7, Math.max(1, 1.35 / camera.aspect));
-    tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(player.root.position);
+    tmp.copy(CAM_DIR).multiplyScalar(zoom * fit).add(tmp2.set(P.x, P.y, P.z));
     camPos.lerp(tmp, 1 - Math.exp(-6.5 * dt));
-    camLook.lerp(tmp.set(P.x, 1.30, P.z), 1 - Math.exp(-9 * dt));
+    //  올라선 만큼 화면도 올라와야 한다 — 안 그러면 지붕에 섰는데 카메라는
+    //  마당을 보고 있어 캐릭터가 화면 위로 밀려 나간다.
+    camLook.lerp(tmp.set(P.x, 1.30 + P.y, P.z), 1 - Math.exp(-9 * dt));
     camera.position.copy(camPos);
     camera.lookAt(camLook);
 

@@ -86,8 +86,9 @@ export const LOADING_QUIPS: readonly string[] = [
 export const KEY_HINTS: readonly string[] = [
   "방향키로 걷는다. 급하면 D 를 누른 채",
   "Space 는 만능이다 — 들어가고, 흔들고, 말 걸고, 앉는다",
-  "F 로 뛴다. 넘을 건 아직 없다",
+  "F 로 뛴다. 상자 위에도 올라선다",
   "J · K 로 돌리고, 휠로 당겨 본다",
+  "낮은 건 뛰지 않아도 걸어서 올라간다",
   "Q 앉기 · E 인사 · R 끄덕임",
   "벤치 앞에서 Space 로 앉는다. 걸으면 저절로 일어난다",
   "사과나무는 하루 한 번만 흔들린다",

@@ -233,7 +233,8 @@ export function decorBox(it){
   // 임의 각도라 회전한 사각형의 외접 상자를 쓴다 — 살짝 넉넉하지만 안전하다
   const c = Math.abs(Math.cos(it.r || 0)), s = Math.abs(Math.sin(it.r || 0));
   const w = sz.w * c + sz.d * s, d = sz.w * s + sz.d * c;
-  return {minX: it.x - w/2, maxX: it.x + w/2, minZ: it.z - d/2, maxZ: it.z + d/2};
+  //  top — 이 물건의 윗면 높이. 밟고 올라설 수 있는 면이라 충돌이 이 값을 본다.
+  return {minX: it.x - w/2, maxX: it.x + w/2, minZ: it.z - d/2, maxZ: it.z + d/2, top: sz.h};
 }
 
 /** 씬에 놓는다. r 은 라디안, s 는 기본 크기 대비 배수. */
