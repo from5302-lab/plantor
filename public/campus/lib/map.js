@@ -887,7 +887,15 @@ export async function mountCampus(){
     }
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
-  const FLAT = new Set(['rug', 'rugr', 'floor', 'path', 'grass', 'fRed', 'fYellow', 'fPurple']);
+  //  밟고 지나가는 것들 — 충돌을 두면 러그 위를 못 걷고 길 위를 못 지나간다.
+  //  단(platform)은 일부러 뺐다. 올라서는 발판이라 높이가 있어야 한다.
+  const FLAT = new Set(['rug', 'rugr', 'rugSq', 'doormat', 'floor', 'floorH', 'floorC', 'floorCR',
+    'path', 'grass', 'fRed', 'fYellow', 'fPurple',
+    'gGrass', 'gPath', 'gPathB', 'gPathX', 'gpCorner', 'gpEnd', 'gpSplit', 'gpSide',
+    'gpTile', 'gpRocks',
+    'grStr', 'grBend', 'grCross', 'grCorner', 'grEnd', 'grRocks',
+    'psStone', 'psCircle', 'psCorner', 'psWood', 'psWoodC',
+    'rdStr', 'rdBend', 'rdCross', 'rdCrossing', 'rdEnd', 'rdSide']);
 
   const applyRoom  = items => { myRoom = items; drawDecor(items, roomGroup, roomJunk, ROOM_COLLIDERS); };
   /**
@@ -2257,6 +2265,7 @@ export async function mountCampus(){
   let editing = false, editItems = null, editOrig = null;
   let editTarget = null;              // 'room' | 'place'
   let editSel = -1, placeType = null, decorReady = false, editGroup = null;
+  let zoomBefore = null;              // 편집 전 카메라 거리 — 마치면 되돌린다
   let editListOpen = true;            // 고르면 접힌다 — 시트가 맵을 덮은 채로는 못 놓는다
   let nameDraft = '';                 // 이름도 초안이다 — 적용을 눌러야 바뀐다
 
@@ -2270,12 +2279,21 @@ export async function mountCampus(){
     const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
     const B = editBounds();
     const pts = [];
-    //  칸 경계가 아니라 **놓이는 자리(칸의 중심)** 기준으로 긋는다 — 스냅은 round 라
-    //  교차점이 곧 물건의 중심이 된다.
-    for (let x = Math.ceil(B.minX / gx) * gx; x <= B.maxX + 1e-6; x += gx)
-      pts.push(x, 0.03, B.minZ, x, 0.03, B.maxZ);
-    for (let z = Math.ceil(B.minZ / gz) * gz; z <= B.maxZ + 1e-6; z += gz)
-      pts.push(B.minX, 0.03, z, B.maxX, 0.03, z);
+    //  ⚠ 선을 스냅 자리(칸의 중심)에 그으면 안 된다. 스냅은 round 라 물건의
+    //    **중심**이 배수 자리에 놓이므로, 배수 자리에 선을 그으면 타일이 선을
+    //    가로질러 네 칸에 걸친다 — 격자와 실제가 어긋나 보인 이유가 이것이다.
+    //    선은 **반 칸 밀어서**(n+0.5) 긋는다. 그러면 한 칸이 타일 하나다.
+    const line = (g, from, to) => {
+      const out = [];
+      for (let n = Math.floor(from / g) - 1; ; n++){
+        const v = (n + 0.5) * g;
+        if (v > to + 1e-6) break;
+        if (v >= from - 1e-6) out.push(v);
+      }
+      return out;
+    };
+    for (const x of line(gx, B.minX, B.maxX)) pts.push(x, 0.03, B.minZ, x, 0.03, B.maxZ);
+    for (const z of line(gz, B.minZ, B.maxZ)) pts.push(B.minX, 0.03, z, B.maxX, 0.03, z);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
     editGrid = new THREE.LineSegments(g,
@@ -2293,6 +2311,7 @@ export async function mountCampus(){
     ghostJunk = [];
     if (ghost){ scene.remove(ghost); ghost = null; }
     ghostType = null;
+    cellMark.visible = false;
   }
   function syncGhost(){
     const want = editing ? placeType : null;
@@ -2326,13 +2345,30 @@ export async function mountCampus(){
     const [gx, gz] = decorSnap(type, rot);
     return {x: Math.round(hit.x / gx) * gx, z: Math.round(hit.z / gz) * gz};
   }
+  //  놓일 **칸 자체**를 칠한다. 유령만 있으면 "어디에 붙는가" 는 여전히 눈대중이다 —
+  //  칸이 켜졌다 꺼졌다 하는 게 곧 '착 붙는' 느낌이다.
+  const cellMark = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.20,
+                                 depthWrite:false}));
+  cellMark.visible = false; cellMark.renderOrder = 4;
+  scene.add(cellMark);
+
   function moveGhost(cx, cy){
-    if (!ghost) return;
-    const p = snapAt(cx, cy);
+    const p = editing ? snapAt(cx, cy) : null;
     const B = editBounds();
     const ok = p && p.x >= B.minX && p.x <= B.maxX && p.z >= B.minZ && p.z <= B.maxZ;
-    ghost.visible = !!ok;
-    if (ok) ghost.position.set(p.x, 0, p.z);
+    if (ghost){
+      ghost.visible = !!ok;
+      if (ok) ghost.position.set(p.x, 0, p.z);
+    }
+    cellMark.visible = !!ok;
+    if (ok){
+      const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
+      const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
+      cellMark.scale.set(gx * 0.96, 1, gz * 0.96);
+      cellMark.position.set(p.x, 0.035, p.z);
+    }
   }
 
   const selMarker = new THREE.Mesh(
@@ -2426,6 +2462,10 @@ export async function mountCampus(){
     editSel = -1; placeType = null; editListOpen = true;
     elBag.hidden = elShop.hidden = elTalk.hidden = true;
     elEditBar.hidden = false; syncRoomBtn();
+    //  꾸밀 때는 **넓게** 본다. 평소 거리(0.75)는 캐릭터를 보라고 당겨 둔 값이라,
+    //  길을 깔다 보면 세 칸 앞이 화면 밖이다. 편집을 마치면 원래대로 돌아간다.
+    zoomBefore = zoomTo;
+    zoomTo = Math.min(ZOOM_MAX, 1.35);
     redraw();
 
     if (!decorReady){
@@ -2439,6 +2479,7 @@ export async function mountCampus(){
     editing = false;
     elEditBar.hidden = true;
     selMarker.visible = false;
+    if (zoomBefore != null){ zoomTo = zoomBefore; zoomBefore = null; }
     clearGhost();
     syncEditGrid();                     // editing=false 라 지우기만 한다
     syncRoomBtn();

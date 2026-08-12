@@ -46,6 +46,9 @@ export const DECOR = [
   {id:'wallw',    name:'창문 벽',   kit:'wallWindow',        s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
   {id:'walld',    name:'문 벽',     kit:'wallDoorway',       s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
   {id:'floor',    name:'바닥 타일', kit:'floorFull',         s:2.0, group:'구조', snap:[2.0, 2.0]},
+  {id:'floorH',   name:'반 타일',   kit:'floorHalf',         s:2.0, group:'구조', snap:[2.0, 1.0]},
+  {id:'floorC',   name:'모서리 타일', kit:'floorCorner',     s:2.0, group:'구조', snap:[2.0, 2.0]},
+  {id:'floorCR',  name:'둥근 모서리', kit:'floorCornerRound', s:2.0, group:'구조', snap:[2.0, 2.0]},
 
   // 야외
   {id:'tree',     name:'나무',      kit:'tree_default',      s:3.6, group:'야외', tall:true},
@@ -89,6 +92,42 @@ export const DECOR = [
   {id:'gPath',    name:'길 타일',    kit:'ground_pathStraight', s:3.0, group:'바닥', snap:[3.0, 3.0]},
   {id:'gPathB',   name:'길 모퉁이',  kit:'ground_pathBend',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
   {id:'gPathX',   name:'길 교차',    kit:'ground_pathCross',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  //  Nature Kit 길·강은 전부 원본 1×1 이라 s=3.0 이면 칸도 3.0 이다.
+  //  한 벌을 다 넣어야 길이 끊기지 않는다 — 직선만 있으면 모퉁이에서 멈춘다.
+  {id:'gpCorner', name:'길 꺾임',    kit:'gp-corner',   s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gpEnd',    name:'길 끝',      kit:'gp-end',      s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gpSplit',  name:'길 삼거리',  kit:'gp-split',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gpSide',   name:'길 가장자리', kit:'gp-side',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gpTile',   name:'길 한 칸',   kit:'gp-tile',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gpRocks',  name:'돌 깔린 길', kit:'gp-rocks',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+
+  //  강 — 물이다. 밟고 지나가되 막지는 않는다(FLAT 에 넣는다).
+  {id:'grStr',    name:'강',         kit:'gr-straight', s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'grBend',   name:'강 굽이',    kit:'gr-bend',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'grCross',  name:'강 교차',    kit:'gr-cross',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'grCorner', name:'강 꺾임',    kit:'gr-corner',   s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'grEnd',    name:'강 끝',      kit:'gr-end',      s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'grRocks',  name:'돌 많은 강', kit:'gr-rocks',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
+
+  //  징검다리·나무 데크 — 낱개라 격자에 안 묶는다(자유롭게 흩뿌리는 물건)
+  {id:'psStone',  name:'돌판',       kit:'ps-stone',      s:3.0, group:'바닥'},
+  {id:'psCircle', name:'둥근 돌판',  kit:'ps-circle',     s:3.0, group:'바닥'},
+  {id:'psCorner', name:'돌판 꺾임',  kit:'ps-corner',     s:3.0, group:'바닥'},
+  {id:'psWood',   name:'나무 데크',  kit:'ps-wood',       s:3.0, group:'바닥'},
+  {id:'psWoodC',  name:'데크 꺾임',  kit:'ps-woodcorner', s:3.0, group:'바닥'},
+
+  //  단 — 올라설 수 있는 낮은 판. 점프해서 오르는 발판이 된다(FLAT 아님).
+  {id:'platG',    name:'잔디 단',    kit:'plat-grass', s:3.0, group:'바닥'},
+  {id:'platS',    name:'돌 단',      kit:'plat-stone', s:3.0, group:'바닥'},
+  {id:'platB',    name:'모래 단',    kit:'plat-beach', s:3.0, group:'바닥'},
+
+  //  아스팔트 도로 — City Kit. 원본이 커서 배수가 다르다(아래에서 실측해 맞춘다)
+  {id:'rdStr',    name:'도로',       kit:'rd-straight', s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdBend',   name:'도로 굽이',  kit:'rd-bend',     s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdCross',  name:'도로 사거리', kit:'rd-cross',   s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdCrossing', name:'횡단보도', kit:'rd-crossing', s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdEnd',    name:'도로 끝',    kit:'rd-end',      s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 3.0], group:'바닥'},
 
   //  건물 — 다른 것과 달리 **문이 달려 있다.**
   //  door 가 있으면 배치할 때 '입장' 존이 같이 생긴다(map.js drawDecor).
