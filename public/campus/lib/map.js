@@ -179,9 +179,11 @@ export async function mountCampus(){
     // 안개 46m 는 하필 울타리 자리였다(카메라→마을 끝 ≈45m). 부감을 내려 보이는
     // 땅이 60m 밖까지 늘어나자 마을 경계부터 흰색으로 빠졌다. 안개는 마을 **밖**
     // 에서만 걸려야 한다 — 지평선을 지우는 장치지 바닥을 지우는 장치가 아니다.
-    // 부감 22°(22.0/8.9). 28° 에서는 지평선이 화면 밖이라 하늘이 한 뼘도 안 보였다 —
-    // 동숲의 하늘은 각도를 낮춰서 버는 것이다. 더 낮추면 건물 뒤가 안 보인다.
-    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:8.9, fog:[64, 130]},
+    // 하늘이 보이려면 **부감각 < 반시야각** 이어야 한다.
+    //   부감각 = atan((camH − 시선높이 1.3) / camR), 반시야각 = FOV 30°의 절반 = 15°
+    //   camH 8.9 → 19° : 지평선이 화면 밖. "하늘"처럼 보이던 건 안개에 잠긴 먼 땅이었다.
+    //   camH 6.0 → 12° : 화면 위 ~10% 가 진짜 하늘이 된다.
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:6.0, fog:[64, 130]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     // 우리집은 뒷모습으로 통일한다. 상점만 0 인 건 매점쌤(z=4.4)을 마주 보라는 뜻이다.
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
@@ -420,14 +422,8 @@ export async function mountCampus(){
     //  코드가 심으면 운영자가 못 치우고, 팔레트에 같은 게 다 있다.
     //  (과일나무는 흔들기 보상이 붙어 있어 buildFruitTrees 를 남겨 두되 안 부른다)
 
-    //  경계 — 보이는 울타리는 없어도 밖으로 무한히 걸어 나가면 안 된다.
-    //  울타리를 세우고 싶으면 팔레트의 '울타리'로 이 선 위에 깔면 된다.
-    const T = 0.6;
-    COLLIDERS.push(
-      {minX:YARD.minX, maxX:YARD.maxX, minZ:YARD.maxZ - T/2, maxZ:YARD.maxZ + T/2, top:4},
-      {minX:YARD.minX, maxX:YARD.maxX, minZ:YARD.minZ - T/2, maxZ:YARD.minZ + T/2, top:4},
-      {minX:YARD.minX - T/2, maxX:YARD.minX + T/2, minZ:YARD.minZ, maxZ:YARD.maxZ, top:4},
-      {minX:YARD.maxX - T/2, maxX:YARD.maxX + T/2, minZ:YARD.minZ, maxZ:YARD.maxZ, top:4});
+    //  경계 없음 — 보이지 않는 벽은 "왜 못 가지?"만 남긴다. 막고 싶으면
+    //  팔레트의 울타리를 깔면 된다(울타리는 충돌을 만든다).
   }
 
   // ── 시계 ───────────────────────────────────────────────────────────

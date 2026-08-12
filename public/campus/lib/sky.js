@@ -119,27 +119,39 @@ export function createSky(scene){
     clouds.push(b);
   }
 
-  // 별 — 돔 위쪽 절반에만 뿌린다. 지평선 아래 별은 땅 밑에서 뜬 것처럼 보인다.
-  const starN = 260, pos = new Float32Array(starN * 3);
+  //  별 — **지평선 바로 위부터** 뿌린다. 부감 카메라에서 보이는 하늘은 지평선
+  //  위 몇 도짜리 띠뿐이라, 높은 데만 별을 두면 하나도 안 보인다(실제로 그랬다).
+  const starN = 320, pos = new Float32Array(starN * 3);
   for (let i = 0; i < starN; i++){
-    const a = RND() * Math.PI * 2, y = 0.18 + RND() * 0.8, r = 120;
+    const a = RND() * Math.PI * 2, y = 0.04 + RND() * 0.9, r = 120;
     const rr = Math.sqrt(Math.max(0, 1 - y * y));
     pos[i*3] = Math.cos(a) * rr * r; pos[i*3+1] = y * r; pos[i*3+2] = Math.sin(a) * rr * r;
   }
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const starMat = new THREE.PointsMaterial({color: 0xffffff, size: 1.15,
+  const starMat = new THREE.PointsMaterial({color: 0xffffff, size: 1.5,
                                             transparent: true, opacity: 0, fog: false,
                                             sizeAttenuation: true, depthWrite: false});
   const stars = new THREE.Points(starGeo, starMat);
   root.add(stars);
 
-  // 달 — 원반 하나. 밤에만 뜬다.
+  //  해와 달 — **같은 궤도를 반나절씩 나눠 탄다.** 해는 6시 동쪽에서 떠 18시
+  //  서쪽으로, 달은 18시에 떠 6시에 진다. 카메라가 북쪽을 보므로 궤도는 북쪽
+  //  하늘에 걸어야 보인다(진짜 태양은 남쪽을 지나지만, 안 보이는 천문학적 정확성
+  //  보다 보이는 해가 낫다).
+  const sunMat = new THREE.MeshBasicMaterial({color: 0xffe9a8, transparent: true,
+                                              opacity: 0, fog: false, depthWrite: false});
+  const sun = new THREE.Mesh(new THREE.CircleGeometry(5.2, 32), sunMat);
+  root.add(sun);
   const moonMat = new THREE.MeshBasicMaterial({color: 0xfdf6d8, transparent: true,
                                                opacity: 0, fog: false, depthWrite: false});
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(3.4, 28), moonMat);
-  moon.position.set(-58, 62, -78);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(3.6, 28), moonMat);
   root.add(moon);
+  //  t: 0(뜸) → 1(짐). 동쪽(+x)에서 서쪽(−x)으로, 북쪽(−z) 하늘의 반원.
+  const orbit = (mesh, t) => {
+    const a = t * Math.PI;
+    mesh.position.set(Math.cos(a) * 88, 8 + Math.sin(a) * 46, -66);
+  };
 
   const sky = makeSkyTexture();
   let painted = -1;
@@ -165,7 +177,14 @@ export function createSky(scene){
       cloudMat.opacity = 0.9 - s.night * 0.55;
       cloudMat.color.setHex(lerpHex(0xffffff, 0x6a7ba8, s.night));
       starMat.opacity = Math.max(0, s.night - 0.35) * 1.4;
-      moonMat.opacity = Math.max(0, s.night - 0.25) * 1.2;
+      //  해: 6→18시. 달: 18→다음날 6시. 궤도 밖 시간엔 지평선 아래(투명)다.
+      const sunT = (h - 6) / 12;
+      if (sunT >= 0 && sunT <= 1){ orbit(sun, sunT); sunMat.opacity = 1 - s.night; }
+      else sunMat.opacity = 0;
+      const moonT = ((h + 24 - 18) % 24) / 12;
+      if (moonT >= 0 && moonT <= 1){ orbit(moon, moonT); moonMat.opacity = Math.max(0, s.night - 0.15) * 1.2; }
+      else moonMat.opacity = 0;
+      sun.lookAt(camera.position);
       moon.lookAt(camera.position);
       return s;
     },
