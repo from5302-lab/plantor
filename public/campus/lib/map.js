@@ -228,8 +228,9 @@ export async function mountCampus(){
   //  ⚠ 셋 다 지워지면 아무 건물에도 못 들어간다. seedBuildings 가 도로 심는다.
   const BUILDING_SEED = [
     {t:'bMain',  x:  0,   z:-9.5, r:0, s:1},
-    {t:'bStudy', x:-7.6,  z:-2,   r:0, s:1},
-    {t:'bUnion', x: 7.6,  z:-2,   r:0, s:1},
+    //  우리집이 오른쪽, 상점이 왼쪽. 처음엔 반대였다.
+    {t:'bStudy', x: 7.6,  z:-2,   r:0, s:1},
+    {t:'bUnion', x:-7.6,  z:-2,   r:0, s:1},
   ];
 
 
@@ -2431,10 +2432,16 @@ export async function mountCampus(){
       (sel
         ? `<div class="erow">` +
           `<span class="elab">${esc(DECOR_BY_ID[sel.t]?.name || '')}</span>` +
+          //  슬라이더만 두면 "지금 몇 도인지 / 몇 배인지" 를 알 수 없고, 같은 값을
+          //  두 물건에 맞출 수가 없다. 수치를 보여 주고 직접 칠 수도 있게 한다.
           `<label>회전<input type="range" data-rot min="0" max="359" step="5"
-             value="${Math.round(sel.r * 180 / Math.PI)}"></label>` +
+             value="${Math.round(sel.r * 180 / Math.PI)}">` +
+          `<input class="enum" type="number" data-rotn min="0" max="359" step="5"
+             value="${Math.round(sel.r * 180 / Math.PI)}"><i>°</i></label>` +
           `<label>크기<input type="range" data-scale min="40" max="220" step="5"
-             value="${Math.round((sel.s || 1) * 100)}"></label>` +
+             value="${Math.round((sel.s || 1) * 100)}">` +
+          `<input class="enum" type="number" data-scalen min="0.4" max="2.2" step="0.1"
+             value="${((sel.s || 1)).toFixed(1)}"><i>배</i></label>` +
           `<button data-dup class="ghostb">복제</button>` +
           `<button data-del class="ghostb">치우기</button>` +
           `</div>`
@@ -2516,9 +2523,26 @@ export async function mountCampus(){
   });
   elEditBar.addEventListener('input', e => {
     if (editSel < 0) return;
-    const t = e.target;
-    if (t.dataset.rot !== undefined) editItems[editSel].r = (+t.value) * Math.PI / 180;
-    else if (t.dataset.scale !== undefined) editItems[editSel].s = (+t.value) / 100;
+    const t = e.target, it = editItems[editSel], row = elEditBar.querySelector('.erow');
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const setRot = deg => {
+      it.r = deg * Math.PI / 180;
+      //  ⚠ 값을 바꾼 쪽은 건드리지 않는다. 숫자칸을 치는 중에 그 칸의 value 를
+      //    다시 쓰면 커서가 끝으로 튀고 '1' 을 치려다 '10' 이 된다.
+      const a = row.querySelector('[data-rot]'), b = row.querySelector('[data-rotn]');
+      if (t !== a) a.value = Math.round(deg);
+      if (t !== b) b.value = Math.round(deg);
+    };
+    const setScale = mul => {
+      it.s = mul;
+      const a = row.querySelector('[data-scale]'), b = row.querySelector('[data-scalen]');
+      if (t !== a) a.value = Math.round(mul * 100);
+      if (t !== b) b.value = mul.toFixed(1);
+    };
+    if (t.dataset.rot !== undefined)        setRot(+t.value);
+    else if (t.dataset.rotn !== undefined)  setRot(clamp(+t.value || 0, 0, 359));
+    else if (t.dataset.scale !== undefined) setScale((+t.value) / 100);
+    else if (t.dataset.scalen !== undefined) setScale(clamp(+t.value || 1, 0.4, 2.2));
     else return;
     // 슬라이더를 끄는 동안 목록을 다시 그리면 포커스가 튄다 — 3D 만 갱신한다
     if (editTarget === 'room') applyRoom(editItems); else applyPlace(editItems);

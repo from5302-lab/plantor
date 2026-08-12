@@ -210,7 +210,16 @@
        padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
   .campus-root .erow .elab{font-weight:700;color:var(--ink)}
   .campus-root .erow label{display:inline-flex;align-items:center;gap:6px;font-weight:600}
-  .campus-root .erow input[type=range]{width:96px;accent-color:var(--primary)}
+  .campus-root .erow input[type=range]{width:84px;accent-color:var(--primary)}
+  /* 수치칸 — 슬라이더 옆에 붙는다. 값을 읽을 수도, 칠 수도 있어야 같은 값을
+     두 물건에 맞출 수 있다(슬라이더만으로는 눈대중이다) */
+  .campus-root .erow .enum{width:52px;border:1px solid var(--line);border-radius:6px;
+       background:#fff;color:var(--ink);font:inherit;font-size:12px;font-weight:700;
+       padding:4px 6px;text-align:right;-moz-appearance:textfield}
+  .campus-root .erow .enum::-webkit-outer-spin-button,
+  .campus-root .erow .enum::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .campus-root .erow .enum:focus{outline:2px solid var(--primary);outline-offset:-1px}
+  .campus-root .erow i{font-style:normal;font-size:11px;color:var(--muted);margin-left:-2px}
   .campus-root .erow button{border:1px solid var(--line);border-radius:6px;background:#fff;
        color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
   /* 놓는 중 — 목록을 접어 맵을 돌려준다. 시트가 화면 절반을 덮은 채로는 못 놓는다 */
