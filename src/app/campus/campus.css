@@ -207,6 +207,10 @@
   .campus-root .erow input[type=range]{width:96px;accent-color:var(--primary)}
   .campus-root .erow button{border:1px solid var(--line);border-radius:6px;background:#fff;
        color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
+  /* 놓는 중 — 목록을 접어 맵을 돌려준다. 시트가 화면 절반을 덮은 채로는 못 놓는다 */
+  .campus-root .editbar.mini{max-height:none}
+  .campus-root .epick{font-weight:700;color:var(--primary);font-size:12.5px}
+
   /* 묶음 탭 — 한 번에 한 묶음만 보인다. 전부 늘어놓으면 목록이 끝없이 길다 */
   .campus-root .etabs{display:flex;gap:4px;padding:10px 12px 0;flex:none}
   .campus-root .etab{border:none;border-radius:6px;background:none;color:var(--muted);

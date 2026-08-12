@@ -395,7 +395,10 @@ export async function mountCampus(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
     // 바닥은 흙 한 판이다. 색은 키트 팔레트에서 실측한 값.
-    plate(0, -4, 400, 400, KIT_OK ? DIRT : 0xe0c184, -0.06);
+    // 바닥은 잔디다. 흙 한 판이던 시절엔 마을이 운동장처럼 보였다 —
+    // 초록이 깔려야 '밖에 나왔다'가 읽힌다. 길은 에디터의 길·포장 타일로 깐다.
+    // 잔디색 그대로는 나무·덤불과 한 덩어리로 붙어 보여서 한 톤 눌렀다.
+    plate(0, -4, 400, 400, KIT_OK ? 0x55b87d : 0x9fd3a8, -0.06);
 
     for (const b of BUILDINGS){
       // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
@@ -1055,10 +1058,31 @@ export async function mountCampus(){
   // 1.0 에서는 1.3m 캐릭터가 화면 높이의 1/10 쯤이라 표정이 안 읽혔다(동숲은 1/5~1/6).
   // 캐릭터 키(TARGET_H)를 올리는 쪽은 문틀·앉는 높이·이름표·충돌을 다 건드려야 해서
   // 카메라만 당긴다. 대신 건물도 같이 커져 한 화면에 들어오는 마을 범위가 줄어든다.
-  // 카메라 거리 배율. 예전엔 휠·+/− 로 조절했는데 걷어냈다 — 조작이 하나 줄고,
-  // 꾸미기 창의 목록을 굴릴 때 휠이 뒤의 맵까지 당기던 문제도 같이 없어진다.
-  // 이제 시점 조작은 **회전 하나**다.
-  const zoom = 0.75;
+  // 카메라 거리 배율 — 휠·핀치로 조절한다(한 번 걷어냈다가 되살렸다).
+  // ⚠ 걷어냈던 이유가 사라진 게 아니다: 꾸미기 창 위에서 휠을 굴리면 뒤의 맵까지
+  //   당겨졌었다. 그래서 **캔버스 위에서만** 받는다 — 패널·창은 각자 스크롤한다.
+  let zoom = 0.75, zoomTo = 0.75;
+  const ZOOM_MIN = 0.45, ZOOM_MAX = 1.6;
+  const zoomBy = f => { zoomTo = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomTo * f)); };
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();                       // 페이지 스크롤·브라우저 확대와 겹치지 않게
+    zoomBy(Math.exp(e.deltaY * 0.0016));
+  }, {passive: false});
+  // 핀치 — 포인터 둘 사이 거리의 변화율이 곧 배율이다
+  const pinch = new Map(); let pinchD = 0;
+  cv.addEventListener('pointerdown', e => { pinch.set(e.pointerId, [e.clientX, e.clientY]); });
+  cv.addEventListener('pointermove', e => {
+    if (!pinch.has(e.pointerId)) return;
+    pinch.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch.size !== 2) return;
+    const [a, b] = [...pinch.values()];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinchD > 0) zoomBy(pinchD / d);
+    pinchD = d;
+  });
+  const pinchEnd = e => { pinch.delete(e.pointerId); pinchD = 0; };
+  cv.addEventListener('pointerup', pinchEnd);
+  cv.addEventListener('pointercancel', pinchEnd);
   const camPos  = new THREE.Vector3().copy(CAM_DIR).add(new THREE.Vector3(P.x, 0, P.z));
   const camLook = new THREE.Vector3(P.x, 0.9, P.z);
 
@@ -1203,6 +1227,8 @@ export async function mountCampus(){
   });
   cv.addEventListener('pointermove', e => {
     if (!stick.on) return;
+    // 두 손가락이면 핀치 줌이다 — 걷기로 읽으면 줌하는 동안 캐릭터가 끌려다닌다
+    if (pinch.size >= 2){ stick.vx = stick.vy = 0; stick.mag = 0; stick.moved = true; return; }
     const dx = e.clientX - stick.ox, dy = e.clientY - stick.oy, m = Math.hypot(dx, dy);
     if (m > DEAD){ stick.moved = true; stick.vx = dx/m; stick.vy = dy/m; stick.mag = m; }
     else { stick.vx = stick.vy = 0; stick.mag = 0; }
@@ -2000,6 +2026,31 @@ export async function mountCampus(){
   let editing = false, editItems = null, editOrig = null;
   let editTarget = null;              // 'room' | 'place'
   let editSel = -1, placeType = null, decorReady = false, editGroup = null;
+  let editListOpen = true;            // 고르면 접힌다 — 시트가 맵을 덮은 채로는 못 놓는다
+
+  //  격자 — 어디에 붙는지 **보여야** 스냅이 기능이다. 안 보이면 탭이 어긋난
+  //  자리로 튀는 버그처럼 읽힌다. 칸은 고른 물건의 스냅을 따라간다.
+  let editGrid = null;
+  function syncEditGrid(){
+    if (editGrid){ scene.remove(editGrid); editGrid.geometry.dispose(); editGrid.material.dispose(); editGrid = null; }
+    if (!editing) return;
+    const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
+    const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
+    const B = editBounds();
+    const pts = [];
+    //  칸 경계가 아니라 **놓이는 자리(칸의 중심)** 기준으로 긋는다 — 스냅은 round 라
+    //  교차점이 곧 물건의 중심이 된다.
+    for (let x = Math.ceil(B.minX / gx) * gx; x <= B.maxX + 1e-6; x += gx)
+      pts.push(x, 0.03, B.minZ, x, 0.03, B.maxZ);
+    for (let z = Math.ceil(B.minZ / gz) * gz; z <= B.maxZ + 1e-6; z += gz)
+      pts.push(B.minX, 0.03, z, B.maxX, 0.03, z);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+    editGrid = new THREE.LineSegments(g,
+      new THREE.LineBasicMaterial({color: 0x1f7a33, transparent: true, opacity: 0.3, depthWrite: false}));
+    editGrid.renderOrder = 4;
+    scene.add(editGrid);
+  }
 
   const selMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.62, 0.74, 28).rotateX(-Math.PI/2),
@@ -2050,9 +2101,13 @@ export async function mountCampus(){
              `<span>${esc(d.name)}${own}</span></button>`;
     };
 
+    const mini = !!placeType && !editListOpen;
+    elEditBar.classList.toggle('mini', mini);
     elEditBar.innerHTML =
       `<div class="ehead">${editTarget === 'room' ? '내 방 꾸미기' : level === 'outdoor' ? '캠퍼스 꾸미기' : '실내 꾸미기'}` +
+      (mini ? `<span class="epick">· ${esc(DECOR_BY_ID[placeType]?.name || '')} 놓는 중</span>` : '') +
       `<span class="sp"></span>` +
+      (mini ? `<button data-list class="ghostb">목록</button>` : '') +
       `<button data-save>저장</button><button data-cancel class="ghostb">취소</button></div>` +
       (sel
         ? `<div class="erow">` +
@@ -2065,11 +2120,13 @@ export async function mountCampus(){
           `<button data-del class="ghostb">치우기</button>` +
           `</div>`
         : '') +
-      `<div class="etabs">` + groups.map(g =>
-        `<button class="etab${g === editGroup ? ' on' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('') +
-      `</div>` +
-      `<div class="dgrid">` +
-        list.filter(d => d.group === editGroup).map(cell).join('') + `</div>`;
+      (mini ? '' :
+        `<div class="etabs">` + groups.map(g =>
+          `<button class="etab${g === editGroup ? ' on' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('') +
+        `</div>` +
+        `<div class="dgrid">` +
+          list.filter(d => d.group === editGroup).map(cell).join('') + `</div>`);
+    syncEditGrid();
   }
 
   async function startEdit(){
@@ -2082,7 +2139,7 @@ export async function mountCampus(){
     editing = true;
     editItems = (editTarget === 'room' ? myRoom : place).map(it => ({...it}));
     editOrig = editItems.map(it => ({...it}));
-    editSel = -1; placeType = null;
+    editSel = -1; placeType = null; editListOpen = true;
     elBag.hidden = elShop.hidden = elTalk.hidden = true;
     elEditBar.hidden = false; syncRoomBtn();
     redraw();
@@ -2098,6 +2155,7 @@ export async function mountCampus(){
     editing = false;
     elEditBar.hidden = true;
     selMarker.visible = false;
+    syncEditGrid();                     // editing=false 라 지우기만 한다
     syncRoomBtn();
     const items = save ? editItems : editOrig;
     if (editTarget === 'room') applyRoom(items); else applyPlace(items);
@@ -2111,7 +2169,12 @@ export async function mountCampus(){
     const b = e.target.closest('button'); if (!b) return;
     const d = b.dataset;
     if (d.group !== undefined){ editGroup = d.group; refreshEditBar(); }
-    else if (d.place !== undefined){ placeType = placeType === d.place ? null : d.place; editSel = -1; redraw(); }
+    else if (d.list !== undefined){ editListOpen = true; refreshEditBar(); }
+    else if (d.place !== undefined){
+      placeType = placeType === d.place ? null : d.place;
+      editListOpen = !placeType;               // 골랐으면 접고, 해제했으면 다시 편다
+      editSel = -1; redraw();
+    }
     else if (d.save !== undefined) endEdit(true);
     else if (d.cancel !== undefined) endEdit(false);
     else if (editSel >= 0 && d.del !== undefined){ editItems.splice(editSel, 1); editSel = -1; redraw(); }
@@ -2353,6 +2416,7 @@ export async function mountCampus(){
     // 내 좌표 발행 — 채널이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
     if (net) net.publish(P.x, P.z, P.yaw, wire, channelOf(inZone));
 
+    zoom += (zoomTo - zoom) * Math.min(1, dt * 8);
     // 조감에서는 이름표가 서로 겹쳐 오히려 안 읽힌다 — 멀어지면 감춘다
     const tagsOn = zoom < 1.15;
     meTag.visible = tagsOn;
