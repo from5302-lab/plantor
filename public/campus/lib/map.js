@@ -1238,6 +1238,7 @@ export async function mountCampus(){
     stick.vx = stick.vy = 0; stick.moved = false; tap.target = null;
   });
   cv.addEventListener('pointermove', e => {
+    if (editing) moveGhost(e.clientX, e.clientY);
     if (!stick.on) return;
     // 두 손가락이면 핀치 줌이다 — 걷기로 읽으면 줌하는 동안 캐릭터가 끌려다닌다
     if (pinch.size >= 2){ stick.vx = stick.vy = 0; stick.mag = 0; stick.moved = true; return; }
@@ -1461,6 +1462,7 @@ export async function mountCampus(){
     elRoot && elRoot.classList.add('dressing');
     savedLook = {...myLook};
     draft = {...myLook};
+    lastDrawTab = null;                  // 새로 열면 목록은 맨 위에서 시작한다
     elChars.innerHTML =
       `<div class="dhead"></div>` +
       `<div class="dstage">` +
@@ -1743,8 +1745,16 @@ export async function mountCampus(){
     return url;
   }
 
+  //  같은 탭을 다시 그릴 때는 목록이 보던 자리에 그대로 있어야 한다.
+  //  innerHTML 을 통째로 갈아 끼우므로 스크롤이 맨 위로 튄다 — 카드를 하나
+  //  고를 때마다 목록이 처음으로 돌아가면 스물다섯 마리 중에 고를 수가 없다.
+  let lastDrawTab = null;
   function drawChars(){
     if (!charOpen) return;
+    const keepScroll = lastDrawTab === dressTab;
+    const prevFoot = keepScroll ? elFoot.scrollTop : 0;
+    const prevGrid = keepScroll ? (elFoot.querySelector('.dgrid2')?.scrollTop || 0) : 0;
+    lastDrawTab = dressTab;
     const D = draft || myLook;
     const L = Avatar.resolveLook ? Avatar.resolveLook(D) : {base: D.model};
     const colors = D.colors || {};
@@ -1808,6 +1818,9 @@ export async function mountCampus(){
         tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
                       `data-tab="${t.id}">${t.name}</button>`).join('') +
       `</div>${body}${buyRow(L)}`;
+    elFoot.scrollTop = prevFoot;
+    const grid = elFoot.querySelector('.dgrid2');
+    if (grid) grid.scrollTop = prevGrid;
   }
   /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
   function buyRow(L){
@@ -2121,6 +2134,57 @@ export async function mountCampus(){
     scene.add(editGrid);
   }
 
+  //  유령 — 고른 물건이 커서를 따라다닌다. 탭하기 전에 **어디에 얼마만 하게**
+  //  놓일지 보여 준다. 격자에 붙은 자리를 그대로 쓰므로 "여기가 맞나" 를 안 묻는다.
+  //  반투명으로 그려 이미 놓인 것과 헷갈리지 않게 한다.
+  let ghost = null, ghostType = null, ghostJunk = [];
+  function clearGhost(){
+    for (const o of ghostJunk) o.dispose?.();
+    ghostJunk = [];
+    if (ghost){ scene.remove(ghost); ghost = null; }
+    ghostType = null;
+  }
+  function syncGhost(){
+    const want = editing ? placeType : null;
+    if (want === ghostType) return;
+    clearGhost();
+    if (!want || !decorReady) return;
+    const g = buildDecor({t: want, x: 0, z: 0, r: 0, s: 1}, m => ghostJunk.push(m));
+    if (!g) return;
+    g.traverse(o => {
+      if (!o.isMesh) return;
+      o.material = o.material.clone();
+      o.material.transparent = true;
+      o.material.opacity = 0.55;
+      o.material.depthWrite = false;
+      ghostJunk.push(o.material);
+      o.renderOrder = 6;
+    });
+    g.visible = false;                   // 커서가 바닥에 닿기 전까지는 안 보인다
+    ghost = g; ghostType = want;
+    scene.add(g);
+  }
+  /** 화면 좌표 → 격자에 붙인 바닥 좌표. 없으면 null(바닥 밖) */
+  function snapAt(cx, cy){
+    const r = cv.getBoundingClientRect();
+    ndc.set((cx - r.left)/r.width*2 - 1, -((cy - r.top)/r.height*2 - 1));
+    rayc.setFromCamera(ndc, camera);
+    const hit = new THREE.Vector3();
+    if (!rayc.ray.intersectPlane(GROUND, hit)) return null;
+    const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
+    const rot = editSel >= 0 && !placeType ? editItems[editSel].r : 0;
+    const [gx, gz] = decorSnap(type, rot);
+    return {x: Math.round(hit.x / gx) * gx, z: Math.round(hit.z / gz) * gz};
+  }
+  function moveGhost(cx, cy){
+    if (!ghost) return;
+    const p = snapAt(cx, cy);
+    const B = editBounds();
+    const ok = p && p.x >= B.minX && p.x <= B.maxX && p.z >= B.minZ && p.z <= B.maxZ;
+    ghost.visible = !!ok;
+    if (ok) ghost.position.set(p.x, 0, p.z);
+  }
+
   const selMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.62, 0.74, 28).rotateX(-Math.PI/2),
     new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.9, depthWrite:false}));
@@ -2196,6 +2260,7 @@ export async function mountCampus(){
         `<div class="dgrid">` +
           list.filter(d => d.group === editGroup).map(cell).join('') + `</div>`);
     syncEditGrid();
+    syncGhost();
   }
 
   async function startEdit(){
@@ -2224,6 +2289,7 @@ export async function mountCampus(){
     editing = false;
     elEditBar.hidden = true;
     selMarker.visible = false;
+    clearGhost();
     syncEditGrid();                     // editing=false 라 지우기만 한다
     syncRoomBtn();
     const items = save ? editItems : editOrig;
@@ -2270,7 +2336,7 @@ export async function mountCampus(){
     rayc.setFromCamera(ndc, camera);
 
     const group = editTarget === 'room' ? roomGroup : placeGroup;
-    const hits = rayc.intersectObjects(group.children, true);
+    const hits = rayc.intersectObjects(group.children, true);   // 유령은 scene 직속이라 안 걸린다
     if (hits.length){
       let node = hits[0].object;
       while (node.parent && node.parent !== group) node = node.parent;
@@ -2278,14 +2344,10 @@ export async function mountCampus(){
       if (i >= 0){ editSel = i; placeType = null; syncMarker(); refreshEditBar(); return; }
     }
 
-    const hit = new THREE.Vector3();
-    if (!rayc.ray.intersectPlane(GROUND, hit)) return;
-    // 격자는 물건이 정한다 — 벽·타일·울타리는 제 크기가 칸이라 이어 놓으면
-    // 틈 없이 붙고, 가구·나무는 0.5m 로 성글게 붙는다(decorSnap).
-    const type = placeType || (editSel >= 0 ? editItems[editSel].t : null);
-    const rot = editSel >= 0 && !placeType ? editItems[editSel].r : 0;
-    const [gx, gz] = decorSnap(type, rot);
-    const x = Math.round(hit.x / gx) * gx, z = Math.round(hit.z / gz) * gz;
+    // 격자는 물건이 정한다 — 유령이 서 있는 자리와 **같은 함수**로 계산한다
+    const sp = snapAt(cx, cy);
+    if (!sp) return;
+    const x = sp.x, z = sp.z;
     const B = editBounds();
     if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
       if (placeType || editSel >= 0){

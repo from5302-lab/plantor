@@ -186,8 +186,11 @@
   /* ── 꾸미기 팔레트 ──
      실제 에셋을 같은 비율로 줄여 보여 준다(아이콘이면 나무와 의자가 같은 크기로
      보여 놓아 보기 전엔 크기를 가늠할 수 없다). */
-  .campus-root .editbar{position:absolute;z-index:50;left:16px;bottom:16px;
-       width:min(360px,calc(100vw - 32px));max-height:calc(100% - 120px);
+  /* 꾸미기 창은 **하단 가운데**다. 왼쪽 구석에 두면 오른손이 화면을 가로질러야
+     하고, 맵의 한쪽만 덮어 좌우가 비대칭으로 보인다. */
+  .campus-root .editbar{position:absolute;z-index:50;left:50%;transform:translateX(-50%);
+       bottom:16px;
+       width:min(560px,calc(100vw - 32px));max-height:calc(100% - 120px);
        display:flex;flex-direction:column;overflow:hidden;
        background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);
        backdrop-filter:blur(10px);box-shadow:var(--sh-panel)}
@@ -212,8 +215,13 @@
   .campus-root .epick{font-weight:700;color:var(--primary);font-size:12.5px}
 
   /* 묶음 탭 — 한 번에 한 묶음만 보인다. 전부 늘어놓으면 목록이 끝없이 길다 */
-  .campus-root .etabs{display:flex;gap:4px;padding:10px 12px 0;flex:none}
-  .campus-root .etab{border:none;border-radius:6px;background:none;color:var(--muted);
+  /* 탭은 **한 줄**이다. 두 글자가 세로로 쪼개지면 이름이 아니라 무늬로 읽힌다.
+     여덟 개가 안 들어가면 줄바꿈이 아니라 가로로 흐른다. */
+  .campus-root .etabs{display:flex;gap:4px;padding:10px 12px 0;flex:none;
+       flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .campus-root .etabs::-webkit-scrollbar{display:none}
+  .campus-root .etab{flex:none;white-space:nowrap;
+       border:none;border-radius:6px;background:none;color:var(--muted);
        font:inherit;font-size:12px;font-weight:700;padding:7px 11px;cursor:pointer}
   .campus-root .etab:hover{background:var(--primary-soft)}
   .campus-root .etab.on{background:var(--primary-soft);color:var(--primary)}
@@ -254,6 +262,7 @@
     .campus-root .rot{bottom:12px;right:12px}
     .campus-root .rot button{width:46px;height:46px}
     .campus-root .editbar{bottom:0;left:0;right:0;width:auto;max-height:56%;
+         transform:none;
          border-radius:16px 16px 0 0;border-left:none;border-right:none;border-bottom:none}
 
     /* 패널을 오른쪽 상단 카드로 두면 화면을 거의 다 덮어 3D 가 안 보인다.
