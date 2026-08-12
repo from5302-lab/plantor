@@ -207,20 +207,23 @@
   .campus-root .erow input[type=range]{width:96px;accent-color:var(--primary)}
   .campus-root .erow button{border:1px solid var(--line);border-radius:6px;background:#fff;
        color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
-  .campus-root .ehint{padding:12px 14px;font-size:12px;color:var(--muted);
-       border-bottom:1px solid var(--line);line-height:1.6}
-
-  .campus-root .editbar .egroup{font-size:11.5px;font-weight:700;color:var(--muted);
-       padding:12px 14px 6px}
+  /* 묶음 탭 — 한 번에 한 묶음만 보인다. 전부 늘어놓으면 목록이 끝없이 길다 */
+  .campus-root .etabs{display:flex;gap:4px;padding:10px 12px 0;flex:none}
+  .campus-root .etab{border:none;border-radius:6px;background:none;color:var(--muted);
+       font:inherit;font-size:12px;font-weight:700;padding:7px 11px;cursor:pointer}
+  .campus-root .etab:hover{background:var(--primary-soft)}
+  .campus-root .etab.on{background:var(--primary-soft);color:var(--primary)}
+  .campus-root .etab:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .campus-root .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));
-       gap:6px;padding:0 12px 12px;overflow-y:auto;overscroll-behavior:contain}
-  .campus-root .editbar > .dgrid:last-child{padding-bottom:14px}
+       gap:6px;padding:10px 12px 14px;overflow-y:auto;overscroll-behavior:contain}
+  /* 칸 높이를 고정한다 — 내용에 맡기면 스크롤 줄마다 이미지가 잘렸다 */
   .campus-root .dcell{display:flex;flex-direction:column;align-items:center;gap:2px;
+       flex:none;min-height:78px;
        border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;
        padding:6px 4px 5px;cursor:pointer;font:inherit;font-size:10.5px;font-weight:600;
        color:var(--muted);transition:background 150ms cubic-bezier(.4,0,.2,1)}
-  .campus-root .dcell img{width:52px;height:52px;object-fit:contain;image-rendering:auto}
-  .campus-root .dcell .dph{width:52px;height:52px;border-radius:6px;background:#eef3ee}
+  .campus-root .dcell img{width:52px;height:52px;flex:none;object-fit:contain;image-rendering:auto}
+  .campus-root .dcell .dph{width:52px;height:52px;flex:none;border-radius:6px;background:#eef3ee}
   .campus-root .dcell b{font-weight:700;color:var(--ink);margin-left:2px}
   .campus-root .dcell:hover{background:var(--primary-soft)}
   .campus-root .dcell.on{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}

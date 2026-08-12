@@ -42,10 +42,10 @@ export const DECOR = [
   {id:'apple',    name:'사과',      kit:'apple',             s:1.6, group:'소품'},
 
   // 실내 구조
-  {id:'wall',     name:'벽',        kit:'wall',              s:1.2, group:'구조', tall:true},
-  {id:'wallw',    name:'창문 벽',   kit:'wallWindow',        s:1.2, group:'구조', tall:true},
-  {id:'walld',    name:'문 벽',     kit:'wallDoorway',       s:1.2, group:'구조', tall:true},
-  {id:'floor',    name:'바닥 타일', kit:'floorFull',         s:2.0, group:'구조'},
+  {id:'wall',     name:'벽',        kit:'wall',              s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
+  {id:'wallw',    name:'창문 벽',   kit:'wallWindow',        s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
+  {id:'walld',    name:'문 벽',     kit:'wallDoorway',       s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
+  {id:'floor',    name:'바닥 타일', kit:'floorFull',         s:2.0, group:'구조', snap:[2.0, 2.0]},
 
   // 야외
   {id:'tree',     name:'나무',      kit:'tree_default',      s:3.6, group:'야외', tall:true},
@@ -58,10 +58,37 @@ export const DECOR = [
   {id:'fYellow',  name:'노란 꽃',   kit:'flower_yellowA',    s:3.2, group:'야외'},
   {id:'fPurple',  name:'보라 꽃',   kit:'flower_purpleA',    s:3.2, group:'야외'},
   {id:'bench',    name:'벤치',      kit:'stall-bench',       s:1.9, group:'야외'},
-  {id:'fence',    name:'울타리',    kit:'fence',             s:8.0, group:'야외'},
+  {id:'fence',    name:'울타리',    kit:'fence',             s:8.0, group:'야외', snap:[3.8, 3.8]},
   {id:'planter',  name:'화단',      kit:'planter',           s:4.0, group:'야외'},
   {id:'fountain', name:'분수',      kit:'fountain-round',    s:2.1, group:'야외'},
-  {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'야외'},
+  {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'바닥', snap:[2.88, 3.2]},
+
+  //  야외 2차분 — Nature Kit(민트 톤은 kit.js 가 잔디색으로 맞춘다)과 mini-forest.
+  {id:'treeFall', name:'단풍나무',   kit:'tree_default_fall', s:3.6, group:'야외', tall:true},
+  {id:'pineTall', name:'큰 전나무',  kit:'tree_pineTallA',    s:3.6, group:'야외', tall:true},
+  {id:'palm',     name:'야자수',     kit:'tree_palm',         s:3.6, group:'야외', tall:true},
+  {id:'patch',    name:'풀밭',       kit:'patch-grass',       s:4.0, group:'야외'},
+
+  {id:'rockL',    name:'큰 바위',    kit:'rock_largeA',       s:3.6, group:'자연'},
+  {id:'rock',     name:'바위',       kit:'rock_smallA',       s:3.6, group:'자연'},
+  {id:'stump',    name:'그루터기',   kit:'stump_round',       s:3.6, group:'자연'},
+  {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연'},
+  {id:'mushR',    name:'빨간 버섯',  kit:'mushroom_red',      s:3.2, group:'자연'},
+  {id:'mushT',    name:'버섯 무리',  kit:'mushroom_tanGroup', s:3.2, group:'자연'},
+  {id:'campfire', name:'모닥불',     kit:'campfire_logs',     s:3.6, group:'자연'},
+  {id:'tent',     name:'텐트',       kit:'tent_smallOpen',    s:3.6, group:'자연'},
+  {id:'sign',     name:'표지판',     kit:'sign',              s:3.6, group:'자연'},
+  {id:'bridge',   name:'나무 다리',  kit:'bridge_wood',       s:3.6, group:'자연'},
+  {id:'pot',      name:'항아리',     kit:'pot_large',         s:3.6, group:'자연'},
+  {id:'flag',     name:'깃발',       kit:'flag',              s:4.0, group:'자연', tall:true},
+  {id:'fenceW',   name:'나무 울타리', kit:'fence_planks',     s:3.6, group:'자연', snap:[3.6, 3.6]},
+  {id:'gate',     name:'울타리 문',  kit:'fence_gate',        s:3.6, group:'자연', snap:[3.6, 3.6]},
+
+  //  바닥 — 잔디·길. 타일이라 제 크기 격자에 붙는다.
+  {id:'gGrass',   name:'잔디 타일',  kit:'ground_grass',        s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gPath',    name:'길 타일',    kit:'ground_pathStraight', s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gPathB',   name:'길 모퉁이',  kit:'ground_pathBend',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'gPathX',   name:'길 교차',    kit:'ground_pathCross',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
 ];
 
 export const DECOR_BY_ID = Object.fromEntries(DECOR.map(d => [d.id, d]));
@@ -113,6 +140,26 @@ function decorSize(it){
   if (!k) return null;
   const s = d.s * (it.s || 1);
   return {w: k.x * s, h: k.y * s, d: k.z * s};
+}
+
+/**
+ * 이 물건을 놓을 격자 칸.
+ *
+ * 줄 맞춰 깔아야 하는 것(벽·바닥 타일·울타리·포장)은 **제 크기가 곧 격자**다.
+ * 1.2m 짜리 벽을 0.25m 격자에 놓으면 다섯 번에 한 번만 딱 맞는다 — 나머지는
+ * 틈이 벌어지거나 겹친다. 숫자는 눈대중이 아니라 에셋에서 실측한 값이다.
+ * 그 밖의 것(가구·나무·꽃)은 줄 맞출 이유가 없으니 0.5m 로 성글게 둔다.
+ *
+ * 90° 돌리면 가로세로가 바뀌므로 축도 같이 바꾼다.
+ */
+export const FREE_SNAP = 0.5;
+export function decorSnap(type, r = 0){
+  const d = DECOR_BY_ID[type];
+  const sn = d && d.snap;
+  if (!sn) return [FREE_SNAP, FREE_SNAP];
+  // 0·180° 면 그대로, 90·270° 면 축을 바꾼다(그 사이 각도는 줄을 못 맞추니 그대로)
+  const q = Math.round((r || 0) / (Math.PI / 2)) & 3;
+  return (q === 1 || q === 3) ? [sn[1], sn[0]] : [sn[0], sn[1]];
 }
 
 /** 회전(90° 단위가 아니어도 된다)을 반영한 대략적 AABB. */

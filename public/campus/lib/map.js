@@ -13,7 +13,7 @@ import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
 import { icon } from '/campus/lib/icons.js';
-import { DECOR, DECOR_BY_ID, GROUPS, preloadDecor, decorBox, buildDecor, decorThumb,
+import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDecor, decorThumb,
          thumbOf, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, CURVE_K, bend } from '/campus/lib/curve.js';
@@ -1098,6 +1098,7 @@ export async function mountCampus(){
     if (L.outdoor) world.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
     buildNpcs(id);
     roomGroup.visible = (id === 'study');
+    syncRoomBtn();
     // 공용 배치는 레벨마다 다르다. 비동기라 먼저 비우고 도착하면 그린다.
     if (placeLevel !== id){
       placeLevel = id;
@@ -1280,10 +1281,16 @@ export async function mountCampus(){
       elPKey.textContent = 'Space';
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
-    // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)
-    // 내 방에서는 누구나, 그 밖에서는 운영자만 꾸밀 수 있다
+    syncRoomBtn();
+  }
+  //  방 꾸미기 버튼. 내 방에서는 누구나, 그 밖에서는 운영자만.
+  //  ⚠ setZone 안에만 두면 안 된다 — setZone 은 존이 **바뀔 때만** 돌고, 스폰
+  //    지점은 존 밖이라 첫 진입에서 안 바뀐다. 운영자 버튼이, 존을 한 번
+  //    드나들기 전까지 안 보였다. 레벨을 열 때와 편집을 마칠 때도 부른다.
+  function syncRoomBtn(){
+    const z = currentZone;
     const inMyRoom = ME && z && z.kind === 'room' && z.room.id === 'study' && z.room.personal;
-    elRoomBtn.hidden = !(inMyRoom || (IS_ADMIN && level !== 'study'));
+    elRoomBtn.hidden = editing || !(inMyRoom || (IS_ADMIN && level !== 'study'));
     elRoomBtn.textContent = inMyRoom ? '내 방 꾸미기' : '꾸미기';
   }
   function interact(){
@@ -1992,7 +1999,7 @@ export async function mountCampus(){
   const IS_ADMIN = !!(ME && ME.role === 'admin');
   let editing = false, editItems = null, editOrig = null;
   let editTarget = null;              // 'room' | 'place'
-  let editSel = -1, placeType = null, decorReady = false;
+  let editSel = -1, placeType = null, decorReady = false, editGroup = null;
 
   const selMarker = new THREE.Mesh(
     new THREE.RingGeometry(0.62, 0.74, 28).rotateX(-Math.PI/2),
@@ -2030,6 +2037,8 @@ export async function mountCampus(){
   function refreshEditBar(){
     const list = paletteItems();
     const groups = GROUPS.filter(g => list.some(d => d.group === g));
+    // 묶음을 전부 늘어놓으면 목록이 세로로 끝없이 길다 — 한 번에 한 묶음만.
+    if (!groups.includes(editGroup)) editGroup = groups[0] || null;
     const sel = editSel >= 0 ? editItems[editSel] : null;
 
     const cell = d => {
@@ -2055,10 +2064,12 @@ export async function mountCampus(){
           `<button data-dup class="ghostb">복제</button>` +
           `<button data-del class="ghostb">치우기</button>` +
           `</div>`
-        : `<div class="ehint">놓을 것을 고른 뒤 바닥을 탭하세요. 놓인 것을 탭하면 고칠 수 있어요.</div>`) +
-      groups.map(g =>
-        `<div class="egroup">${esc(g)}</div><div class="dgrid">` +
-        list.filter(d => d.group === g).map(cell).join('') + `</div>`).join('');
+        : '') +
+      `<div class="etabs">` + groups.map(g =>
+        `<button class="etab${g === editGroup ? ' on' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('') +
+      `</div>` +
+      `<div class="dgrid">` +
+        list.filter(d => d.group === editGroup).map(cell).join('') + `</div>`;
   }
 
   async function startEdit(){
@@ -2073,7 +2084,7 @@ export async function mountCampus(){
     editOrig = editItems.map(it => ({...it}));
     editSel = -1; placeType = null;
     elBag.hidden = elShop.hidden = elTalk.hidden = true;
-    elEditBar.hidden = false; elRoomBtn.hidden = true;
+    elEditBar.hidden = false; syncRoomBtn();
     redraw();
 
     if (!decorReady){
@@ -2087,6 +2098,7 @@ export async function mountCampus(){
     editing = false;
     elEditBar.hidden = true;
     selMarker.visible = false;
+    syncRoomBtn();
     const items = save ? editItems : editOrig;
     if (editTarget === 'room') applyRoom(items); else applyPlace(items);
     if (!save) return toast('되돌렸어요');
@@ -2098,7 +2110,8 @@ export async function mountCampus(){
   elEditBar.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const d = b.dataset;
-    if (d.place !== undefined){ placeType = placeType === d.place ? null : d.place; editSel = -1; redraw(); }
+    if (d.group !== undefined){ editGroup = d.group; refreshEditBar(); }
+    else if (d.place !== undefined){ placeType = placeType === d.place ? null : d.place; editSel = -1; redraw(); }
     else if (d.save !== undefined) endEdit(true);
     else if (d.cancel !== undefined) endEdit(false);
     else if (editSel >= 0 && d.del !== undefined){ editItems.splice(editSel, 1); editSel = -1; redraw(); }
@@ -2135,8 +2148,12 @@ export async function mountCampus(){
 
     const hit = new THREE.Vector3();
     if (!rayc.ray.intersectPlane(GROUND, hit)) return;
-    // 0.25m 격자 — 자유 배치는 줄이 안 맞고, 1m 격자는 답답하다
-    const x = Math.round(hit.x * 4) / 4, z = Math.round(hit.z * 4) / 4;
+    // 격자는 물건이 정한다 — 벽·타일·울타리는 제 크기가 칸이라 이어 놓으면
+    // 틈 없이 붙고, 가구·나무는 0.5m 로 성글게 붙는다(decorSnap).
+    const type = placeType || (editSel >= 0 ? editItems[editSel].t : null);
+    const rot = editSel >= 0 && !placeType ? editItems[editSel].r : 0;
+    const [gx, gz] = decorSnap(type, rot);
+    const x = Math.round(hit.x / gx) * gx, z = Math.round(hit.z / gz) * gz;
     const B = editBounds();
     if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
       if (placeType || editSel >= 0){
