@@ -19,7 +19,7 @@ import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDec
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, bend } from '/campus/lib/curve.js';
 import { createSky } from '/campus/lib/sky.js';
-import { loadKit, placeKit, placeKitInstanced, kitSize, GRASS, DIRT } from '/campus/lib/kit.js';
+import { loadKit, placeKit, placeKitInstanced, kitSize } from '/campus/lib/kit.js';
 
 export async function mountCampus(){
   // ══════════════════════════════════════════════════════════════════
@@ -65,12 +65,9 @@ export async function mountCampus(){
   // Kenney 키트(건물·나무) — 못 받으면 예전 프로시저럴 지오메트리로 돌아간다
   let KIT_OK = false;
   try {
+    //  부팅에 꼭 필요한 것만 — 문 달린 건물 셋(seedBuildings)과 실내 구조·가구.
+    //  조경·소품은 전부 팔레트 배치가 됐으므로 drawDecor 가 필요할 때 받아 온다.
     await loadKit(['building-type-p', 'building-type-k', 'building-type-s',
-                   'tree_default', 'tree_oak', 'tree_pineRoundC', 'tree_small',
-                   'fence', 'planter', 'apple',
-                   'flower_purpleA', 'flower_redA', 'flower_yellowA',
-                   'plant_bushSmall', 'grass_large',
-                   'fountain-round', 'stall-bench',
                    // 실내 — 벽·바닥·가구까지 전부 키트로 세운다
                    'wall', 'wallDoorway', 'wallWindow', 'floorFull',
                    'desk', 'chairDesk', 'bookcaseOpen', 'bookcaseClosedWide',
@@ -379,34 +376,6 @@ export async function mountCampus(){
     world.add(m);
     return m;
   }
-  function trees(list){
-    if (KIT_OK){
-      // Kenney 나무 — 시드 고정으로 크기·방향만 흔들어 심는다(같은 모델 반복이 티 안 나게)
-      let s = 3;
-      const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-      const KINDS = ['tree_default', 'tree_oak', 'tree_pineRoundC', 'tree_small'];
-      for (const [x, z] of list){
-        const k = KINDS[Math.floor(rnd() * KINDS.length)];
-        const g = placeKit(k, {x, z, yaw: rnd() * Math.PI * 2,
-          scale: (k === 'tree_small' ? 2.6 : 3.0) * (0.85 + rnd()*0.3),
-          track: m => junk.push(m)});
-        if (g) world.add(g);
-      }
-      return;
-    }
-    const trunk = lam(0xb8ab97, null, 0.25), leaf = lam(0xa9bfa6, null, 0.3);
-    // 지오메트리는 나무 전체가 공유한다 — 16그루가 각자 만들면 그만큼 낭비다
-    const gTr = new THREE.CylinderGeometry(0.22, 0.3, 1.5, 8);
-    const gLv = new THREE.SphereGeometry(1.25, 14, 12);
-    for (const [x, z] of list){
-      const t = new THREE.Group(); t.position.set(x, 0, z);
-      const tr = new THREE.Mesh(gTr, trunk); tr.position.y = 0.75;
-      const lv = new THREE.Mesh(gLv, leaf);  lv.position.y = 2.3; lv.scale.set(1, 0.92, 1);
-      t.add(tr, lv); world.add(t);
-    }
-  }
-
-  // ── 야외 ───────────────────────────────────────────────────────────
   function buildOutdoor(){
     // 잔디는 실내 바닥(거의 흰색)보다 확실히 초록이어야 한다. 여기서 색이 붙어야
     // '건물 밖으로 나왔다'가 한눈에 읽힌다 — 명도만 다르면 같은 실내로 보인다.
@@ -479,95 +448,9 @@ export async function mountCampus(){
     clockHands.minute.rotation.z = -mA;
   }
 
-  // ── 캠퍼스 울타리 ──────────────────────────────────────────────────
-  //  경계가 없으면 캠퍼스 밖으로 끝없이 걸어 나간다(실측: 8초 달려 60m,
-  //  지면 판 밖까지). 보이지 않는 벽으로 막으면 왜 못 나가는지 알 수 없으니
-  //  **눈에 보이는 울타리**로 두르고 그 자리에 충돌을 놓는다.
-  //  ⚠ 남쪽에 정문 틈을 냈더니 그리로 계속 걸어 나갔다(z=28 까지 확인).
-  //    밖에 갈 곳이 생기기 전까지는 **완전히 닫는다** — 보이는 구멍을 보이지 않는
-  //    벽으로 막는 것보다, 아예 안 뚫려 있는 편이 정직하다.
-  //    대신 남쪽 한가운데에 화분 두 개를 세워 정문처럼 읽히게 한다.
-  //  42 × 30 은 1.3m 캐릭터에게 축구장이었다 — 건물 사이를 걷는 데만 6초였다.
-  //  30 × 22 로 좁힌다. 담을 것(건물 셋·분수·벤치·과일나무 여섯)은 그대로다.
+  //  마당 경계 — 편집 범위와 펫 순간이동 기준으로만 남았다. 울타리·기본
+  //  조경은 전부 팔레트로 옮기고 지웠다(코드가 심으면 운영자가 못 치운다).
   const YARD = {minX:-15, maxX:15, minZ:-14, maxZ:8};
-
-  function buildFence(){
-    const FZ = KIT_OK ? kitSize('fence') : null;           // 원본 폭 0.48
-    const FW = 3.84;                                       // 한 칸이 덮는 미터(목표 폭)
-    const spots = [];
-
-    // 축에 나란한 한 줄을 FW 간격으로 채운다
-    const run = (axis, fixed, from, to) => {
-      const a = Math.min(from, to), b = Math.max(from, to);
-      const n = Math.max(1, Math.round((b - a) / FW));
-      const step = (b - a) / n;
-      for (let i = 0; i < n; i++){
-        const t = a + (i + 0.5) * step;
-        // ⚠ placeKitInstanced 는 sp.scale 에 base 를 **곱한다**. 여기서 이미
-        //   목표 폭에 맞춘 배수를 넣으므로 base 는 1 이어야 한다.
-        //   (base 를 8 로 두면 8배로 더 곱해져 울타리가 담벼락이 된다)
-        const sc = step / FZ.x;
-        spots.push(axis === 'x'
-          ? {x: t, z: fixed, yaw: 0,         scale: sc}
-          : {x: fixed, z: t, yaw: Math.PI/2, scale: sc});
-      }
-    };
-
-    if (KIT_OK){
-      run('x', YARD.maxZ, YARD.minX, YARD.maxX);            // 남
-      run('x', YARD.minZ, YARD.minX, YARD.maxX);            // 북
-      run('z', YARD.minX, YARD.minZ, YARD.maxZ);            // 서
-      run('z', YARD.maxX, YARD.minZ, YARD.maxZ);            // 동
-      const g = placeKitInstanced('fence', spots, {scale: 1, track: m => junk.push(m)});
-      if (g) world.add(g);
-
-      // 정문 표시 — 남쪽 한가운데 화분 두 개. 여기가 앞쪽이라는 신호다
-      for (const gx of [-3.6, 3.6]){
-        const pot = placeKit('planter', {x: gx, z: YARD.maxZ - 1.6, yaw: 0,
-                                         scale: 4.0, track: m => junk.push(m)});
-        if (pot) world.add(pot);
-        //  planter 원본 높이 0.177 × 4.0 배 = 0.71m (kitSize 실측)
-        COLLIDERS.push({minX:gx - 0.8, maxX:gx + 0.8,
-                        minZ:YARD.maxZ - 2.2, maxZ:YARD.maxZ - 1.0, top:0.71});
-      }
-    }
-
-    // 충돌은 키트 유무와 상관없이 놓는다 — 모델이 없어도 밖으로 나가면 안 된다
-    const T = 0.6;                                          // 울타리 두께(충돌용)
-    //  ⚠ 실제 울타리는 1m 남짓이지만 top 은 4m 로 잡는다. 꾸미기로 상자를
-    //    계단처럼 쌓으면 마을 밖으로 걸어 나갈 수 있기 때문이다.
-    const wall = (minX, maxX, minZ, maxZ) => COLLIDERS.push({minX, maxX, minZ, maxZ, top:4});
-    wall(YARD.minX, YARD.maxX,  YARD.maxZ - T/2, YARD.maxZ + T/2);   // 남
-    wall(YARD.minX, YARD.maxX,  YARD.minZ - T/2, YARD.minZ + T/2);   // 북
-    wall(YARD.minX - T/2, YARD.minX + T/2, YARD.minZ, YARD.maxZ);    // 서
-    wall(YARD.maxX - T/2, YARD.maxX + T/2, YARD.minZ, YARD.maxZ);    // 동
-
-    // 울타리 너머 — 나무를 한 겹 둘러 '끝'이 허허벌판으로 안 보이게 한다.
-    // 시드 고정이라 들를 때마다 같은 자리에 선다.
-    if (!KIT_OK) return;
-    let sd = 11;
-    const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    const KINDS = ['tree_default', 'tree_oak', 'tree_pineRoundC'];
-    const ring = [];
-    //  ⚠ 이 띠가 **지평선을 가린다.** 예전엔 울타리 바로 밖에 큰 나무를 둘렀는데,
-    //    부감을 낮춰 하늘을 보려 하자 화면 위쪽이 통째로 나무가 됐다. 멀리 밀고
-    //    낮춰서, 마을 끝은 가리되 그 너머 하늘은 남긴다.
-    //  ⚠ 남쪽(카메라 쪽)에는 안 두른다. 카메라가 남쪽 하늘에서 내려다보므로
-    //    남쪽 띠는 배경이 아니라 **커튼**이 된다 — 마당 앞줄을 통째로 가렸다.
-    //    동·서 기둥도 남쪽 끝은 비운다(모서리가 정면에 걸린다).
-    for (let x = YARD.minX - 5; x <= YARD.maxX + 5; x += 5.2)
-      ring.push([x, YARD.minZ - 4.5 - rnd()*2.5]);
-    for (let z = YARD.minZ - 1; z <= YARD.maxZ - 4; z += 5.2){
-      ring.push([YARD.minX - 4.5 - rnd()*2.5, z]);
-      ring.push([YARD.maxX + 4.5 + rnd()*2.5, z]);
-    }
-    for (const [x, z] of ring){
-      const k = KINDS[Math.floor(rnd() * KINDS.length)];
-      const g = placeKit(k, {x, z, yaw: rnd()*Math.PI*2,
-        scale: 2.5 * (0.85 + rnd()*0.3), track: m => junk.push(m)});
-      if (g) world.add(g);
-    }
-  }
 
   // ── 과일나무·장식 (야외 전용) ──────────────────────────────────────
   // 레벨 로컬 상태 — clearLevel 이 메시를 지우므로 야외를 지을 때마다 다시 채운다.
@@ -613,56 +496,6 @@ export async function mountCampus(){
     }
   }
 
-  function buildFlowers(){
-    // 시드 고정 난수 — 들를 때마다 꽃밭이 다른 곳에 피면 세계가 아니라 배경화면이 된다
-    let s = 7;
-    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-
-    // 광장·진입로를 비켜 잔디에만 심는다
-    const spots = [];
-    for (let i = 0; i < 150; i++){
-      const a = rnd()*Math.PI*2, r = 7 + rnd()*7.5;
-      const x = Math.cos(a)*r, z = Math.sin(a)*r - 3;
-      if (x < YARD.minX + 1 || x > YARD.maxX - 1) continue;
-      if (z < YARD.minZ + 1 || z > YARD.maxZ - 1) continue;
-      if (Math.abs(x) < 6 && z > -10) continue;              // 광장·진입로
-      if (Math.abs(z + 1.6) < 3 && Math.abs(x) < 10) continue; // 건물 앞
-      spots.push({x, z, yaw: rnd()*Math.PI*2, scale: 0.8 + rnd()*0.6});
-    }
-
-    if (KIT_OK){
-      // 종류별로 나눠 인스턴싱한다(모델이 다르면 같은 배치로 못 묶는다)
-      const kinds = ['flower_redA', 'flower_yellowA', 'flower_purpleA',
-                     'grass_large', 'plant_bushSmall'];
-      const buckets = kinds.map(() => []);
-      spots.forEach((sp, i) => buckets[i % kinds.length].push(sp));
-      kinds.forEach((k, i) => {
-        // 꽃은 작게, 풀·덤불은 조금 크게
-        const base = k.startsWith('flower') ? 3.2 : 4.2;
-        const g = placeKitInstanced(k, buckets[i], {scale: base, track: m => junk.push(m)});
-        if (g) world.add(g);
-      });
-      return;
-    }
-
-    const stemM = lam(0x74a862, null, 0.28);
-    const headMs = [0xf2b8c6, 0xf5e07f, 0xffffff, 0xc9a9e8].map(c => lam(c, null, 0.4));
-    const gSt = new THREE.CylinderGeometry(0.035, 0.035, 0.34, 5);
-    const gHd = new THREE.SphereGeometry(0.13, 8, 6);
-    spots.forEach((sp, i) => {
-      const f = new THREE.Group(); f.position.set(sp.x, 0, sp.z);
-      const st = new THREE.Mesh(gSt, stemM); st.position.y = 0.17;
-      const hd = new THREE.Mesh(gHd, headMs[i % headMs.length]); hd.position.y = 0.38;
-      f.add(st, hd); world.add(f);
-    });
-  }
-
-  /**
-   * 앉을 자리를 등록한다. 존은 가구 **주변**에 깔고, 실제로 앉는 위치는 가구 위다.
-   * @param yaw  가구가 놓인 방향. 앉으면 그 방향을 보고 앉는다(등받이에 등을 댄다)
-   * @param h    앉는 높이(m). 캐릭터를 그만큼 띄워야 의자를 뚫고 앉지 않는다
-   * @param span 가구 크기 — 존을 이만큼 넓게 잡는다
-   */
   function addSeat(x, z, yaw, h, span){
     const r = span/2 + 0.9;
     ZONES.push({kind:'seat', name:'앉기', sub:'여기에 앉는다',
@@ -2317,6 +2150,17 @@ export async function mountCampus(){
   //  유령 — 고른 물건이 커서를 따라다닌다. 탭하기 전에 **어디에 얼마만 하게**
   //  놓일지 보여 준다. 격자에 붙은 자리를 그대로 쓰므로 "여기가 맞나" 를 안 묻는다.
   //  반투명으로 그려 이미 놓인 것과 헷갈리지 않게 한다.
+  //  놓일 **칸 자체**를 칠한다. 유령만 있으면 "어디에 붙는가" 는 여전히 눈대중이다 —
+  //  칸이 켜졌다 꺼졌다 하는 게 곧 '착 붙는' 느낌이다.
+  const cellMark = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.20,
+                                 depthWrite:false}));
+  cellMark.visible = false; cellMark.renderOrder = 4;
+  scene.add(cellMark);
+
+  //  ⚠ 이 선언은 clearGhost 보다 위에 있어야 한다(TDZ — 펫 초기화에서 같은 걸로
+  //    콜백이 조용히 죽은 적이 있다).
   let ghost = null, ghostType = null, ghostJunk = [];
   function clearGhost(){
     for (const o of ghostJunk) o.dispose?.();
@@ -2357,14 +2201,6 @@ export async function mountCampus(){
     const [gx, gz] = decorSnap(type, rot);
     return {x: Math.round(hit.x / gx) * gx, z: Math.round(hit.z / gz) * gz};
   }
-  //  놓일 **칸 자체**를 칠한다. 유령만 있으면 "어디에 붙는가" 는 여전히 눈대중이다 —
-  //  칸이 켜졌다 꺼졌다 하는 게 곧 '착 붙는' 느낌이다.
-  const cellMark = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.20,
-                                 depthWrite:false}));
-  cellMark.visible = false; cellMark.renderOrder = 4;
-  scene.add(cellMark);
 
   function moveGhost(cx, cy){
     const p = editing ? snapAt(cx, cy) : null;
