@@ -72,6 +72,7 @@ export const DECOR = [
   {id:'pineTall', name:'큰 전나무',  kit:'tree_pineTallA',    s:3.6, group:'야외', tall:true},
   {id:'palm',     name:'야자수',     kit:'tree_palm',         s:3.6, group:'야외', tall:true},
   {id:'patch',    name:'풀밭',       kit:'patch-grass',       s:4.0, group:'야외'},
+  {id:'sand',     name:'모래밭',     kit:'patch-dirt',        s:4.0, group:'야외'},
 
   {id:'rockL',    name:'큰 바위',    kit:'rock_largeA',       s:3.6, group:'자연'},
   {id:'rock',     name:'바위',       kit:'rock_smallA',       s:3.6, group:'자연'},

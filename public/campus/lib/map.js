@@ -557,11 +557,12 @@ export async function mountCampus(){
     //  ⚠ 이 띠가 **지평선을 가린다.** 예전엔 울타리 바로 밖에 큰 나무를 둘렀는데,
     //    부감을 낮춰 하늘을 보려 하자 화면 위쪽이 통째로 나무가 됐다. 멀리 밀고
     //    낮춰서, 마을 끝은 가리되 그 너머 하늘은 남긴다.
-    for (let x = YARD.minX - 5; x <= YARD.maxX + 5; x += 5.2){
+    //  ⚠ 남쪽(카메라 쪽)에는 안 두른다. 카메라가 남쪽 하늘에서 내려다보므로
+    //    남쪽 띠는 배경이 아니라 **커튼**이 된다 — 마당 앞줄을 통째로 가렸다.
+    //    동·서 기둥도 남쪽 끝은 비운다(모서리가 정면에 걸린다).
+    for (let x = YARD.minX - 5; x <= YARD.maxX + 5; x += 5.2)
       ring.push([x, YARD.minZ - 4.5 - rnd()*2.5]);
-      ring.push([x, YARD.maxZ + 4.5 + rnd()*2.5]);
-    }
-    for (let z = YARD.minZ - 1; z <= YARD.maxZ + 1; z += 5.2){
+    for (let z = YARD.minZ - 1; z <= YARD.maxZ - 4; z += 5.2){
       ring.push([YARD.minX - 4.5 - rnd()*2.5, z]);
       ring.push([YARD.maxX + 4.5 + rnd()*2.5, z]);
     }
@@ -855,7 +856,7 @@ export async function mountCampus(){
   let roomJunk = [], placeJunk = [];
   let myRoom = [], place = [], placeLevel = null;
 
-  function drawDecor(items, group, junkArr, colliders){
+  function drawDecor(items, group, junkArr, colliders, retried){
     group.clear();
     for (const m of junkArr) m.dispose?.();
     junkArr.length = 0;
@@ -886,6 +887,20 @@ export async function mountCampus(){
         }
       }
     }
+
+    //  ⚠ 부팅 직후에는 배치물의 모델이 아직 안 받아져 있을 수 있다(전체 로드는
+    //    꾸미기를 열 때만 한다). placeKit 이 조용히 null 을 돌려주므로 **저장한
+    //    꾸밈이 통째로 안 보였다** — 편집 중에만 보이니 알아채기도 어려웠다.
+    //    빠진 것만 받아서 한 번 다시 그린다(retried 로 무한 재귀를 막는다).
+    if (!retried){
+      const missing = [...new Set(items
+        .map(it => DECOR_BY_ID[it.t]?.kit)
+        .filter(kit => kit && !kitSize(kit)))];
+      if (missing.length)
+        loadKit(missing)
+          .then(() => drawDecor(items, group, junkArr, colliders, true))
+          .catch(e => console.warn('[campus] 배치물 모델 로드 실패', e));
+    }
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
   //  밟고 지나가는 것들 — 충돌을 두면 러그 위를 못 걷고 길 위를 못 지나간다.
@@ -895,7 +910,7 @@ export async function mountCampus(){
     'gGrass', 'gPath', 'gPathB', 'gPathX', 'gpCorner', 'gpEnd', 'gpSplit', 'gpSide',
     'gpTile', 'gpRocks',
     'grStr', 'grBend', 'grCross', 'grCorner', 'grEnd', 'grRocks',
-    'psStone', 'psCircle', 'psCorner', 'psWood', 'psWoodC',
+    'psStone', 'psCircle', 'psCorner', 'psWood', 'psWoodC', 'patch', 'sand',
     'rdStr', 'rdBend', 'rdCross', 'rdCrossing', 'rdEnd', 'rdSide']);
 
   const applyRoom  = items => { myRoom = items; drawDecor(items, roomGroup, roomJunk, ROOM_COLLIDERS); };
@@ -2564,10 +2579,23 @@ export async function mountCampus(){
     const group = editTarget === 'room' ? roomGroup : placeGroup;
     const hits = rayc.intersectObjects(group.children, true);   // 유령은 scene 직속이라 안 걸린다
     if (hits.length){
-      let node = hits[0].object;
-      while (node.parent && node.parent !== group) node = node.parent;
-      const i = group.children.indexOf(node);
-      if (i >= 0){ editSel = i; placeType = null; syncMarker(); refreshEditBar(); return; }
+      //  ⚠ 맨 앞 히트를 그대로 잡으면 안 된다. 바닥 타일은 3m 판이라 그 위에
+      //    선 가로등을 노려도 판이 먼저 걸릴 수 있다 — "옆의 것이 잡힌다"가
+      //    이것이다. **세워진 것 먼저**, 깔린 것(FLAT)은 그다음이다.
+      const idxOf = h => {
+        let node = h.object;
+        while (node.parent && node.parent !== group) node = node.parent;
+        return group.children.indexOf(node);
+      };
+      let pick = -1;
+      for (const h of hits){
+        const i = idxOf(h);
+        if (i < 0) continue;
+        const t = editItems[i]?.t;
+        if (t && !FLAT.has(t)){ pick = i; break; }   // 세워진 것 — 즉시 확정
+        if (pick < 0) pick = i;                      // 깔린 것 — 후보로만
+      }
+      if (pick >= 0){ editSel = pick; placeType = null; syncMarker(); refreshEditBar(); return; }
     }
 
     // 격자는 물건이 정한다 — 유령이 서 있는 자리와 **같은 함수**로 계산한다
