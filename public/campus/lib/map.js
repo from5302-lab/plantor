@@ -906,7 +906,8 @@ export async function mountCampus(){
     'gpTile', 'gpRocks',
     'grStr', 'grBend', 'grCross', 'grCorner', 'grEnd', 'grRocks',
     'psStone', 'psCircle', 'psCorner', 'psWood', 'psWoodC', 'patch', 'sand',
-    'rdStr', 'rdBend', 'rdCross', 'rdCrossing', 'rdEnd', 'rdSide']);
+    'rdStr', 'rdBend', 'rdCross', 'rdCrossing', 'rdEnd', 'rdSide',
+    'plaza', 'dwShort', 'walk', 'walkS', 'stones', 'stonesM']);
 
   const applyRoom  = items => { myRoom = items; drawDecor(items, roomGroup, roomJunk, ROOM_COLLIDERS); };
   /**

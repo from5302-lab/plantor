@@ -131,6 +131,14 @@ export const DECOR = [
   {id:'rdEnd',    name:'도로 끝',    kit:'rd-end',      s:3.0, snap:[3.0, 3.0], group:'바닥'},
   //  인도는 도로보다 깊다(3 × 3.93). 깊이만 4로 잡아야 옆 칸을 안 먹는다.
   {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 4.0], group:'바닥'},
+  //  포장 광장 타일(city-kit-roads tile-low)과 마당길(suburban path) —
+  //  레퍼런스(도시 블록)의 회색 바닥이 이것들이다.
+  {id:'plaza',    name:'광장 타일',  kit:'tile-low',        s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'dwShort',  name:'짧은 진입로', kit:'driveway-short', s:8.0, group:'바닥'},
+  {id:'walk',     name:'마당길',     kit:'sb-path-long',    s:8.0, group:'바닥'},
+  {id:'walkS',    name:'짧은 마당길', kit:'sb-path-short',  s:8.0, group:'바닥'},
+  {id:'stones',   name:'디딤돌 길',  kit:'sb-stones-long',  s:8.0, group:'바닥'},
+  {id:'stonesM',  name:'흩은 디딤돌', kit:'sb-stones-messy', s:8.0, group:'바닥'},
 
   //  건물 — 다른 것과 달리 **문이 달려 있다.**
   //  door 가 있으면 배치할 때 '입장' 존이 같이 생긴다(map.js drawDecor).
@@ -143,6 +151,26 @@ export const DECOR = [
    door:'study', tall:true},
   {id:'bUnion', name:'상점',     kit:'building-type-s', s:2.72, group:'건물',
    door:'union', tall:true},
+  //  장식 주택 18종 — 문이 없다(들어가지지 않는다). 동네 거리를 채우는 용도.
+  //  City Kit Suburban 의 21종 중 문 달린 셋(k·p·s)을 뺀 전부다.
+  {id:'hA', name:'주택 A', kit:'building-type-a', s:2.7, group:'건물', tall:true},
+  {id:'hB', name:'주택 B', kit:'building-type-b', s:2.7, group:'건물', tall:true},
+  {id:'hC', name:'주택 C', kit:'building-type-c', s:2.7, group:'건물', tall:true},
+  {id:'hD', name:'주택 D', kit:'building-type-d', s:2.7, group:'건물', tall:true},
+  {id:'hE', name:'주택 E', kit:'building-type-e', s:2.7, group:'건물', tall:true},
+  {id:'hF', name:'주택 F', kit:'building-type-f', s:2.7, group:'건물', tall:true},
+  {id:'hG', name:'주택 G', kit:'building-type-g', s:2.7, group:'건물', tall:true},
+  {id:'hH', name:'주택 H', kit:'building-type-h', s:2.7, group:'건물', tall:true},
+  {id:'hI', name:'주택 I', kit:'building-type-i', s:2.7, group:'건물', tall:true},
+  {id:'hJ', name:'주택 J', kit:'building-type-j', s:2.7, group:'건물', tall:true},
+  {id:'hL', name:'주택 L', kit:'building-type-l', s:2.7, group:'건물', tall:true},
+  {id:'hM', name:'주택 M', kit:'building-type-m', s:2.7, group:'건물', tall:true},
+  {id:'hN', name:'주택 N', kit:'building-type-n', s:2.7, group:'건물', tall:true},
+  {id:'hO', name:'주택 O', kit:'building-type-o', s:2.7, group:'건물', tall:true},
+  {id:'hQ', name:'주택 Q', kit:'building-type-q', s:2.7, group:'건물', tall:true},
+  {id:'hR', name:'주택 R', kit:'building-type-r', s:2.7, group:'건물', tall:true},
+  {id:'hT', name:'주택 T', kit:'building-type-t', s:2.7, group:'건물', tall:true},
+  {id:'hU', name:'주택 U', kit:'building-type-u', s:2.7, group:'건물', tall:true},
 
   //  마을 — Fantasy Town Kit. 시장·풍차·가로등 같은 '동네' 물건.
   {id:'lanternF', name:'가로등',     kit:'ft-lantern',      s:2.4, group:'마을', tall:true},
