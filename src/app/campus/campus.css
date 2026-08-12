@@ -598,3 +598,9 @@
   .campus-root .panel.dress .dcard .dnone,
   .campus-root .panel.dress .dcard .dph{position:absolute;inset:0;width:auto;height:auto;
        padding:0;display:grid;place-items:center}
+
+  /* 무대가 넓어 캐릭터 주변이 휑했다. 목록을 3칸이 들어갈 만큼 넓혀 무대를 줄인다.
+     카드 132 × 3 + 간격 16 + 안쪽 여백 = 약 430px */
+ @media (min-width: 1000px){
+    .campus-root .panel.dress{grid-template-columns:minmax(0,1fr) 430px}
+  }
