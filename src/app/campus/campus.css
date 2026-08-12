@@ -543,3 +543,14 @@
     .campus-root .panel.dress{grid-template-columns:1fr minmax(300px, 32%)}
     .campus-root .dstage{min-height:0}
   }
+
+  /* 리파인 — 목록 칸 전체가 스크롤되니 탭까지 같이 올라가 잘렸다.
+     탭과 색 줄은 고정하고 **카드 격자만** 굴린다 */
+ @media (min-width: 640px){
+    .campus-root .panel.dress .dfoot{display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+         gap:8px;overflow:hidden}
+    .campus-root .panel.dress .dgrid2{overflow-y:auto;min-height:0;max-height:none;
+         align-content:start;padding-bottom:4px}
+    /* 색 줄 둘(상의·하의)은 한 덩어리로 아래에 붙는다 */
+    .campus-root .panel.dress .drow{grid-row:auto}
+  }
