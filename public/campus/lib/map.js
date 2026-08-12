@@ -73,7 +73,11 @@ export async function mountCampus(){
                    'desk', 'chairDesk', 'bookcaseOpen', 'bookcaseClosedWide',
                    'loungeSofa', 'table', 'rugRectangle', 'rugRound',
                    'lampSquareFloor', 'pottedPlant', 'televisionModern',
-                   'kitchenBar', 'kitchenFridgeLarge', 'stoolBar', 'bedSingle']);
+                   'kitchenBar', 'kitchenFridgeLarge', 'stoolBar', 'bedSingle',
+                   // 상점 매장 — Mini Market (mm-*). 캐릭터와 같은 mini 팔레트 계열
+                   'mm-register', 'mm-shelf-boxes', 'mm-shelf-bags', 'mm-shelf-end',
+                   'mm-fridge', 'mm-freezer', 'mm-display-fruit', 'mm-display-bread',
+                   'mm-bottle-return', 'mm-cart', 'mm-basket']);
     KIT_OK = true;
   } catch (e){
     console.warn('[campus] Kenney 키트 로드 실패 — 기본 지오메트리로 갑니다', e);
@@ -247,15 +251,38 @@ export async function mountCampus(){
   prop('main', 'office-sofa', 7.5, -11.6, 3.6, 1.2, 0.66, 0xb3cbb8);
   prop('main', 'office-shelf', 13.2, -13.5, 0.8, 4.8, 1.9, 0xe9eeea);
   // 개인 자습실은 고정 가구가 없다 — 로그인 계정의 배치를 불러와 그린다(아래 applyRoom)
-  // 휴게실: 소파 2 + 테이블 + 자판기
-  prop('union', 'lounge-sofa-a', 5.0, -1.2, 4.0, 1.1, 0.66, 0xb3cbb8);
-  prop('union', 'lounge-sofa-b', 5.0,  2.8, 4.0, 1.1, 0.66, 0xb3cbb8);
-  prop('union', 'lounge-table', 5.0, 0.8, 2.6, 1.3, 0.46, 0xe9eeea);
-  prop('union', 'lounge-vending', 12.6, -1.2, 1.0, 1.6, 1.8, 0x7fae95);
+  // 매장: Kenney Mini Market 레퍼런스. 문(7.5,-3)→계산대 큰길(x 7~9.5)은 비워 둔다.
+  //  계산대 2대 — 예전 카운터 자리. 매점 존(x9.6~13.6 z1.4~2.8)이 바로 앞이고
+  //  매점쌤(11.5, 4.4)이 뒤에 선다. 키패드가 +z(점원) 쪽이라 yaw 0.
+  prop('union', 'mm-register-a', 10.6, 3.5, 1.3, 1.3, 0.9, 0x8b93a8);
+  prop('union', 'mm-register-b', 12.3, 3.5, 1.3, 1.3, 0.9, 0x8b93a8);
+  //  동쪽 벽 냉장 쇼케이스 3대 — 1.5m 폭이 정확히 맞닿아 한 뱅크가 된다
+  prop('union', 'mm-fridge-a', 13.4, -1.8, 0.8, 1.5, 1.35, 0x8b93a8);
+  prop('union', 'mm-fridge-b', 13.4, -0.3, 0.8, 1.5, 1.35, 0x8b93a8);
+  prop('union', 'mm-fridge-c', 13.4,  1.2, 0.8, 1.5, 1.35, 0x8b93a8);
+  //  중앙 곤돌라 2줄 — 3칸이 맞닿아 한 줄. 줄 사이 통로 1.6m
+  prop('union', 'mm-shelf-a0', 3.9, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-a1', 5.0, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-a2', 6.1, -0.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b0', 3.9,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b1', 5.0,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  prop('union', 'mm-shelf-b2', 6.1,  1.8, 1.1, 0.95, 1.15, 0x9aa2b5);
+  //  서쪽 벽 엔드 진열대 2대 — 병음료. 동향(π/2)
+  prop('union', 'mm-wallshelf-a', 1.5, -0.3, 0.5, 1.0, 1.3, 0x9aa2b5);
+  prop('union', 'mm-wallshelf-b', 1.5,  0.85, 0.5, 1.0, 1.3, 0x9aa2b5);
+  //  남서 코너 과일·빵 매대 — 정면이 +z 모델이라 방 쪽(-z)으로 π 돌린다
+  prop('union', 'mm-display-fruit', 2.2, 4.0, 1.0, 1.0, 0.8, 0xd98f7a);
+  prop('union', 'mm-display-bread', 3.6, 4.0, 1.2, 1.0, 0.8, 0xd9b98c);
+  //  남쪽 벽 평대 냉동고 2대
+  prop('union', 'mm-freezer-a', 5.6, 4.15, 1.5, 1.1, 0.65, 0x8b93a8);
+  prop('union', 'mm-freezer-b', 7.2, 4.15, 1.5, 1.1, 0.65, 0x8b93a8);
+  //  입구 — 공병 수거기(서쪽)와 카트 주차(동쪽). 바구니는 밟고 지나가도 되는 소품
+  prop('union', 'mm-bottle-return', 1.8, -2.35, 0.6, 0.6, 1.4, 0x2e7d5b);
+  prop('union', 'mm-cart-a', 9.6, -2.3, 0.5, 0.7, 0.55, 0x8b93a8);
+  prop('union', 'mm-cart-b', 10.2, -2.05, 0.5, 0.7, 0.55, 0x8b93a8);
+  prop('union', 'mm-basket', 8.8, -2.5, 0.45, 0.45, 0.35, 0x2e7d5b, false);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
-  // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
-  prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
 
   // 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
   // 밝기는 조명 세기가 아니라 재질의 밝은 색에서 나온다. 세기를 올려 밝히면
@@ -542,12 +569,31 @@ export async function mountCampus(){
     'office-desk':  {name:'desk',           scale:2.0, yaw:0},
     'office-sofa':  {name:'loungeSofa',     scale:2.0, yaw:0, seat:0.48},
     'office-shelf': {name:'bookcaseClosedWide', scale:2.2, yaw:Math.PI/2},
-    // 휴게실 · 상점
-    'lounge-sofa-a': {name:'loungeSofa',    scale:2.0, yaw:0, seat:0.48},
-    'lounge-sofa-b': {name:'loungeSofa',    scale:2.0, yaw:Math.PI, seat:0.48},
-    'lounge-table':  {name:'table',         scale:2.0, yaw:0},
-    'lounge-vending':{name:'kitchenFridgeLarge', scale:2.0, yaw:Math.PI},
-    'shop-counter':  {name:'kitchenBar',    scale:2.4, yaw:0},
+    // 매장 (Mini Market) — 스케일은 캐릭터 1.3m 기준 실측.
+    //  진열대 ≈ 가슴(1.15m) · 계산대 ≈ 허리(0.9m) · 쇼케이스 ≈ 키(1.35m).
+    //  정면은 전부 +z 모델이다 — 쇼케이스는 서향(-π/2), 매대는 방 쪽(π)으로 돌린다.
+    'mm-register-a':    {name:'mm-register',      scale:1.5,  yaw:0},
+    'mm-register-b':    {name:'mm-register',      scale:1.5,  yaw:0},
+    'mm-fridge-a':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
+    'mm-fridge-b':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
+    'mm-fridge-c':      {name:'mm-fridge',        scale:1.5,  yaw:-Math.PI/2},
+    'mm-shelf-a0':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
+    'mm-shelf-a1':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
+    'mm-shelf-a2':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
+    'mm-shelf-b0':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
+    'mm-shelf-b1':      {name:'mm-shelf-boxes',   scale:1.35, yaw:0},
+    'mm-shelf-b2':      {name:'mm-shelf-bags',    scale:1.35, yaw:0},
+    'mm-wallshelf-a':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI/2},
+    'mm-wallshelf-b':   {name:'mm-shelf-end',     scale:1.25, yaw:Math.PI/2},
+    'mm-display-fruit': {name:'mm-display-fruit', scale:1.6,  yaw:Math.PI},
+    'mm-display-bread': {name:'mm-display-bread', scale:1.6,  yaw:Math.PI},
+    'mm-freezer-a':     {name:'mm-freezer',       scale:1.8,  yaw:0},
+    'mm-freezer-b':     {name:'mm-freezer',       scale:1.8,  yaw:0},
+    'mm-bottle-return': {name:'mm-bottle-return', scale:1.25, yaw:0},
+    //  카트·바구니는 아무렇게나 세워 둔 각 — 격자로 맞추면 전시장이 된다
+    'mm-cart-a':        {name:'mm-cart',          scale:1.3,  yaw:-0.2},
+    'mm-cart-b':        {name:'mm-cart',          scale:1.3,  yaw:0.35},
+    'mm-basket':        {name:'mm-basket',        scale:1.3,  yaw:0.6},
   };
   // 책상마다 의자를 한 벌씩 붙인다 — 학습실이 책상만 늘어서면 창고로 보인다
   const DESK_IDS = /^class-desk-/;
