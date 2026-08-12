@@ -1576,9 +1576,12 @@ export async function mountCampus(){
   function thumbFor(slot, v, L){
     const k = `${slot}:${v}:${L.base}:${JSON.stringify((draft || myLook).colors || {})}`;
     if (lookThumbs.has(k)) return lookThumbs.get(k);
-    // 헤어·옷은 **기준 몸**에 얹어 찍는다. 얼굴이 같이 나오면 12개가 다 비슷해 보인다.
+    // 헤어는 **지금 쓰는 내 얼굴**에 얹어 찍는다. 그게 알고 싶은 것이기도 하고,
+    // 기준 얼굴을 따로 두면 그 얼굴의 특징(male-b 는 수염이 덥수룩하다)이 열두
+    // 장에 전부 딸려 나온다. base 의 원래 머리는 어차피 벗겨지므로 아무 얼굴이나 된다.
+    // 옷은 얼굴을 감추므로 기준 몸을 써도 상관없다.
     const look = slot === 'base' ? {base:v, head:v, body:v}
-               : slot === 'head' ? {base:NEUTRAL, head:v, body:NEUTRAL}
+               : slot === 'head' ? {base:L.base, head:v, body:L.body}
                                  : {base:NEUTRAL, head:'none', body:v};
     let url = '';
     try { url = renderThumb(look, slot); } catch { url = ''; }
