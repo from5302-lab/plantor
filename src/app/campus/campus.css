@@ -573,3 +573,17 @@
      열이 몇 개가 되든 카드는 원본 크기를 넘지 않게 한다 */
   .campus-root .dgrid2{grid-template-columns:repeat(auto-fill, minmax(92px, 132px));
        justify-content:start}
+
+  /* 겹침 최종 — 높이를 aspect-ratio 로 만들면 계산이 어긋나 이미지가 넘친다.
+     **이미지가 카드 높이를 정하게** 둔다. 그러면 넘칠 수가 없다. */
+  .campus-root .dcard{aspect-ratio:auto;height:auto;max-width:132px;display:block;
+       line-height:0}
+  .campus-root .dcard img{position:static;display:block;width:100%;height:auto}
+  /* '없음' 과 빈 칸은 이미지가 없으니 높이를 따로 준다 */
+  .campus-root .dcard .dnone,
+  .campus-root .dcard .dph{position:static;display:grid;place-items:center;
+       width:100%;height:0;padding-bottom:113%;line-height:1}
+  .campus-root .dcard .dnone{padding:0;height:auto;aspect-ratio:132/150}
+
+  /* 색 이름 텍스트는 뺀다 */
+  .campus-root .dlabel i{display:none}

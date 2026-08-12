@@ -1603,9 +1603,7 @@ export async function mountCampus(){
     const swatches = (partId) => {
       const p = parts.find(x => x.id === partId);
       if (!p) return '';
-      const cur = (Avatar.PALETTE || []).find(x => x.id === colors[partId]);
-      return `<div class="drow"><span class="dlabel">${p.name}` +
-        (cur ? `<i>${cur.name}</i>` : `<i>기본</i>`) + `</span><div class="swrow">` +
+      return `<div class="drow"><span class="dlabel">${p.name}</span><div class="swrow">` +
         p.ids.map(id => {
           const c = (Avatar.PALETTE || []).find(x => x.id === id);
           if (!c) return '';
