@@ -2365,9 +2365,15 @@ export async function mountCampus(){
     }
     cellMark.visible = !!ok;
     if (ok){
-      const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
-      const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
-      cellMark.scale.set(gx * 0.96, 1, gz * 0.96);
+      //  칠하는 넓이는 **격자 칸이 아니라 물건이 실제로 먹는 자리**다.
+      //  칸만 칠하면 0.5m 눈금에 3m 짜리 바위를 놓을 때 "여기 들어가겠구나" 하고
+      //  놨다가 옆것을 덮는다 — 발자국을 보여 줘야 자리를 가늠할 수 있다.
+      const sel = editSel >= 0 && !placeType ? editItems[editSel] : null;
+      const probe = {t: placeType || (sel && sel.t), x: p.x, z: p.z,
+                     r: sel ? sel.r : 0, s: sel ? sel.s : 1};
+      const b = probe.t && decorBox(probe);
+      const w = b ? b.maxX - b.minX : 1, d = b ? b.maxZ - b.minZ : 1;
+      cellMark.scale.set(Math.max(0.3, w), 1, Math.max(0.3, d));
       cellMark.position.set(p.x, 0.035, p.z);
     }
   }

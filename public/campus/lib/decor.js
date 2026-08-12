@@ -46,7 +46,8 @@ export const DECOR = [
   {id:'wallw',    name:'창문 벽',   kit:'wallWindow',        s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
   {id:'walld',    name:'문 벽',     kit:'wallDoorway',       s:1.2, group:'구조', tall:true, snap:[1.2, 1.2]},
   {id:'floor',    name:'바닥 타일', kit:'floorFull',         s:2.0, group:'구조', snap:[2.0, 2.0]},
-  {id:'floorH',   name:'반 타일',   kit:'floorHalf',         s:2.0, group:'구조', snap:[2.0, 1.0]},
+  //  실측 1 × 2. 앞서 2 × 1 로 뒤집어 적어 옆 칸을 먹고 있었다.
+  {id:'floorH',   name:'반 타일',   kit:'floorHalf',         s:2.0, group:'구조', snap:[1.0, 2.0]},
   {id:'floorC',   name:'모서리 타일', kit:'floorCorner',     s:2.0, group:'구조', snap:[2.0, 2.0]},
   {id:'floorCR',  name:'둥근 모서리', kit:'floorCornerRound', s:2.0, group:'구조', snap:[2.0, 2.0]},
 
@@ -127,7 +128,8 @@ export const DECOR = [
   {id:'rdCross',  name:'도로 사거리', kit:'rd-cross',   s:3.0, snap:[3.0, 3.0], group:'바닥'},
   {id:'rdCrossing', name:'횡단보도', kit:'rd-crossing', s:3.0, snap:[3.0, 3.0], group:'바닥'},
   {id:'rdEnd',    name:'도로 끝',    kit:'rd-end',      s:3.0, snap:[3.0, 3.0], group:'바닥'},
-  {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  //  인도는 도로보다 깊다(3 × 3.93). 깊이만 4로 잡아야 옆 칸을 안 먹는다.
+  {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 4.0], group:'바닥'},
 
   //  건물 — 다른 것과 달리 **문이 달려 있다.**
   //  door 가 있으면 배치할 때 '입장' 존이 같이 생긴다(map.js drawDecor).
@@ -135,11 +137,11 @@ export const DECOR = [
   //  ⚠ 이 셋은 캠퍼스의 유일한 입구다. 다 지우면 아무 데도 못 들어간다 —
   //    map.js 가 없으면 기본 자리에 도로 심는다.
   {id:'bMain',  name:'학습센터', kit:'building-type-p', s:4.14, group:'건물',
-   door:'main',  tall:true, snap:[0.5, 0.5]},
+   door:'main',  tall:true},
   {id:'bStudy', name:'우리집',   kit:'building-type-k', s:2.70, group:'건물',
-   door:'study', tall:true, snap:[0.5, 0.5]},
+   door:'study', tall:true},
   {id:'bUnion', name:'상점',     kit:'building-type-s', s:2.72, group:'건물',
-   door:'union', tall:true, snap:[0.5, 0.5]},
+   door:'union', tall:true},
 
   //  마을 — Fantasy Town Kit. 시장·풍차·가로등 같은 '동네' 물건.
   {id:'lanternF', name:'가로등',     kit:'ft-lantern',      s:2.4, group:'마을', tall:true},
@@ -268,9 +270,26 @@ function decorSize(it){
  * 90° 돌리면 가로세로가 바뀌므로 축도 같이 바꾼다.
  */
 export const FREE_SNAP = 0.5;
+//  이보다 작은 것은 칸에 안 묶는다. 꽃·버섯·책은 벤치 옆에 슬쩍 끼워 놓는 재미가
+//  있어야 하는데, 제 칸을 주면 1m 밖에 떨어져 선다.
+const FREE_MAX = 1.2;
+
 export function decorSnap(type, r = 0){
   const d = DECOR_BY_ID[type];
-  const sn = d && d.snap;
+  let sn = d && d.snap;
+  if (!sn && d){
+    //  칸을 안 적어 둔 것은 **제 크기에서 만든다.** 예전엔 전부 0.5m 눈금이라
+    //  큰 바위가 여섯 칸에 걸쳐 있었다 — 화면에는 칸으로 그려 놓고 실제로는
+    //  칸을 안 지키니, 격자가 거짓말을 하고 있었다.
+    //  기준 크기(s=1)로 잡는다. 크기를 키우는 동안 격자까지 출렁이면 조준이 안 된다.
+    const k = kitSize(d.kit);
+    if (k){
+      const w = k.x * d.s, dep = k.z * d.s;
+      sn = Math.max(w, dep) < FREE_MAX
+        ? [FREE_SNAP, FREE_SNAP]
+        : [Math.ceil(w / FREE_SNAP) * FREE_SNAP, Math.ceil(dep / FREE_SNAP) * FREE_SNAP];
+    }
+  }
   if (!sn) return [FREE_SNAP, FREE_SNAP];
   // 0·180° 면 그대로, 90·270° 면 축을 바꾼다(그 사이 각도는 줄을 못 맞추니 그대로)
   const q = Math.round((r || 0) / (Math.PI / 2)) & 3;
