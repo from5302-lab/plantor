@@ -90,6 +90,18 @@ export const DECOR = [
   {id:'gPathB',   name:'길 모퉁이',  kit:'ground_pathBend',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
   {id:'gPathX',   name:'길 교차',    kit:'ground_pathCross',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
 
+  //  건물 — 다른 것과 달리 **문이 달려 있다.**
+  //  door 가 있으면 배치할 때 '입장' 존이 같이 생긴다(map.js drawDecor).
+  //  scale 은 예전 하드코딩 시절의 fitH(3.8 / 3.1)를 그대로 옮긴 값이다.
+  //  ⚠ 이 셋은 캠퍼스의 유일한 입구다. 다 지우면 아무 데도 못 들어간다 —
+  //    map.js 가 없으면 기본 자리에 도로 심는다.
+  {id:'bMain',  name:'학습센터', kit:'building-type-p', s:4.14, group:'건물',
+   door:'main',  tall:true, snap:[0.5, 0.5]},
+  {id:'bStudy', name:'우리집',   kit:'building-type-k', s:2.70, group:'건물',
+   door:'study', tall:true, snap:[0.5, 0.5]},
+  {id:'bUnion', name:'상점',     kit:'building-type-s', s:2.72, group:'건물',
+   door:'union', tall:true, snap:[0.5, 0.5]},
+
   //  마을 — Fantasy Town Kit. 시장·풍차·가로등 같은 '동네' 물건.
   {id:'lanternF', name:'가로등',     kit:'ft-lantern',      s:2.4, group:'마을', tall:true},
   {id:'cart',     name:'수레',       kit:'ft-cart',         s:2.0, group:'마을'},

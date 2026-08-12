@@ -223,16 +223,15 @@ export async function mountCampus(){
   //  fitH 는 **캐릭터 키(1.3m)의 배수**로 읽어야 한다. 5.4m 는 4.2배 — 실제
   //  2층 건물 비율이고, 그러면 마을이 아니라 도시로 보인다. 동숲 건물은 주민의
   //  세 배쯤이다. 3.2 · 2.6 배로 낮추고, 낮아진 만큼 서로 당겨 붙였다.
-  const BUILDINGS = [
-    //  ⚠ 줄이면서 **가까이 당기면 안 된다.** 처음엔 z 를 2m 당겼는데, 원근이
-    //     축소를 그대로 상쇄해 화면에서는 아무것도 안 변했다. 자리는 두고 크기만.
-    {level:'main',  name:'학습센터', x:  0, z:-9.5, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8,
-     kit:'building-type-p', kitYaw:0, fitH:3.8},
-    {level:'study', name:'우리집',   x:-7.6, z:-2, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
-     kit:'building-type-k', kitYaw:0, fitH:3.1},
-    {level:'union', name:'상점',     x: 7.6, z:-2, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
-     kit:'building-type-s', kitYaw:0, fitH:3.1},
+  //  건물은 이제 **꾸미기 배치**다(campusPlaces/outdoor). 여기 남은 건
+  //  아직 한 번도 안 꾸민 캠퍼스에 심을 **기본 자리**뿐이다.
+  //  ⚠ 셋 다 지워지면 아무 건물에도 못 들어간다. seedBuildings 가 도로 심는다.
+  const BUILDING_SEED = [
+    {t:'bMain',  x:  0,   z:-9.5, r:0, s:1},
+    {t:'bStudy', x:-7.6,  z:-2,   r:0, s:1},
+    {t:'bUnion', x: 7.6,  z:-2,   r:0, s:1},
   ];
+
 
   // ── 가구 ───────────────────────────────────────────────────────────
   // 저작 데이터에서 시각·충돌을 함께 생성한다(장식에서 유추 금지)
@@ -415,55 +414,6 @@ export async function mountCampus(){
     // 초록이 깔려야 '밖에 나왔다'가 읽힌다. 길은 에디터의 길·포장 타일로 깐다.
     // 잔디색 그대로는 나무·덤불과 한 덩어리로 붙어 보여서 한 톤 눌렀다.
     plate(0, -4, 400, 400, KIT_OK ? 0x69d193 : 0xb4e0bb, -0.06, true);
-
-    for (const b of BUILDINGS){
-      // 키트 건물은 모델 비율이 제각각이라 저작 데이터의 w/d 를 그대로 못 쓴다.
-      // 높이를 맞춘 뒤 **실제 크기에서** 충돌·존·간판 위치를 도로 계산한다.
-      let bw = b.w, bd = b.d, bh = b.h, kscale = null;
-      const ks = KIT_OK && b.kit ? kitSize(b.kit) : null;
-      if (ks){
-        kscale = b.fitH / ks.y;
-        bw = ks.x * kscale; bd = ks.z * kscale; bh = b.fitH;
-      }
-      const x0 = b.x - bw/2, x1 = b.x + bw/2, z0 = b.z - bd/2, z1 = b.z + bd/2;
-      // 건물 하나 = 가림 판정 단위. 몸통이 가려지면 간판까지 같이 비쳐야 한다
-      // (따로 놀면 투명해진 건물 앞에 간판만 떠 있는 그림이 된다).
-      const parts = [];
-      const kit = kscale
-        ? placeKit(b.kit, {x:b.x, z:b.z, yaw:b.kitYaw, scale:kscale, track:m => junk.push(m)})
-        : null;
-      if (kit){
-        world.add(kit);
-        kit.traverse(o => { if (o.isMesh) parts.push(o); });
-      } else {
-        // 폴백 — 키트를 못 받았을 때의 상자 건물
-        const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), lam(b.c, null, 0.30));
-        body.position.set(b.x, bh/2, b.z);
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(bw + 1.2, 0.5, bd + 1.2), lam(b.roof, null, 0.26));
-        roof.position.set(b.x, bh + 0.25, b.z);
-        const door = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, 2.3), flat(0x5d7d68));
-        door.position.set(b.x, 1.15, z1 + 0.02);
-        world.add(body, roof, door);
-        parts.push(body, roof, door);
-      }
-      //  시계는 학습센터 정면 **왼쪽 빈 벽**에. 가운데는 창문 둘이 나란히 있어서,
-      //  거기 걸면 창 하나를 통째로 덮는다(실제로 덮었다).
-      if (b.level === 'main'){
-        clockHands = null;
-        //  높이는 **창문 중심에 맞춘다**(실측: 렌더에서 창 중심이 건물 높이의 0.69).
-        //  창문은 별도 메시가 아니라 텍스처라 기하로는 못 잰다 — 화면에서 쟀다.
-        addClockFace(world, b.x - bw * 0.29, bh * 0.69, z1 + 0.06, Math.min(bw, bh) * 0.15);
-      }
-      // 간판은 뗐다 — 3D 위에 얹은 캔버스 텍스트라 키트 톤과 겉돌았다.
-      // 어디가 어디인지는 근처에 가면 뜨는 프롬프트가 알려 준다.
-      OCCLUDERS.push({test:parts, meshes:parts});
-
-      // 충돌 — 건물 전체를 막되 문 앞은 비운다. 문으로는 '입구 존'이 처리한다
-      //  지붕에 올라가면 마을이 내려다보인다 — 그게 재미다. 실제 높이를 준다.
-      COLLIDERS.push({minX:x0, maxX:x1, minZ:z0, maxZ:z1, top:bh});
-      ZONES.push({kind:'enter', level:b.level, name:b.name, sub:'건물 안으로',
-        minX:b.x - DOOR_W/2 - 0.6, maxX:b.x + DOOR_W/2 + 0.6, minZ:z1 + 0.2, maxZ:z1 + 2.6});
-    }
 
     for (const p of PROPS.filter(p => p.level === 'outdoor')) addProp(p);
 
@@ -898,6 +848,9 @@ export async function mountCampus(){
   const roomGroup = new THREE.Group(); scene.add(roomGroup);
   const placeGroup = new THREE.Group(); scene.add(placeGroup);
   const ROOM_COLLIDERS = [], PLACE_COLLIDERS = [];
+  //  배치물이 만드는 존·가림막. 레벨 지오메트리(ZONES/OCCLUDERS)와 수명이 달라
+  //  따로 담는다 — 꾸미기를 저장할 때마다 이쪽만 다시 만든다.
+  let PLACE_ZONES = [], PLACE_OCC = [];
   let roomJunk = [], placeJunk = [];
   let myRoom = [], place = [], placeLevel = null;
 
@@ -906,6 +859,7 @@ export async function mountCampus(){
     for (const m of junkArr) m.dispose?.();
     junkArr.length = 0;
     colliders.length = 0;
+    if (group === placeGroup){ PLACE_ZONES = []; PLACE_OCC = []; }
     for (const it of items){
       const g = buildDecor(it, m => junkArr.push(m));
       if (g) group.add(g);
@@ -913,13 +867,50 @@ export async function mountCampus(){
       // 러그·바닥처럼 밟고 지나가는 것은 막지 않는다(높이로 판단한다)
       const box = decorBox(it);
       if (box && d && !FLAT.has(it.t)) colliders.push(box);   // box.top = 실제 높이
+
+      //  문 달린 배치물 = 건물. 앞에 '입장' 존을 깔고, 가리면 비치게 한다.
+      if (g && d && d.door && box && group === placeGroup){
+        PLACE_ZONES.push({kind:'enter', level:d.door, name:d.name, sub:'건물 안으로',
+          minX: it.x - DOOR_W/2 - 0.6, maxX: it.x + DOOR_W/2 + 0.6,
+          minZ: box.maxZ + 0.2, maxZ: box.maxZ + 2.6});
+        const parts = [];
+        g.traverse(o => { if (o.isMesh) parts.push(o); });
+        PLACE_OCC.push({test: parts, meshes: parts});
+        //  시계는 학습센터 얼굴에 붙어 다닌다 — 건물을 옮기면 같이 간다.
+        if (d.door === 'main'){
+          const bw = box.maxX - box.minX, bh = box.top || 3.8;
+          clockHands = null;
+          addClockFace(group, it.x - bw * 0.29, bh * 0.69, box.maxZ + 0.06,
+                       Math.min(bw, bh) * 0.15);
+        }
+      }
     }
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
   const FLAT = new Set(['rug', 'rugr', 'floor', 'path', 'grass', 'fRed', 'fYellow', 'fPurple']);
 
   const applyRoom  = items => { myRoom = items; drawDecor(items, roomGroup, roomJunk, ROOM_COLLIDERS); };
-  const applyPlace = items => { place  = items; drawDecor(items, placeGroup, placeJunk, PLACE_COLLIDERS); };
+  /**
+   * 캠퍼스에는 **문 셋이 반드시 있어야 한다.** 운영자가 실수로 지우면 아무 데도
+   * 못 들어가고, 되돌릴 방법도 화면 안에 없다(건물이 없으니 상점도 못 연다).
+   * 없는 건물은 기본 자리에 도로 심는다 — 옮긴 것은 그대로 둔다.
+   */
+  const seedBuildings = items => {
+    if (placeLevel !== 'outdoor') return items;
+    const out = items.slice();
+    for (const seed of BUILDING_SEED)
+      if (!out.some(it => it.t === seed.t)) out.push({...seed});
+    return out;
+  };
+  //  ⚠ 야외 배치는 따로 기억해 둔다. 나가기(exitToOutdoor)는 실내에 있는 동안
+  //    계산되는데, 그때 place 에는 **실내 배치**가 들어 있다 — 그대로 찾으면
+  //    건물을 못 찾아 원점으로 튄다(실제로 튀었다).
+  let outdoorPlace = [];
+  const applyPlace = items => {
+    place = seedBuildings(items);
+    if (placeLevel === 'outdoor') outdoorPlace = place;
+    drawDecor(place, placeGroup, placeJunk, PLACE_COLLIDERS);
+  };
 
   // ══ 아바타 ════════════════════════════════════════════════════════
   // 학생은 '기본 학생'에서 출발해 각자 꾸민다(4속성 캐릭터 프리셋은 걷어냈다 —
@@ -1262,9 +1253,15 @@ export async function mountCampus(){
     go(id, LEVELS[id].spawn);
   }
   function exitToOutdoor(){
-    // 들어갔던 문 앞으로 되돌린다. 원점으로 튀면 어디서 나왔는지 알 수 없다.
-    const b = BUILDINGS.find(b => b.level === (lastDoor || level));
-    const spawn = b ? {x:b.x, z:b.z + b.d/2 + 2.0, yaw:0} : LEVELS.outdoor.spawn;
+    //  들어갔던 문 앞으로 되돌린다. 원점으로 튀면 어디서 나왔는지 알 수 없다.
+    //  건물이 배치물이 된 뒤로는 **저장된 자리**에서 찾는다(운영자가 옮겼을 수 있다).
+    const want = lastDoor || level;
+    const it = outdoorPlace.find(p => DECOR_BY_ID[p.t]?.door === want);
+    let spawn = LEVELS.outdoor.spawn;
+    if (it){
+      const box = decorBox(it);
+      if (box) spawn = {x: it.x, z: box.maxZ + 1.6, yaw: 0};
+    }
     go('outdoor', spawn);
   }
 
@@ -2465,7 +2462,12 @@ export async function mountCampus(){
     }
     else if (d.save !== undefined) endEdit(true);
     else if (d.cancel !== undefined) endEdit(false);
-    else if (editSel >= 0 && d.del !== undefined){ editItems.splice(editSel, 1); editSel = -1; redraw(); }
+    else if (editSel >= 0 && d.del !== undefined){
+      //  문 달린 건물을 지우면 들어갈 데가 없어진다. 지우는 대신 옮기게 한다.
+      if (DECOR_BY_ID[editItems[editSel].t]?.door)
+        return toast('건물은 치울 수 없어요 — 옮기거나 크기를 바꿔 보세요');
+      editItems.splice(editSel, 1); editSel = -1; redraw();
+    }
     else if (editSel >= 0 && d.dup !== undefined){
       const c = {...editItems[editSel]}; c.x += 1; c.z += 1;
       editItems.push(c); editSel = editItems.length - 1; redraw();
@@ -2549,12 +2551,13 @@ export async function mountCampus(){
   // 카메라와 나 사이를 건물이 막으면 그 건물만 비친다.
   // 야외 건물은 허리 높이가 아니라 진짜 높이라, 45°씩 돌리다 보면 반드시 가린다.
   function fadeOccluders(dt){
-    if (!OCCLUDERS.length) return;
+    const list = OCCLUDERS.concat(PLACE_OCC);
+    if (!list.length) return;
     occDir.copy(player.root.position).setY(1.2).sub(camera.position);
     occRay.far = occDir.length();
     occRay.set(camera.position, occDir.normalize());
     const k = 1 - Math.exp(-9 * dt);
-    for (const b of OCCLUDERS){
+    for (const b of list){
       const want = occRay.intersectObjects(b.test, false).length ? 0.22 : 1;
       for (const m of b.meshes){
         const mat = m.material;
@@ -2718,7 +2721,7 @@ export async function mountCampus(){
 
     // ── 존 판정 ──
     let inZone = null;
-    for (const z of ZONES){
+    for (const z of ZONES.concat(PLACE_ZONES)){
       if (z.kind === 'tree' && INV.picked.includes(z.tree)) continue;   // 오늘 흔든 나무는 끝
       if (P.x > z.minX && P.x < z.maxX && P.z > z.minZ && P.z < z.maxZ){ inZone = z; break; }
     }
@@ -2760,7 +2763,9 @@ export async function mountCampus(){
   frame();
   // 브라우저 플레이 검증용 훅 (test-playable-web-games)
   window.__game = {
-    P, get ZONES(){ return ZONES; }, get COLLIDERS(){ return COLLIDERS; },
+    P, get ZONES(){ return ZONES.concat(PLACE_ZONES); },
+    get COLLIDERS(){ return COLLIDERS.concat(PLACE_COLLIDERS); },
+    get place(){ return place; },
     room: () => currentZone && currentZone.room && currentZone.room.id,
     level: () => level,
     go: (id) => id === 'outdoor' ? exitToOutdoor() : enterBuilding(id),
