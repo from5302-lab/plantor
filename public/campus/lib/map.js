@@ -13,6 +13,7 @@ import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
 import { icon } from '/campus/lib/icons.js';
+import * as Pets from '/campus/lib/pets.js';
 import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDecor, decorThumb,
          thumbOf, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
@@ -1013,14 +1014,25 @@ export async function mountCampus(){
     const tag = nameTag(info.name); placeTag(tag, 1.5, 0.375); rig.root.add(tag);
     rig.root.visible = false;          // 첫 좌표가 오기 전엔 숨긴다(원점에서 미끄러져 오는 것 방지)
     scene.add(rig.root);
-    remotes.set(uid, {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0,
-                      act:'idle', moving:false, walkT:0, first:true});
+    const r = {rig, x:0, z:0, yaw:0, tx:0, tz:0, tyaw:0,
+               act:'idle', moving:false, walkT:0, first:true, pet:null};
+    remotes.set(uid, r);
+    const petId = info.look && info.look.pet;
+    if (petId && Pets.PET_BY_ID.has(petId))
+      Pets.ensure(petId).then(ok => {
+        if (!ok || !remotes.has(uid)) return;
+        const pr = Pets.buildPet(petId);
+        if (!pr) return;
+        scene.add(pr.root);
+        r.pet = makePetState(pr, r.x, r.z - 1);
+      });
     showCount();
   }
   function dropRemote(uid){
     const r = remotes.get(uid);
     if (!r) return;
     disposeAvatar(r.rig);
+    if (r.pet) r.pet.rig.dispose();
     remotes.delete(uid);
     showCount();
   }
@@ -1354,6 +1366,50 @@ export async function mountCampus(){
   // 미리보기는 모달이 자기 캔버스에 직접 그린다(customizer.js). 맵 아바타는
   // 모달이 덮어 가리므로, 값이 바뀔 때마다 여기서 다시 만들 이유가 없다.
   // 닫힐 때 한 번만 만든다 — 취소·저장 어느 쪽이든 onClose 를 거친다.
+  // ── 펫 ─────────────────────────────────────────────────────────────
+  //  펫은 장식이 아니라 **동행**이다. 주인 뒤 1m 를 지키고, 멀어지면 뛰어온다.
+  //  충돌은 안 본다(유령) — 문틈에 끼어 못 따라오는 펫만큼 슬픈 버그가 없다.
+  function makePetState(rig, x, z){
+    return {rig, x, z, yaw:0, yawTo:0, moving:false, running:false};
+  }
+  function petFollow(p, ox, oz, dt){
+    const dx = ox - p.x, dz = oz - p.z, d = Math.hypot(dx, dz);
+    const KEEP = 1.05;                     // 주인과 유지하는 거리
+    if (d > 30){ p.x = ox; p.z = oz - 1; } // 레벨 이동 — 걸어오게 두면 지평선 너머에서 온다
+    else if (d > KEEP){
+      const sp = Math.min((d - KEEP) * 6, d > 2.8 ? 6.6 : 3.4);
+      p.x += dx / d * sp * dt; p.z += dz / d * sp * dt;
+      p.yawTo = Math.atan2(dx, dz);
+      p.moving = sp > 0.25; p.running = sp > 4;
+    } else p.moving = false;
+    let a = p.yawTo - p.yaw;
+    p.yaw += Math.atan2(Math.sin(a), Math.cos(a)) * Math.min(1, dt * 10);
+    p.rig.play(p.moving ? (p.running ? 'run' : 'walk') : 'idle');
+    p.rig.root.position.set(p.x, 0, p.z);
+    p.rig.root.rotation.y = p.yaw;
+    p.rig.mixer.update(dt);
+  }
+  //  ⚠ 첫 호출은 **이 선언들보다 뒤**여야 한다. 위쪽(플레이어를 만드는 자리)에서
+  //    부르면 myPetId 가 TDZ 라 콜백이 조용히 죽는다 — 저장된 펫이 새로고침
+  //    때마다 안 나왔다(꾸미기에서 적용할 때만 나왔다).
+  let myPet = null, myPetId = null;
+  function syncMyPet(){
+    const id = myLook.pet && Pets.PET_BY_ID.has(myLook.pet) ? myLook.pet : null;
+    if (id === myPetId) return;
+    if (myPet){ myPet.rig.dispose(); myPet = null; }
+    myPetId = id;
+    if (!id) return;
+    Pets.ensure(id).then(ok => {
+      if (!ok || myPetId !== id) return;
+      const rig = Pets.buildPet(id);
+      if (!rig) return;
+      scene.add(rig.root);
+      myPet = makePetState(rig, P.x, P.z - 1);
+    });
+  }
+
+  syncMyPet();                             // 저장된 펫을 첫 화면부터 데리고 있는다
+
   function rebuildPlayer(){
     disposeAvatar(player);
     player = buildAvatar(myLook, myBody);
@@ -1363,6 +1419,7 @@ export async function mountCampus(){
     placeTag(tag, 2.0, 0.5);
     player.root.add(tag);
     scene.add(player.root);
+    syncMyPet();
   }
 
   // ══ 캐릭터 고르기 ═════════════════════════════════════════════════
@@ -1390,7 +1447,8 @@ export async function mountCampus(){
   let savedLook = null;                    // 마지막으로 저장된 값 — 미리보기를 되돌릴 기준
   //  표정·안경은 파는 물건이 아니다 — 기분과 소품이지 옷이 아니라 값을 안 매긴다.
   const ownsSlot = (slot, id) =>
-    slot === 'face' || slot === 'eyewear' || id === Avatar.BALD || !wardrobe ||
+    slot === 'face' || slot === 'eyewear' || slot === 'pet' ||
+    id === Avatar.BALD || !wardrobe ||
     (wardrobe.owned?.[slot] || []).includes(id);
   const elRoot = document.querySelector('.campus-root');
 
@@ -1424,6 +1482,7 @@ export async function mountCampus(){
     drawChars();
     await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
     await Avatar.preloadAids?.();           // 안경 카드도 그려야 해서 소품까지 받아 둔다
+    Pets.preloadAll().then(() => { if (charOpen && dressTab === 'pet') drawChars(); });
     // ⚠ buildAvatar 는 안 받아진 모델을 기본(male-a)으로 떨군다. 다 받아지기 전에
     //   찍은 썸네일은 전부 같은 얼굴이 되어 캐시에 굳는다 — 여기서 버리고 다시 찍는다.
     lookThumbs.clear();
@@ -1456,6 +1515,7 @@ export async function mountCampus(){
     {id:'head', name:'헤어', slot:'head', colors:['hair']},
     {id:'body', name:'옷',   slot:'body', colors:['top', 'bottom']},
     {id:'eyewear', name:'안경', slot:'eyewear', colors:['glass']},
+    {id:'pet', name:'펫', slot:'pet'},
   ];
   const slotOf = tab => (TABS.find(t => t.id === tab) || {}).slot || 'base';
   /**
@@ -1463,6 +1523,7 @@ export async function mountCampus(){
    * 안경은 모델이 아니다 — 얼굴에 박힌 것('own')·안 씀·소품 둘.
    */
   const optionsOf = (slot, L) => {
+    if (slot === 'pet') return ['none'].concat(Pets.PETS.map(p => p.id));
     if (slot === 'eyewear'){
       // 얼굴에 박힌 안경은 소품 '안경'과 **같은 물건**이다(정점 82개가 같다).
       // 둘을 나란히 놓으면 똑같은 카드가 두 장 뜬다 — 박힌 쪽이 있으면 소품은 뺀다.
@@ -1662,6 +1723,7 @@ export async function mountCampus(){
     return url;
   }
   function thumbFor(slot, v, L){
+    if (slot === 'pet') return Pets.petThumb(v);
     const k = `${slot}:${v}:${L.base}:${L.head}:${L.face}:${L.eyewear}:` +
               JSON.stringify((draft || myLook).colors || {});
     if (lookThumbs.has(k)) return lookThumbs.get(k);
@@ -1714,14 +1776,15 @@ export async function mountCampus(){
     {
       const slot = tab.slot;
       const opts = optionsOf(slot, L);
+      const curOf = slot === 'pet' ? ((draft || myLook).pet || 'none') : L[slot];
       body += `<div class="dgrid2">` + opts.map(v => {
-        const on = v === L[slot] ? ' on' : '';
+        const on = v === curOf ? ' on' : '';
         const lock = ownsSlot(slot, v) ? '' : ' lock';
         // '없음'도 글자 대신 그림으로 — 옆 칸이 전부 그림인데 혼자 글자면
         // 카드가 아니라 안내문으로 읽힌다. 머리는 민머리, 안경은 벗은 안경.
         if (v === Avatar.BALD || v === 'none')
           return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}" ` +
-                 `aria-label="${slot === 'eyewear' ? '안경 안 씀' : '머리 없음'}">` +
+                 `aria-label="없음">` +
                  `<span class="dnone">` +
                  icon(slot === 'eyewear' ? 'glasses-off' : 'ban', 32) +
                  `</span></button>`;
@@ -1802,6 +1865,12 @@ export async function mountCampus(){
     }
   });
   async function pickSlot(slot, value){
+    if (slot === 'pet'){
+      if (value !== 'none') await Pets.ensure(value);
+      draft = {...draft, pet: value === 'none' ? null : value};
+      drawChars();
+      return;
+    }
     const L = Avatar.resolveLook(draft);
     const next = {...L, [slot]: value};
     draft = {...draft, ...next, model: undefined, aid: undefined};
@@ -2361,7 +2430,9 @@ export async function mountCampus(){
       r.rig.root.rotation.y = r.yaw;
       if (r.moving) r.walkT += dt * (r.act === 'run' ? RUN_SPEED : SPEED) * 1.55;
       poseAvatar(r.rig, r.act || 'idle', 'none', r.moving ? r.walkT/7 : t);
+      if (r.pet) petFollow(r.pet, r.x, r.z, dt);
     }
+    if (myPet) petFollow(myPet, P.x, P.z, dt);
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
     CURVE.value += ((level === 'outdoor' ? CURVE_K : 0) - CURVE.value) * Math.min(1, dt*4);

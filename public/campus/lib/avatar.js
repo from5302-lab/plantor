@@ -606,6 +606,7 @@ export function sanitizeCharacter(raw){
     if (typeof src[k] === 'string' && /^([a-z]+-[a-z]|none)$/.test(src[k])) look[k] = src[k];
   // 표정은 모델 id('female-c')일 수도, 만든 표정 id('grin')일 수도 있다
   if (typeof src.face === 'string' && /^[a-z]+(-[a-z])?$/.test(src.face)) look.face = src.face;
+  if (typeof src.pet === 'string' && /^[a-z]+$/.test(src.pet)) look.pet = src.pet;
   // 안경은 모델 id 가 아니다 — 'own' · 'none' · 소품 id(sunglasses…).
   if (typeof src.eyewear === 'string' && /^[a-z]+$/.test(src.eyewear)) look.eyewear = src.eyewear;
   if (typeof src.aid === 'string' && /^[a-z]+$/.test(src.aid)) look.aid = src.aid;

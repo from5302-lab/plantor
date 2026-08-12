@@ -38,8 +38,10 @@ for job in jobs:
             try: img.pack()
             except Exception as e: print('PACK-FAIL', img.name, e)
 
+    # 소품은 애니메이션을 버려 용량을 줄인다. 펫(cube-pets)은 클립이 본체다 —
+    # KIT_ANIM=1 로 켠다.
     bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB',
-                              export_animations=False)
+                              export_animations=os.environ.get('KIT_ANIM') == '1')
     print('WROTE', rel, os.path.getsize(dst))
 
 print('DONE')
