@@ -449,7 +449,7 @@ export async function mountCampus(){
         clockHands = null;
         //  높이는 **창문 중심에 맞춘다**(실측: 렌더에서 창 중심이 건물 높이의 0.69).
         //  창문은 별도 메시가 아니라 텍스처라 기하로는 못 잰다 — 화면에서 쟀다.
-        addClockFace(world, b.x - bw * 0.34, bh * 0.69, z1 + 0.06, Math.min(bw, bh) * 0.15);
+        addClockFace(world, b.x - bw * 0.29, bh * 0.69, z1 + 0.06, Math.min(bw, bh) * 0.15);
       }
       // 간판은 뗐다 — 3D 위에 얹은 캔버스 텍스트라 키트 톤과 겉돌았다.
       // 어디가 어디인지는 근처에 가면 뜨는 프롬프트가 알려 준다.
