@@ -604,3 +604,7 @@
  @media (min-width: 1000px){
     .campus-root .panel.dress{grid-template-columns:minmax(0,1fr) 430px}
   }
+
+  .campus-root .dnote{font-size:11.5px;font-weight:500;color:var(--muted);
+       line-height:1.6;padding:2px 2px 0}
+  .campus-root .aidbtn:disabled{opacity:.45;cursor:default;background:rgba(255,255,255,.5)}

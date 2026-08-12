@@ -1371,6 +1371,9 @@ export async function mountCampus(){
     setTimeout(() => addEventListener('pointerdown', outClose), 0);
     drawChars();
     await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
+    // ⚠ buildAvatar 는 안 받아진 모델을 기본(male-a)으로 떨군다. 다 받아지기 전에
+    //   찍은 썸네일은 전부 같은 얼굴이 되어 캐시에 굳는다 — 여기서 버리고 다시 찍는다.
+    lookThumbs.clear();
     Avatar.preloadAids?.();
     wardrobe = await loadWardrobe();
     drawChars();
@@ -1595,8 +1598,8 @@ export async function mountCampus(){
     const L = Avatar.resolveLook ? Avatar.resolveLook(D) : {base: D.model};
     const colors = D.colors || {};
     const parts = Avatar.PARTS || [];
-    // 안경이 메시에 박힌 얼굴에는 소품 탭을 아예 안 낸다(씌우면 두 겹이 된다)
-    const tabs = TABS.filter(t => t.id !== 'aid' || !Avatar.hasBuiltinGlasses?.(L.base));
+    const builtin = Avatar.hasBuiltinGlasses?.(L.base);
+    const tabs = TABS;                      // 탭은 늘 보여 준다 — 사라지면 없어진 줄 안다
     if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
     const tab = tabs.find(t => t.id === dressTab);
 
@@ -1631,10 +1634,13 @@ export async function mountCampus(){
       }).join('') + `</div>`;
       body += (tab.colors || []).map(swatches).join('');
     } else {
+      // 안경이 얼굴에 박힌 캐릭터는 소품 안경을 또 씌우면 두 겹이 된다.
+      // 탭을 숨기는 대신 왜 못 고르는지 적는다.
       body += `<div class="drow"><div class="swrow">` +
         (Avatar.ACCESSORIES || []).map(a =>
-          `<button class="aidbtn${D.aid === a.id ? ' on' : ''}" data-aid="${a.id}">` +
-          `${a.name}</button>`).join('') + `</div></div>`;
+          `<button class="aidbtn${D.aid === a.id ? ' on' : ''}" data-aid="${a.id}"` +
+          `${builtin ? ' disabled' : ''}>${a.name}</button>`).join('') + `</div></div>` +
+        (builtin ? `<p class="dnote">이 얼굴은 안경이 붙어 있어요. 벗으려면 다른 얼굴을 고르세요.</p>` : '');
     }
 
     elHead.innerHTML =
