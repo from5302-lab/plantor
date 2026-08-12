@@ -172,7 +172,7 @@ export async function mountCampus(){
     // 안개 46m 는 하필 울타리 자리였다(카메라→마을 끝 ≈45m). 부감을 내려 보이는
     // 땅이 60m 밖까지 늘어나자 마을 경계부터 흰색으로 빠졌다. 안개는 마을 **밖**
     // 에서만 걸려야 한다 — 지평선을 지우는 장치지 바닥을 지우는 장치가 아니다.
-    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:24.4, camH:13.0, fog:[64, 130]},
+    outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:11.7, fog:[64, 130]},
     main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
     // 우리집은 뒷모습으로 통일한다. 상점만 0 인 건 매점쌤(z=4.4)을 마주 보라는 뜻이다.
     study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
@@ -211,13 +211,18 @@ export async function mountCampus(){
   // 한 방향으로 통일해야 어느 건물이든 같은 감각으로 들어간다.
   //  kit = Kenney City Kit Suburban 모델. 못 받으면 예전 상자 건물로 돌아간다.
   //  kitYaw = 모델 정면이 남쪽(+z)을 보게 돌리는 각.
+  //  fitH 는 **캐릭터 키(1.3m)의 배수**로 읽어야 한다. 5.4m 는 4.2배 — 실제
+  //  2층 건물 비율이고, 그러면 마을이 아니라 도시로 보인다. 동숲 건물은 주민의
+  //  세 배쯤이다. 3.2 · 2.6 배로 낮추고, 낮아진 만큼 서로 당겨 붙였다.
   const BUILDINGS = [
+    //  ⚠ 줄이면서 **가까이 당기면 안 된다.** 처음엔 z 를 2m 당겼는데, 원근이
+    //     축소를 그대로 상쇄해 화면에서는 아무것도 안 변했다. 자리는 두고 크기만.
     {level:'main',  name:'학습센터', x:  0, z:-9.5, w:22, d:12, h:4.2, c:0xf3f0e8, roof:0xa8c0a8,
-     kit:'building-type-p', kitYaw:0, fitH:5.4},
-    {level:'study', name:'우리집',   x:-8.5, z:-2, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
-     kit:'building-type-k', kitYaw:0, fitH:4.4},
-    {level:'union', name:'상점',     x: 8.5, z:-2, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
-     kit:'building-type-s', kitYaw:0, fitH:4.4},
+     kit:'building-type-p', kitYaw:0, fitH:3.8},
+    {level:'study', name:'우리집',   x:-7.6, z:-2, w:13, d:10, h:3.6, c:0xf1f4ef, roof:0x93b4a4,
+     kit:'building-type-k', kitYaw:0, fitH:3.1},
+    {level:'union', name:'상점',     x: 7.6, z:-2, w:13, d:10, h:3.6, c:0xf4f1ec, roof:0xbdb694,
+     kit:'building-type-s', kitYaw:0, fitH:3.1},
   ];
 
   // ── 가구 ───────────────────────────────────────────────────────────
@@ -241,9 +246,9 @@ export async function mountCampus(){
   prop('union', 'lounge-vending', 12.6, -1.2, 1.0, 1.6, 1.8, 0x7fae95);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
-  prop('outdoor', 'bench-a', -4.6, 2.5, 1.8, 0.55, 0.44, 0xd9cdb4);
-  prop('outdoor', 'bench-b',  4.6, 2.5, 1.8, 0.55, 0.44, 0xd9cdb4);
-  prop('outdoor', 'fountain', 0, 6.5, 2.8, 2.8, 0.55, 0xbdd8d2, true, true);
+  prop('outdoor', 'bench-a', -3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
+  prop('outdoor', 'bench-b',  3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
+  prop('outdoor', 'fountain', 0, 5.2, 2.2, 2.2, 0.5, 0xbdd8d2, true, true);
   // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
   prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
 
@@ -342,8 +347,19 @@ export async function mountCampus(){
     return m;
   }
   // 타일 없는 단색 판 — 잔디·길처럼 눈금이 있으면 안 되는 바닥에 쓴다
+  /**
+   * 바닥 판.
+   *
+   * ⚠ 정점 넷짜리 판을 쓰면 안 된다. 안개도 곡면도 **버텍스 셰이더**에서
+   *   계산되므로, 400m 판의 네 귀퉁이 값이 마당 전체에 보간된다 —
+   *   코앞의 흙이 지평선 안개 색까지 끌려와 하얗게 뜨고(울타리·나무는 정점이
+   *   많아 멀쩡하니 바닥만 바랜 것처럼 보인다), 땅은 아예 안 굽는다.
+   *   4m 쯤마다 한 칸씩 쪼갠다. 삼각형 몇 천 개는 이 화면에서 공짜다.
+   */
   function plate(cx, cz, w, d, color, y){
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI/2), flat(color));
+    const seg = n => Math.min(96, Math.max(1, Math.round(n / 4)));
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, d, seg(w), seg(d)).rotateX(-Math.PI/2), flat(color));
     m.position.set(cx, y, cz);
     world.add(m);
     return m;
@@ -427,9 +443,9 @@ export async function mountCampus(){
     // 과일나무 자리(FRUIT_TREES)는 일반 나무 목록에서 뺐다 — 같은 자리에 두 그루가 겹친다
     // 남쪽(카메라 쪽) 앞줄에는 큰 나무를 두지 않는다 — 마을을 통째로 가린다
     trees([
-      [-15,-14],[-7,-16],[7,-16],[15,-14],
-      [-16,-6],[16,-6],[-17, 2],[17, 2],
-      [-18, 9],[18, 9],
+      [-12.8,-11.6],[-5.4,-12.4],[5.4,-12.4],[12.8,-11.6],
+      [-13.4,-5.4],[13.4,-5.4],[-13.4, 1.2],[13.4, 1.2],
+      [-13.4, 6.2],[13.4, 6.2],
     ]);
     buildFruitTrees();
     buildFlowers();
@@ -445,7 +461,9 @@ export async function mountCampus(){
   //    밖에 갈 곳이 생기기 전까지는 **완전히 닫는다** — 보이는 구멍을 보이지 않는
   //    벽으로 막는 것보다, 아예 안 뚫려 있는 편이 정직하다.
   //    대신 남쪽 한가운데에 화분 두 개를 세워 정문처럼 읽히게 한다.
-  const YARD = {minX:-21, maxX:21, minZ:-19, maxZ:11};
+  //  42 × 30 은 1.3m 캐릭터에게 축구장이었다 — 건물 사이를 걷는 데만 6초였다.
+  //  30 × 22 로 좁힌다. 담을 것(건물 셋·분수·벤치·과일나무 여섯)은 그대로다.
+  const YARD = {minX:-15, maxX:15, minZ:-14, maxZ:8};
 
   function buildFence(){
     const FZ = KIT_OK ? kitSize('fence') : null;           // 원본 폭 0.48
@@ -478,7 +496,7 @@ export async function mountCampus(){
       if (g) world.add(g);
 
       // 정문 표시 — 남쪽 한가운데 화분 두 개. 여기가 앞쪽이라는 신호다
-      for (const gx of [-4.6, 4.6]){
+      for (const gx of [-3.6, 3.6]){
         const pot = placeKit('planter', {x: gx, z: YARD.maxZ - 1.6, yaw: 0,
                                          scale: 4.0, track: m => junk.push(m)});
         if (pot) world.add(pot);
@@ -570,10 +588,12 @@ export async function mountCampus(){
     // 광장·진입로를 비켜 잔디에만 심는다
     const spots = [];
     for (let i = 0; i < 150; i++){
-      const a = rnd()*Math.PI*2, r = 10 + rnd()*26;
+      const a = rnd()*Math.PI*2, r = 7 + rnd()*7.5;
       const x = Math.cos(a)*r, z = Math.sin(a)*r - 3;
-      if (Math.abs(x) < 8 && z > -12) continue;
-      if (Math.abs(z + 5) < 6 && Math.abs(x) < 24) continue;
+      if (x < YARD.minX + 1 || x > YARD.maxX - 1) continue;
+      if (z < YARD.minZ + 1 || z > YARD.maxZ - 1) continue;
+      if (Math.abs(x) < 6 && z > -10) continue;              // 광장·진입로
+      if (Math.abs(z + 1.6) < 3 && Math.abs(x) < 10) continue; // 건물 앞
       spots.push({x, z, yaw: rnd()*Math.PI*2, scale: 0.8 + rnd()*0.6});
     }
 
@@ -1673,7 +1693,7 @@ export async function mountCampus(){
           return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}" ` +
                  `aria-label="${slot === 'eyewear' ? '안경 안 씀' : '머리 없음'}">` +
                  `<span class="dnone">` +
-                 icon(slot === 'eyewear' ? 'glasses-off' : 'user-round', 34) +
+                 icon(slot === 'eyewear' ? 'glasses-off' : 'ban', 32) +
                  `</span></button>`;
         const url = thumbFor(slot, v, L);
         return `<button class="dcard${on}${lock}" data-slot="${slot}" data-val="${v}">` +
@@ -1986,7 +2006,7 @@ export async function mountCampus(){
   //  내 방은 티어 범위 안으로 제한한다. 공용 공간은 그 레벨의 활동 범위로 넉넉히 둔다.
   const editBounds = () => editTarget === 'room'
     ? roomBounds(INV.earned)
-    : (level === 'outdoor' ? {minX:-20, maxX:20, minZ:-18, maxZ:10}
+    : (level === 'outdoor' ? {minX:-14, maxX:14, minZ:-13, maxZ:7}
                            : {minX:-26, maxX:26, minZ:-22, maxZ:8});
 
   function redraw(){
