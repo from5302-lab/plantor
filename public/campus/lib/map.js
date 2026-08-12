@@ -6,16 +6,16 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import * as CodeAvatar from '/campus/lib/avatar.js';
 import { DEFAULT_LOOK, GUEST_LOOK, BODY_BASE } from '/campus/lib/avatar.js';
-import { loadWardrobe, buyWardrobe,
-         loadCharacter, saveCharacter, saveName, loadRoom, saveRoom, loadPlace, savePlace,
+import { loadCharacter, loadRoom, saveRoom, loadPlace, savePlace,
          loadInv, saveInv, whenReady } from '/campus/lib/store.js';
 import { roomBounds, roomTier } from '/campus/lib/room.js';
 import { ITEMS, RECIPES, FRUIT_TREES } from '/campus/lib/items.js';
 import { ROOM_TIERS } from '/campus/lib/room.js';
 import { icon } from '/campus/lib/icons.js';
+import { initDressing } from '/campus/lib/dressing.js';
+import { initEditor } from '/campus/lib/editor.js';
 import * as Pets from '/campus/lib/pets.js';
-import { DECOR, DECOR_BY_ID, GROUPS, decorSnap, preloadDecor, decorBox, buildDecor, decorThumb,
-         thumbOf, disposeThumbs } from '/campus/lib/decor.js';
+import { DECOR_BY_ID, decorBox, buildDecor, disposeThumbs } from '/campus/lib/decor.js';
 import { joinCampus } from '/campus/lib/net.js';
 import { CURVE, FOCUS, bend } from '/campus/lib/curve.js';
 import { createSky } from '/campus/lib/sky.js';
@@ -900,7 +900,7 @@ export async function mountCampus(){
     }
   }
   function toggleSit(){
-    if (switching || uiOpen() || editing) return;
+    if (switching || uiOpen() || editor.isEditing()) return;
     if (sitting) standUp();
     else sitAt(P.x, P.z, P.yaw, null);
   }
@@ -909,7 +909,7 @@ export async function mountCampus(){
   //  걷는 중에도 낼 수 있게 이동을 막지 않는다.
   let gestureUntil = 0, gestureAct = null;
   function gesture(act, ms){
-    if (switching || uiOpen() || editing) return;
+    if (switching || uiOpen() || editor.isEditing()) return;
     if (sitting) standUp();
     playOnce(player, act);
     gestureAct = act;
@@ -1178,7 +1178,7 @@ export async function mountCampus(){
     stick.vx = stick.vy = 0; stick.moved = false; tap.target = null;
   });
   cv.addEventListener('pointermove', e => {
-    if (editing) moveGhost(e.clientX, e.clientY);
+    if (editor.isEditing()) editor.moveGhost(e.clientX, e.clientY);
     if (!stick.on) return;
     // 두 손가락이면 핀치 줌이다 — 걷기로 읽으면 줌하는 동안 캐릭터가 끌려다닌다
     if (pinch.size >= 2){ stick.vx = stick.vy = 0; stick.mag = 0; stick.moved = true; return; }
@@ -1189,8 +1189,8 @@ export async function mountCampus(){
   function endPointer(e){
     if (!stick.on) return;
     if (!stick.moved){
-      if (editing){
-        editTap(e.clientX, e.clientY);       // 편집 중의 탭은 배치·선택이다. 걷지 않는다
+      if (editor.isEditing()){
+        editor.editTap(e.clientX, e.clientY); // 편집 중의 탭은 배치·선택이다. 걷지 않는다
       } else {
         const hit = screenToGround(e.clientX, e.clientY);
         if (hit){ tap.target = hit; tap.stuck = 0; }
@@ -1297,7 +1297,7 @@ export async function mountCampus(){
   function syncRoomBtn(){
     const z = currentZone;
     const inMyRoom = ME && z && z.kind === 'room' && z.room.id === 'study' && z.room.personal;
-    elRoomBtn.hidden = editing || !(inMyRoom || (IS_ADMIN && level !== 'study'));
+    elRoomBtn.hidden = editor.isEditing() || !(inMyRoom || (IS_ADMIN && level !== 'study'));
     elRoomBtn.textContent = inMyRoom ? '내 방 꾸미기' : '꾸미기';
   }
   function interact(){
@@ -1409,539 +1409,22 @@ export async function mountCampus(){
   }
 
   // ══ 캐릭터 고르기 ═════════════════════════════════════════════════
-  //  Kenney 캐릭터는 피부·머리·옷 색이 **메시에 박혀** 있다. 예전 커스터마이저의
-  //  체형 슬라이더·색 팔레트는 코드 아바타 시절 물건이라 여기선 의미가 없다.
-  //  그래서 '무엇을 조절하나'가 아니라 '누구로 할까'를 고르게 한다 — 12종을
-  //  실제 3D 로 찍어 나란히 보여 준다(팔레트와 같은 카메라라 크기가 비교된다).
-
-  //  ── 꾸미기 모드 ──
-  //  썸네일 12개를 격자로 늘어놓으면 **정작 캐릭터가 제일 작다**. 모바일 시트에서는
-  //  격자가 눌려 잘리기까지 했다. 그래서 격자를 버리고, 카메라가 캐릭터로 밀고
-  //  들어가 화면을 채운다 — 고르는 대상이 화면에서 가장 큰 것이어야 한다.
-  //  넘기기는 ‹ › 로, 색은 **한 번에 한 부위만** 한 줄로 낸다(네 줄을 동시에 펴면
-  //  그것만으로 화면이 다 찬다).
-  let dressTab = 'base';
-  let elHead = null, elFoot = null;
-  //  창 안에서는 **초안(draft)** 만 바꾼다. 고를 때마다 저장하면 되돌릴 길이 없어
-  //  아이가 눌러 보기를 무서워한다. 적용을 눌러야 내 것이 된다.
-  let draft = null;
-  let escClose = null, outClose = null;
-  //  옷장 — 잔액·가진 것·값. 꾸미기 화면을 열 때 한 번 받아 온다.
-  //  통화는 캠퍼스 사과가 아니라 **학습 포인트**다. 안 산 것도 입어는 볼 수 있게 하고
-  //  (입어 봐야 산다), 저장은 가진 것만 한다.
-  let wardrobe = null;
-  let savedLook = null;                    // 마지막으로 저장된 값 — 미리보기를 되돌릴 기준
-  //  표정·안경은 파는 물건이 아니다 — 기분과 소품이지 옷이 아니라 값을 안 매긴다.
-  const ownsSlot = (slot, id) =>
-    slot === 'face' || slot === 'eyewear' || slot === 'pet' ||
-    id === Avatar.BALD || !wardrobe ||
-    (wardrobe.owned?.[slot] || []).includes(id);
-  const elRoot = document.querySelector('.campus-root');
-
-  async function openChars(){
-    if (!ME) return toast('로그인하면 캐릭터를 고를 수 있어요');
-    elBag.hidden = elShop.hidden = elTalk.hidden = true;
-    charOpen = true;
-    elChars.hidden = false;
-    elChars.classList.add('dress');
-    elRoot && elRoot.classList.add('dressing');
-    savedLook = {...myLook};
-    draft = {...myLook};
-    nameDraft = ME ? ME.name : '';
-    lastDrawTab = null;                  // 새로 열면 목록은 맨 위에서 시작한다
-    elChars.innerHTML =
-      `<div class="dhead"></div>` +
-      `<div class="dstage">` +
-        `<button class="dside dprev" data-spin="-1" aria-label="왼쪽으로 돌리기">` +
-          `${icon('chevron-left', 24)}</button>` +
-        `<button class="dside dnext" data-spin="1" aria-label="오른쪽으로 돌리기">` +
-          `${icon('chevron-right', 24)}</button>` +
-      `</div>` +
-      `<div class="dfoot"></div>`;
-    elHead = elChars.querySelector('.dhead');
-    elFoot = elChars.querySelector('.dfoot');
-    previewStart(elChars.querySelector('.dstage'));
-    // 닫는 길을 여럿 둔다. '취소'는 있었지만 '닫기'로 안 읽혔다 —
-    // ESC 와 바깥 클릭은 창을 닫는 보편적인 방법이라 없으면 갇힌 느낌이 든다.
-    escClose = e => { if (e.key === 'Escape' || e.code === 'Escape'){ e.preventDefault(); closeChars(); } };
-    outClose = e => { if (charOpen && !elChars.contains(e.target)) closeChars(); };
-    addEventListener('keydown', escClose, true);
-    setTimeout(() => addEventListener('pointerdown', outClose), 0);
-    drawChars();
-    await Avatar.preloadAll?.();            // ‹ › 가 즉시 넘어가도록 미리 받아 둔다
-    await Avatar.preloadAids?.();           // 안경 카드도 그려야 해서 소품까지 받아 둔다
-    Pets.preloadAll().then(() => { if (charOpen && dressTab === 'pet') drawChars(); });
-    // ⚠ buildAvatar 는 안 받아진 모델을 기본(male-a)으로 떨군다. 다 받아지기 전에
-    //   찍은 썸네일은 전부 같은 얼굴이 되어 캐시에 굳는다 — 여기서 버리고 다시 찍는다.
-    lookThumbs.clear();
-    Avatar.preloadAids?.();
-    wardrobe = await loadWardrobe();
-    drawChars();
-  }
-  function closeChars(){
-    if (escClose){ removeEventListener('keydown', escClose, true); escClose = null; }
-    if (outClose){ removeEventListener('pointerdown', outClose); outClose = null; }
-    // 초안은 버리면 그만이다 — 맵의 나는 애초에 안 건드렸다
-    draft = null;
-    previewStop();
-    elChars.hidden = true; charOpen = false;
-    elChars.classList.remove('dress');
-    elRoot && elRoot.classList.remove('dressing');
-  }
-  //  캐릭터는 얼굴·헤어·옷 셋으로 쪼개진다(두개골이 12종 공통이라 남의 머리를
-  //  얹을 수 있고, 뼈가 같아 남의 옷을 입을 수 있다). 탭 하나가 슬롯 하나고,
-  //  ‹ › 는 **지금 탭의 슬롯**을 넘긴다 — 무엇을 고르는 중인지가 화면에 남는다.
-  //  여기 있는 셋만 **파는 것**이다 — 사는 줄과 "안 산 건 빼고 저장"이 이 표를 본다.
-  //  표정·안경은 값이 없으므로 넣지 않는다.
-  const SLOTS = [{id:'base', name:'얼굴'}, {id:'head', name:'헤어'}, {id:'body', name:'옷'}];
-  //  탭은 **부위**다. 모양과 색을 다른 탭에 두면 머리를 고르다 색을 바꾸려고
-  //  탭을 옮겨야 한다 — 같은 것을 만지는데 자리가 갈린다.
-  //  한 탭 안에 '무엇을 입을까'(모양)와 '무슨 색으로'(색)를 같이 놓는다.
-  const TABS = [
-    {id:'base', name:'얼굴', slot:'base', colors:['skin']},
-    {id:'face', name:'표정', slot:'face'},
-    {id:'head', name:'헤어', slot:'head', colors:['hair']},
-    {id:'body', name:'옷',   slot:'body', colors:['top', 'bottom']},
-    {id:'eyewear', name:'안경', slot:'eyewear', colors:['glass']},
-    {id:'pet', name:'펫', slot:'pet'},
-  ];
-  const slotOf = tab => (TABS.find(t => t.id === tab) || {}).slot || 'base';
-  /**
-   * 이 슬롯이 고를 수 있는 값들. 헤어에만 '없음'(대머리)이 있다.
-   * 안경은 모델이 아니다 — 얼굴에 박힌 것('own')·안 씀·소품 둘.
-   */
-  const optionsOf = (slot, L) => {
-    if (slot === 'pet') return ['none'].concat(Pets.PETS.map(p => p.id));
-    if (slot === 'eyewear'){
-      // 얼굴에 박힌 안경은 소품 '안경'과 **같은 물건**이다(정점 82개가 같다).
-      // 둘을 나란히 놓으면 똑같은 카드가 두 장 뜬다 — 박힌 쪽이 있으면 소품은 뺀다.
-      const builtin = Avatar.hasBuiltinGlasses?.(L ? L.base : '');
-      const aids = (Avatar.ACCESSORIES || []).map(a => a.id)
-        .filter(id => !(builtin && id === 'glasses'));
-      // '안 씀'이 맨 앞 — 기본 상태부터 보여 준다
-      return ['none'].concat(builtin ? ['own'] : [], aids);
-    }
-    // 모든 슬롯이 기하(정점 좌표) 기준으로 중복을 접는다 — 같은 카드가 두 장
-    // 뜨는 일은 어느 탭에도 없어야 한다. 얼굴·옷은 지금 12종 전부 다르지만,
-    // 에셋이 늘거나 겹쳐도 여기가 걸러 준다.
-    if (slot === 'face') return Avatar.faceOptions?.() || Avatar.MODELS || [];
-    if (slot === 'head')
-      return [Avatar.BALD].concat(Avatar.distinctModels?.('bald') || Avatar.MODELS || []);
-    return Avatar.distinctModels?.(slot) || Avatar.MODELS || [];
-  };
-
-  // ── 창 안의 캐릭터 ────────────────────────────────────────────────
-  //  맵 카메라를 당겨 보여 주면 뒤에 마을이 비치고, 회전도 맵 규칙에 묶인다.
-  //  꾸미기는 **자기 무대**를 가져야 한다 — 창 안에 작은 렌더러를 따로 둔다.
-  //  컨텍스트는 한 번 만들어 재사용한다(WebGL 컨텍스트를 여닫으면 브라우저가 늙는다).
-  let pv = null;                 // {renderer, scene, cam, rig, raf, yaw, spin}
-  /**
-   * ⚠ 무대는 창을 열 때마다 innerHTML 로 새로 그린다. 캔버스를 그 안에 적어 두면
-   *   두 번째로 열었을 때 렌더러는 **버려진 옛 캔버스**에 계속 그린다 — 화면은
-   *   비어 있는데 아무 에러도 안 난다. 캔버스는 렌더러가 들고, 열 때마다 끼운다.
-   */
-  function previewStart(host){
-    if (!pv){
-      const canvas = document.createElement('canvas');
-      canvas.className = 'dcv';
-      const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      const scene = new THREE.Scene();
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe6e0, 2.2));
-      const key = new THREE.DirectionalLight(0xfff6e8, 1.5);
-      key.position.set(2.5, 4, 3);
-      scene.add(key);
-      // 발판과 접지 그림자 — 없으면 캐릭터가 공중에 뜬 것처럼 보인다.
-      // 그림자는 라이트를 켜는 대신 **그림자처럼 생긴 판**을 깐다(무대 하나에
-      // 그림자 맵을 켜는 건 값이 비싸고, 이 각도에선 티도 안 난다).
-      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-      const g2 = cv.getContext('2d');
-      const grd = g2.createRadialGradient(64, 64, 4, 64, 64, 62);
-      grd.addColorStop(0, 'rgba(30,45,35,.34)');
-      grd.addColorStop(0.55, 'rgba(30,45,35,.13)');
-      grd.addColorStop(1, 'rgba(30,45,35,0)');
-      g2.fillStyle = grd; g2.fillRect(0, 0, 128, 128);
-      const shadow = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({map: new THREE.CanvasTexture(cv), transparent: true,
-                                     depthWrite: false}));
-      shadow.position.y = 0.004;
-      scene.add(shadow);
-      const disc = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.62, 0.62, 0.035, 48),
-        new THREE.MeshLambertMaterial({color: 0xf2f6f3}));
-      disc.position.y = -0.018;
-      scene.add(disc);
-      const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-      pv = {renderer, scene, cam, rig:null, raf:0, yaw:0, spin:0, look:0.65};
-    }
-    const canvas = pv.renderer.domElement;
-    host.prepend(canvas);
-    previewSync();
-    const loop = () => {
-      pv.raf = requestAnimationFrame(loop);
-      const el = pv.renderer.domElement;
-      const w = el.clientWidth, h = el.clientHeight;
-      if (w && h && (el.width !== w * pv.renderer.getPixelRatio() || pv.cam.aspect !== w/h)){
-        pv.renderer.setSize(w, h, false);
-        pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix();
-        frameStage();
-      }
-      if (pv.rig){
-        pv.yaw += pv.spin * 0.02;
-        pv.rig.root.rotation.y = pv.yaw;
-        poseAvatar(pv.rig, 'idle', 'none', 0);
-      }
-      pv.cam.lookAt(0, pv.look, 0);
-      pv.renderer.render(pv.scene, pv.cam);
-    };
-    cancelAnimationFrame(pv.raf); loop();
-    // 끌어서 돌린다 — 버튼보다 이게 먼저 손에 잡힌다
-    if (!canvas.dataset.spin){
-      canvas.dataset.spin = '1';
-      let last = null;
-      const down = e => { last = (e.touches ? e.touches[0] : e).clientX; };
-      const move = e => {
-        if (last === null) return;
-        const x = (e.touches ? e.touches[0] : e).clientX;
-        pv.yaw += (x - last) * 0.012; last = x;
-        e.preventDefault();
-      };
-      const up = () => { last = null; };
-      canvas.addEventListener('pointerdown', down);
-      addEventListener('pointermove', move, {passive:false});
-      addEventListener('pointerup', up);
-    }
-  }
-  function previewSync(){
-    if (!pv) return;
-    if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); }
-    pv.rig = buildAvatar(draft || myLook, myBody, {flat: true});
-    // 이름표는 맵에서만 쓴다. 무대에서는 캐릭터만 본다.
-    pv.rig.root.rotation.y = pv.yaw;
-    pv.scene.add(pv.rig.root);
-    frameStage();
-  }
-  /**
-   * 무대는 **언제나 전신 풀샷**이다. 부위를 고를 때마다 화면이 움직이면 어지럽고,
-   * 바뀐 부분이 어디인지도 오히려 놓친다.
-   *
-   * 바운딩을 재서 맞추던 걸 걷어냈다 — 캐릭터 키는 어차피 1.30m 로 고정이라
-   * 잴 이유가 없었고, 잴 때마다 값이 어긋나 몸이 화면 밖으로 나가곤 했다.
-   * 세로 1.6m 가 보이게 세워 두면 1.30m 캐릭터가 넉넉히 들어온다.
-   */
-  const STAGE_H = 1.62, STAGE_W = 1.5, STAGE_LOOK = 0.66;
-  function frameStage(){
-    if (!pv) return;
-    const t = Math.tan(pv.cam.fov * Math.PI / 360);
-    const aspect = pv.cam.aspect || 1;
-    const d = Math.max(STAGE_H / 2 / t, STAGE_W / 2 / (t * aspect));
-    pv.look = STAGE_LOOK;
-    pv.cam.position.set(0, STAGE_LOOK, d);
-  }
-
-  function previewStop(){
-    if (!pv) return;
-    cancelAnimationFrame(pv.raf); pv.raf = 0;
-    if (pv.rig){ pv.scene.remove(pv.rig.root); disposeAvatar(pv.rig); pv.rig = null; }
-  }
-
-  // ── 모양 썸네일 ───────────────────────────────────────────────────
-  //  숫자로 고르게 하면 눌러 보기 전엔 무엇인지 알 수 없다. 실제로 입힌 모습을
-  //  찍어 보여 준다. 열쇠에 기준 얼굴을 넣는다 — 얼굴이 바뀌면 머리·옷도 달라 보인다.
-  const lookThumbs = new Map();
-  //  부위마다 **그 부위를 확대해서** 찍는다. 전신으로 찍으면 머리 차이가 몇 픽셀이라
-  //  무엇이 다른지 알 수 없다(레퍼런스의 아바타 편집기들이 그렇게 한다).
-  //  캐릭터 키는 1.30m — 아래 값은 그 안에서의 띠다.
-  //  띠는 **바운딩에서 비율로** 잡는다. 좌표로 박으면 안 맞는다 — 긴 머리·모자가
-  //  있는 모델은 같은 키에 맞추느라 머리통이 아래로 내려온다.
-  //  **부위만 보여 준다.** 전신을 찍으면 12개가 다 비슷한 살색 덩어리로 보인다.
-  //  레퍼런스(아바타 편집기들)가 머리카락을 민머리 위에 얹어 보여 주는 이유다.
-  //   · 헤어 → 민머리(male-b) 위에 그 머리카락만. 몸은 감춘다
-  //   · 옷   → 몸만. 머리를 감춘다
-  //   · 얼굴 → 얼굴만
-  const NEUTRAL = 'male-b';            // 12종 중 유일하게 원래 대머리다
-  const THUMB_W = 132, THUMB_H = 150;
-  let aR = null, aS = null, aC = null;
-  function thumbSetup(){
-    if (aR) return;
-    aR = new THREE.WebGLRenderer({antialias:true, alpha:true});
-    aR.setSize(THUMB_W, THUMB_H); aR.setPixelRatio(2);
-    aR.outputColorSpace = THREE.SRGBColorSpace;
-    aS = new THREE.Scene();
-    aS.add(new THREE.HemisphereLight(0xffffff, 0xe2e8e3, 2.3));
-    const k = new THREE.DirectionalLight(0xfff6e8, 1.3); k.position.set(2, 4, 3); aS.add(k);
-    // 정사영 — 원근이 섞이면 카드마다 크기가 달라 보여 비교가 안 된다
-    aC = new THREE.OrthographicCamera(-1, 1, 1, -1, -20, 40);
-  }
-  /** 슬롯마다 보여 줄 메시만 남긴다. 나머지는 감춘다. */
-  function showOnly(rig, slot){
-    rig.model.traverse(o => {
-      if (!o.isMesh) return;
-      const isBody = o.name.charAt(0) === 'b';
-      o.visible = slot === 'body' ? isBody : !isBody;
-    });
-  }
-  function renderThumb(look, slot){
-    thumbSetup();
-    const rig = buildAvatar({...look, colors: (draft || myLook).colors}, myBody, {flat: true});
-    // 바인드 자세는 팔을 벌린 T 포즈다. 그대로 찍으면 옷보다 팔이 먼저 보이고
-    // 카드 안에서 옷이 가로로 길쭉해진다. idle 을 한 번 돌려 팔을 내린다.
-    rig.mixer.update(0.4);
-    showOnly(rig, slot);
-    rig.root.rotation.y = -0.38;          // 살짝 튼 3/4 — 옆머리·소매가 보인다
-    rig.root.updateMatrixWorld(true);
-    aS.add(rig.root);
-    // 보이는 메시만으로 바운딩을 잡는다 — 감춘 것까지 세면 엉뚱한 데를 찍는다
-    const box = new THREE.Box3();
-    rig.model.traverse(o => { if (o.isMesh && o.visible) box.expandByObject(o); });
-    if (box.isEmpty()) box.setFromObject(rig.root);
-    const cy = (box.max.y + box.min.y) / 2;
-    const h = Math.max(0.08, (box.max.y - box.min.y)) / 2 * 1.14;
-    const wNeed = Math.max(0.08, (box.max.x - box.min.x)) / 2 * 1.14;
-    const half = Math.max(h, wNeed * (THUMB_H / THUMB_W));
-    const w = half * (THUMB_W / THUMB_H);
-    aC.left = -w; aC.right = w; aC.top = half; aC.bottom = -half;
-    aC.position.set(0, cy, 8); aC.lookAt(0, cy, 0);
-    aC.updateProjectionMatrix();
-    aR.render(aS, aC);
-    const url = aR.domElement.toDataURL('image/png');
-    aS.remove(rig.root); disposeAvatar(rig);
-    return url;
-  }
-  function thumbFor(slot, v, L){
-    if (slot === 'pet') return Pets.petThumb(v);
-    const k = `${slot}:${v}:${L.base}:${L.head}:${L.face}:${L.eyewear}:` +
-              JSON.stringify((draft || myLook).colors || {});
-    if (lookThumbs.has(k)) return lookThumbs.get(k);
-    // 헤어는 **지금 쓰는 내 얼굴**에 얹어 찍는다. 그게 알고 싶은 것이기도 하고,
-    // 기준 얼굴을 따로 두면 그 얼굴의 특징(male-b 는 수염이 덥수룩하다)이 열두
-    // 장에 전부 딸려 나온다. base 의 원래 머리는 어차피 벗겨지므로 아무 얼굴이나 된다.
-    // 옷은 얼굴을 감추므로 기준 몸을 써도 상관없다.
-    const look = slot === 'base' ? {base:v, head:v, body:v}
-               : slot === 'head' ? {base:L.base, head:v, body:L.body}
-               : slot === 'face' ? {base:L.base, head:L.head, body:L.body, face:v,
-                                    eyewear:'none'}  // 안경이 표정을 가린다
-               : slot === 'eyewear' ? {...L, eyewear:v}
-                                 : {base:NEUTRAL, head:'none', body:v};
-    let url = '';
-    try { url = renderThumb(look, slot); } catch { url = ''; }
-    lookThumbs.set(k, url);
-    return url;
-  }
-
-  //  같은 탭을 다시 그릴 때는 목록이 보던 자리에 그대로 있어야 한다.
-  //  innerHTML 을 통째로 갈아 끼우므로 스크롤이 맨 위로 튄다 — 카드를 하나
-  //  고를 때마다 목록이 처음으로 돌아가면 스물다섯 마리 중에 고를 수가 없다.
-  let lastDrawTab = null;
-  function drawChars(){
-    if (!charOpen) return;
-    const keepScroll = lastDrawTab === dressTab;
-    const prevFoot = keepScroll ? elFoot.scrollTop : 0;
-    const prevGrid = keepScroll ? (elFoot.querySelector('.dgrid2')?.scrollTop || 0) : 0;
-    lastDrawTab = dressTab;
-    const D = draft || myLook;
-    const L = Avatar.resolveLook ? Avatar.resolveLook(D) : {base: D.model};
-    const colors = D.colors || {};
-    const parts = Avatar.PARTS || [];
-    const tabs = TABS;                      // 탭은 늘 보여 준다 — 사라지면 없어진 줄 안다
-    if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
-    const tab = tabs.find(t => t.id === dressTab);
-
-    //  색 칸이 차지하는 높이는 어느 탭에서나 두 줄이다. 부위가 둘인 탭(옷)은
-    //  부위마다 한 줄씩, 부위가 하나면 그 하나가 두 줄을 쓴다. 색이 늘어도
-    //  바가 자라지 않아야 무대가 안 눌린다.
-    const rows1 = (tab.colors || []).length > 1;
-    const swatches = (partId) => {
-      const p = parts.find(x => x.id === partId);
-      if (!p) return '';
-      return `<div class="drow"><span class="dlabel">${p.name}</span>` +
-        `<div class="swrow${rows1 ? ' r1' : ''}">` +
-        p.ids.map(id => {
-          const c = (Avatar.PALETTE || []).find(x => x.id === id);
-          if (!c) return '';
-          const on = colors[partId] === id ? ' on' : '';
-          return `<button class="swatch${on}" data-part="${partId}" data-color="${id}"` +
-                 ` style="background:${c.hex}" title="${c.name}" aria-label="${p.name} ${c.name}"` +
-                 `${on ? ' aria-pressed="true"' : ''}></button>`;
-        }).join('') + `</div></div>`;
-    };
-
-    let body = '';
-    {
-      const slot = tab.slot;
-      const opts = optionsOf(slot, L);
-      const curOf = slot === 'pet' ? ((draft || myLook).pet || 'none') : L[slot];
-      body += `<div class="dgrid2">` + opts.map(v => {
-        const on = v === curOf ? ' on' : '';
-        const lock = ownsSlot(slot, v) ? '' : ' lock';
-        // '없음'도 글자 대신 그림으로 — 옆 칸이 전부 그림인데 혼자 글자면
-        // 카드가 아니라 안내문으로 읽힌다. 머리는 민머리, 안경은 벗은 안경.
-        if (v === Avatar.BALD || v === 'none')
-          return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}" ` +
-                 `aria-label="없음">` +
-                 `<span class="dnone">` +
-                 icon(slot === 'eyewear' ? 'glasses-off' : 'ban', 32) +
-                 `</span></button>`;
-        const url = thumbFor(slot, v, L);
-        return `<button class="dcard${on}${lock}" data-slot="${slot}" data-val="${v}">` +
-               (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
-               (lock ? `<span class="dlock">${icon('lock', 12)}</span>` : '') + `</button>`;
-      }).join('') + `</div>`;
-      body += (tab.colors || []).map(swatches).join('');
-    }
-
-    elHead.innerHTML =
-      `<b>캐릭터 꾸미기</b><span class="sp"></span>` +
-      (wardrobe ? `<span class="dpts">${wardrobe.unlimited ? '∞' :
-         (wardrobe.points || 0).toLocaleString('ko-KR')}<i>P</i></span>` : '') +
-      `<button class="droll" data-roll aria-label="아무거나 골라 보기">${icon('dice', 18)}</button>` +
-      `<button class="dcancel" data-close>닫기</button>` +
-      `<button class="ddone" data-apply>적용</button>`;
-    elFoot.innerHTML =
-      (ME ? `<div class="dname"><span class="dnlab">이름</span>` +
-            `<input data-name maxlength="12" value="${esc(nameDraft)}" ` +
-            `aria-label="캠퍼스에서 보이는 이름"></div>` : '') +
-      `<div class="dtabs">` +
-        tabs.map(t => `<button class="dtab${t.id === dressTab ? ' on' : ''}" ` +
-                      `data-tab="${t.id}">${t.name}</button>`).join('') +
-      `</div>${body}${buyRow(L)}`;
-    elFoot.scrollTop = prevFoot;
-    const grid = elFoot.querySelector('.dgrid2');
-    if (grid) grid.scrollTop = prevGrid;
-  }
-  /** 안 산 것을 입어 본 상태면 사는 줄. 없으면 빈 문자열. */
-  function buyRow(L){
-    if (!wardrobe) return '';
-    const s = SLOTS.find(s => !ownsSlot(s.id, L[s.id]));
-    if (!s) return '';
-    const cost = (wardrobe.price || {})[s.id] || 0;
-    const short = (wardrobe.points || 0) < cost;
-    return `<div class="dbuy">` +
-      `<span class="dbuyt">${s.name} · <b>${cost.toLocaleString('ko-KR')}P</b></span>` +
-      `<span class="dbuyp">가진 포인트 ${(wardrobe.points || 0).toLocaleString('ko-KR')}P</span>` +
-      `<button class="ddone" data-buy="${s.id}"${short ? ' disabled' : ''}>` +
-      `${short ? '포인트 부족' : '사기'}</button></div>`;
-  }
-  elChars.addEventListener('input', e => {
-    //  ⚠ 여기서 drawChars 를 부르면 안 된다. innerHTML 을 다시 쓰면 입력칸이
-    //    새로 만들어져 **한 글자 칠 때마다 커서가 날아간다.** 값만 담아 둔다.
-    if (e.target.hasAttribute('data-name')) nameDraft = e.target.value;
-  });
-  elChars.addEventListener('click', async e => {
-    const b = e.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-roll')){ await rollLook(); return; }
-    if (b.hasAttribute('data-apply')){ await applyDraft(b); return; }
-    if (b.hasAttribute('data-close')){ closeChars(); return; }
-    if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
-    if (b.dataset.buy){
-      const slot = b.dataset.buy;
-      const id = Avatar.resolveLook(draft)[slot];
-      b.disabled = true;
-      const r = await buyWardrobe(slot, id);
-      if (!r.ok){ toast(r.error || '사지 못했어요'); drawChars(); return; }
-      wardrobe = {...wardrobe, points: r.points, owned: r.owned};
-      toast(r.already ? '이미 가지고 있어요' : '샀어요!');
-      drawChars();
-      return;
-    }
-    if (b.dataset.slot){ await pickSlot(b.dataset.slot, b.dataset.val); return; }
-    if (b.dataset.spin){
-      if (pv) pv.yaw += Number(b.dataset.spin) * Math.PI / 4;
-      return;
-    }
-    if (b.dataset.step){
-      const slot = slotOf(dressTab);
-      const L = Avatar.resolveLook(draft);
-      const opts = optionsOf(slot, L);
-      const at = Math.max(0, opts.indexOf(L[slot]));
-      await pickSlot(slot, opts[(at + Number(b.dataset.step) + opts.length) % opts.length]);
-      return;
-    }
-    if (b.dataset.part){
-      // 같은 색을 다시 누르면 원래 색으로 되돌린다 — 되돌릴 길이 없으면 못 눌러 본다.
-      const cur = (draft.colors || {})[b.dataset.part];
-      const colors = {...(draft.colors || {})};
-      if (cur === b.dataset.color) delete colors[b.dataset.part];
-      else colors[b.dataset.part] = b.dataset.color;
-      draft = {...draft, colors};
-      lookThumbs.clear();                 // 색이 바뀌면 썸네일도 다시 찍어야 한다
-      previewSync(); drawChars();
-      return;
-    }
-  });
-  async function pickSlot(slot, value){
-    if (slot === 'pet'){
-      if (value !== 'none') await Pets.ensure(value);
-      draft = {...draft, pet: value === 'none' ? null : value};
-      drawChars();
-      return;
-    }
-    const L = Avatar.resolveLook(draft);
-    const next = {...L, [slot]: value};
-    draft = {...draft, ...next, model: undefined, aid: undefined};
-    if (slot === 'eyewear'){
-      if (value !== 'own' && value !== 'none') await Avatar.ensureAid?.(value);
-    } else if (value !== Avatar.BALD) await Avatar.ensure?.(value);
-    previewSync();
-    drawChars();
-  }
-
-  /**
-   * 주사위 — 조합이 12 × 13 × 12 × 색이라 무엇을 고를지 모르는 게 정상이다.
-   * 시작점을 준다. **가진 것 중에서만** 뽑는다 — 못 사는 걸 뽑아 주면 놀리는 셈이다.
-   */
-  async function rollLook(){
-    const pick = a => a[Math.floor(Math.random() * a.length)];
-    const mine = slot => optionsOf(slot).filter(v => ownsSlot(slot, v));  // 안경은 안 뽑는다
-    const next = {base: pick(mine('base')), head: pick(mine('head')), body: pick(mine('body'))};
-    const ids = (Avatar.PALETTE || []).map(p => p.id);
-    const colors = {};
-    for (const p of (Avatar.PARTS || []))
-      if (Math.random() < 0.7) colors[p.id] = pick(p.ids.length ? p.ids : ids);
-    draft = {...draft, ...next, model: undefined, colors,
-             aid: Avatar.hasBuiltinGlasses?.(next.base) ? null : draft.aid};
-    await Promise.all([next.base, next.head, next.body]
-      .filter(v => v && v !== Avatar.BALD).map(v => Avatar.ensure?.(v).catch(() => false)));
-    lookThumbs.clear();
-    previewSync(); drawChars();
-  }
-
-  /** 적용 — 초안을 내 것으로. 안 산 것은 여기서 걸러진다. */
-  async function applyDraft(btn){
-    // 저장은 왕복이 있어 한 박자 는다. 그동안 버튼이 그대로면 안 눌린 줄 알고
-    // 다시 누른다 — 누르는 순간 잠그고 무슨 일이 벌어지는지 버튼에 적는다.
-    if (btn){ btn.disabled = true; btn.textContent = '저장 중…'; }
-    const L = Avatar.resolveLook(draft);
-    const back = {};
-    for (const sl of SLOTS) if (!ownsSlot(sl.id, L[sl.id])) back[sl.id] = Avatar.resolveLook(savedLook || {})[sl.id];
-    const dropped = Object.keys(back).length;
-    myLook = {...draft, ...back};
-    //  이름이 바뀌었으면 같이 저장한다. 실패해도 캐릭터 저장은 살린다 —
-    //  이름 때문에 옷까지 못 갈아입는 건 말이 안 된다.
-    let nameMsg = '';
-    if (ME && nameDraft.trim() && nameDraft.trim() !== ME.name){
-      const nr = await saveName(nameDraft);
-      if (nr.ok){ ME.name = nr.name; MY_LABEL = nr.name; }
-      else nameMsg = ' (이름은 못 바꿨어요)';
-    }
-    rebuildPlayer();                     // 이름표는 여기서 새로 붙는다
-    const r = await saveCharacter(myLook, myBody);
-    // 남들에게 알리다 실패해도 **내 저장은 이미 끝났다**. 여기서 예외가 새면
-    // 창이 안 닫히고 알림도 안 떠, 저장이 안 된 것처럼 보인다.
-    if (r.ok){
-      savedLook = {...myLook};
+  //  창 전체는 dressing.js 로 떼어 냈다(535줄). 맵이 주는 건 env 하나 —
+  //  내 look/body 게터와, 적용 확정 시 맵 쪽을 갱신하는 commit 뿐이다.
+  const dressing = initDressing({
+    Avatar, toast, me: ME,
+    getLook: () => myLook,
+    getBody: () => myBody,
+    closePanels: () => { elBag.hidden = elShop.hidden = elTalk.hidden = true; },
+    commit: (look, name) => {
+      myLook = look;
+      if (name) MY_LABEL = name;
+      rebuildPlayer();                   // 이름표는 여기서 새로 붙는다
+      // 남들에게 알리다 실패해도 내 저장은 이미 끝났다 — 예외를 새게 두지 않는다
       try { net && net.updateMeta(myLook, myBody, MY_LABEL); }
       catch (e){ console.warn('[campus] 캐릭터 방송 실패', e); }
-    }
-    if (!r.ok && btn){ btn.disabled = false; btn.textContent = '적용'; }
-    if (r.ok) closeChars();
-    toast(!r.ok ? '저장 실패: ' + r.error
-          : (dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요 ✓') + nameMsg);
-  }
-
-  document.getElementById('dressBtn').onclick = openChars;
+    },
+  });
 
   // ══ 가방 · 매점 ═══════════════════════════════════════════════════
   // 패널은 innerHTML 로 매번 다시 그린다 — 항목이 10개 남짓이라 diff 를 관리할
@@ -1998,9 +1481,9 @@ export async function mountCampus(){
       `<div class="psec">사기 — 가구는 우리집에 놓을 수 있어요</div>` + buys.join('') +
       `</div>`;
   }
-  const shutPanels = () => { elShop.hidden = elTalk.hidden = true; closeChars(); };
+  const shutPanels = () => { elShop.hidden = elTalk.hidden = true; dressing.close(); };
   function openBag(){ shutPanels(); elBag.hidden = false; refreshBag(); }
-  function openShop(){ elBag.hidden = elTalk.hidden = true; closeChars();
+  function openShop(){ elBag.hidden = elTalk.hidden = true; dressing.close();
                        elShop.hidden = false; refreshShop(); }
   elBagBtn.onclick = () => elBag.hidden ? openBag() : (elBag.hidden = true);
 
@@ -2074,7 +1557,7 @@ export async function mountCampus(){
   }
 
   function openTalk(){
-    elBag.hidden = elShop.hidden = true; closeChars();
+    elBag.hidden = elShop.hidden = true; dressing.close();
     // 충쌤에게 인사 — 말을 걸었다는 신호가 화면에도 남는다
     for (const n of NPCS) if (n.rig) playOnce(n.rig, 'yes');
     playOnce(player, 'wave');
@@ -2102,357 +1585,25 @@ export async function mountCampus(){
   });
 
   // ══ 꾸미기 ════════════════════════════════════════════════════════
-  //  같은 코드가 두 곳에 쓰인다:
-  //    · 내 방(study) — 누구나 자기 방만. 배치 범위는 누적 포인트로 넓어진다
-  //    · 공용 공간   — 운영자만. 캠퍼스·학습센터·상점을 자유롭게 꾸민다
-  //  다른 건 '어느 배열을 고치고 어디에 저장하느냐' 뿐이다.
+  //  에디터 전체는 editor.js 로 떼어 냈다(380줄). 맵은 컨텍스트(env)만 준다.
   const IS_ADMIN = !!(ME && ME.role === 'admin');
-  let editing = false, editItems = null, editOrig = null;
-  let editTarget = null;              // 'room' | 'place'
-  let editSel = -1, placeType = null, decorReady = false, editGroup = null;
-  let zoomBefore = null;              // 편집 전 카메라 거리 — 마치면 되돌린다
-  let editListOpen = true;            // 고르면 접힌다 — 시트가 맵을 덮은 채로는 못 놓는다
-  let nameDraft = '';                 // 이름도 초안이다 — 적용을 눌러야 바뀐다
-
-  //  격자 — 어디에 붙는지 **보여야** 스냅이 기능이다. 안 보이면 탭이 어긋난
-  //  자리로 튀는 버그처럼 읽힌다. 칸은 고른 물건의 스냅을 따라간다.
-  let editGrid = null;
-  function syncEditGrid(){
-    if (editGrid){ scene.remove(editGrid); editGrid.geometry.dispose(); editGrid.material.dispose(); editGrid = null; }
-    if (!editing) return;
-    const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
-    const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
-    const B = editBounds();
-    const pts = [];
-    //  ⚠ 선을 스냅 자리(칸의 중심)에 그으면 안 된다. 스냅은 round 라 물건의
-    //    **중심**이 배수 자리에 놓이므로, 배수 자리에 선을 그으면 타일이 선을
-    //    가로질러 네 칸에 걸친다 — 격자와 실제가 어긋나 보인 이유가 이것이다.
-    //    선은 **반 칸 밀어서**(n+0.5) 긋는다. 그러면 한 칸이 타일 하나다.
-    const line = (g, from, to) => {
-      const out = [];
-      for (let n = Math.floor(from / g) - 1; ; n++){
-        const v = (n + 0.5) * g;
-        if (v > to + 1e-6) break;
-        if (v >= from - 1e-6) out.push(v);
-      }
-      return out;
-    };
-    for (const x of line(gx, B.minX, B.maxX)) pts.push(x, 0.03, B.minZ, x, 0.03, B.maxZ);
-    for (const z of line(gz, B.minZ, B.maxZ)) pts.push(B.minX, 0.03, z, B.maxX, 0.03, z);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
-    editGrid = new THREE.LineSegments(g,
-      new THREE.LineBasicMaterial({color: 0x1f7a33, transparent: true, opacity: 0.3, depthWrite: false}));
-    editGrid.renderOrder = 4;
-    scene.add(editGrid);
-  }
-
-  //  유령 — 고른 물건이 커서를 따라다닌다. 탭하기 전에 **어디에 얼마만 하게**
-  //  놓일지 보여 준다. 격자에 붙은 자리를 그대로 쓰므로 "여기가 맞나" 를 안 묻는다.
-  //  반투명으로 그려 이미 놓인 것과 헷갈리지 않게 한다.
-  //  놓일 **칸 자체**를 칠한다. 유령만 있으면 "어디에 붙는가" 는 여전히 눈대중이다 —
-  //  칸이 켜졌다 꺼졌다 하는 게 곧 '착 붙는' 느낌이다.
-  const cellMark = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.20,
-                                 depthWrite:false}));
-  cellMark.visible = false; cellMark.renderOrder = 4;
-  scene.add(cellMark);
-
-  //  ⚠ 이 선언은 clearGhost 보다 위에 있어야 한다(TDZ — 펫 초기화에서 같은 걸로
-  //    콜백이 조용히 죽은 적이 있다).
-  let ghost = null, ghostType = null, ghostJunk = [];
-  function clearGhost(){
-    for (const o of ghostJunk) o.dispose?.();
-    ghostJunk = [];
-    if (ghost){ scene.remove(ghost); ghost = null; }
-    ghostType = null;
-    cellMark.visible = false;
-  }
-  function syncGhost(){
-    const want = editing ? placeType : null;
-    if (want === ghostType) return;
-    clearGhost();
-    if (!want || !decorReady) return;
-    const g = buildDecor({t: want, x: 0, z: 0, r: 0, s: 1}, m => ghostJunk.push(m));
-    if (!g) return;
-    g.traverse(o => {
-      if (!o.isMesh) return;
-      o.material = o.material.clone();
-      o.material.transparent = true;
-      o.material.opacity = 0.55;
-      o.material.depthWrite = false;
-      ghostJunk.push(o.material);
-      o.renderOrder = 6;
-    });
-    g.visible = false;                   // 커서가 바닥에 닿기 전까지는 안 보인다
-    ghost = g; ghostType = want;
-    scene.add(g);
-  }
-  /** 화면 좌표 → 격자에 붙인 바닥 좌표. 없으면 null(바닥 밖) */
-  function snapAt(cx, cy){
-    const r = cv.getBoundingClientRect();
-    ndc.set((cx - r.left)/r.width*2 - 1, -((cy - r.top)/r.height*2 - 1));
-    rayc.setFromCamera(ndc, camera);
-    const hit = new THREE.Vector3();
-    if (!rayc.ray.intersectPlane(GROUND, hit)) return null;
-    const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
-    const rot = editSel >= 0 && !placeType ? editItems[editSel].r : 0;
-    const [gx, gz] = decorSnap(type, rot);
-    return {x: Math.round(hit.x / gx) * gx, z: Math.round(hit.z / gz) * gz};
-  }
-
-  function moveGhost(cx, cy){
-    const p = editing ? snapAt(cx, cy) : null;
-    const B = editBounds();
-    const ok = p && p.x >= B.minX && p.x <= B.maxX && p.z >= B.minZ && p.z <= B.maxZ;
-    if (ghost){
-      ghost.visible = !!ok;
-      if (ok) ghost.position.set(p.x, 0, p.z);
-    }
-    cellMark.visible = !!ok;
-    if (ok){
-      //  칠하는 넓이는 **격자 칸이 아니라 물건이 실제로 먹는 자리**다.
-      //  칸만 칠하면 0.5m 눈금에 3m 짜리 바위를 놓을 때 "여기 들어가겠구나" 하고
-      //  놨다가 옆것을 덮는다 — 발자국을 보여 줘야 자리를 가늠할 수 있다.
-      const sel = editSel >= 0 && !placeType ? editItems[editSel] : null;
-      const probe = {t: placeType || (sel && sel.t), x: p.x, z: p.z,
-                     r: sel ? sel.r : 0, s: sel ? sel.s : 1};
-      const b = probe.t && decorBox(probe);
-      const w = b ? b.maxX - b.minX : 1, d = b ? b.maxZ - b.minZ : 1;
-      cellMark.scale.set(Math.max(0.3, w), 1, Math.max(0.3, d));
-      cellMark.position.set(p.x, 0.035, p.z);
-    }
-  }
-
-  const selMarker = new THREE.Mesh(
-    new THREE.RingGeometry(0.62, 0.74, 28).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0x1f7a33, transparent:true, opacity:0.9, depthWrite:false}));
-  selMarker.visible = false; selMarker.renderOrder = 5;
-  scene.add(selMarker);
-
-  //  내 방은 티어 범위 안으로 제한한다. 공용 공간은 그 레벨의 활동 범위로 넉넉히 둔다.
-  const editBounds = () => editTarget === 'room'
-    ? roomBounds(INV.earned)
-    : (level === 'outdoor' ? {minX:-14, maxX:14, minZ:-13, maxZ:7}
-                           : {minX:-26, maxX:26, minZ:-22, maxZ:8});
-
-  function redraw(){
-    if (editTarget === 'room') applyRoom(editItems); else applyPlace(editItems);
-    syncMarker(); refreshEditBar();
-  }
-
-  function syncMarker(){
-    selMarker.visible = editing && editSel >= 0;
-    if (!selMarker.visible) return;
-    const it = editItems[editSel];
-    const b = decorBox(it);
-    selMarker.position.set(it.x, 0.05, it.z);
-    selMarker.scale.setScalar(b ? Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * 0.85 : 1);
-  }
-
-  /** 팔레트에 보일 목록. 내 방은 산 가구만, 공용 공간(운영자)은 전부. */
-  function paletteItems(){
-    if (editTarget === 'place') return DECOR;
-    // 내 방 — 인벤토리에 있는 것만. ITEMS.furn 의 id 가 DECOR id 와 같다(board→tv 는 별칭)
-    return DECOR.filter(d => countOf(d.id) > 0 || (d.id === 'tv' && countOf('board') > 0));
-  }
-
-  function refreshEditBar(){
-    const list = paletteItems();
-    const groups = GROUPS.filter(g => list.some(d => d.group === g));
-    // 묶음을 전부 늘어놓으면 목록이 세로로 끝없이 길다 — 한 번에 한 묶음만.
-    if (!groups.includes(editGroup)) editGroup = groups[0] || null;
-    const sel = editSel >= 0 ? editItems[editSel] : null;
-
-    const cell = d => {
-      const url = decorReady ? decorThumb(d.id) : '';
-      const own = editTarget === 'room' ? `<b>×${countOf(d.id) || countOf('board')}</b>` : '';
-      return `<button class="dcell ${placeType === d.id ? 'on' : ''}" data-place="${d.id}"
-                title="${esc(d.name)}">` +
-             (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
-             `<span>${esc(d.name)}${own}</span></button>`;
-    };
-
-    const mini = !!placeType && !editListOpen;
-    elEditBar.classList.toggle('mini', mini);
-    elEditBar.innerHTML =
-      `<div class="ehead">${editTarget === 'room' ? '내 방 꾸미기' : level === 'outdoor' ? '캠퍼스 꾸미기' : '실내 꾸미기'}` +
-      (mini ? `<span class="epick">· ${esc(DECOR_BY_ID[placeType]?.name || '')} 놓는 중</span>` : '') +
-      `<span class="sp"></span>` +
-      (mini ? `<button data-list class="ghostb">목록</button>` : '') +
-      `<button data-save>저장</button><button data-cancel class="ghostb">취소</button></div>` +
-      (sel
-        ? `<div class="erow">` +
-          `<span class="elab">${esc(DECOR_BY_ID[sel.t]?.name || '')}</span>` +
-          //  슬라이더만 두면 "지금 몇 도인지 / 몇 배인지" 를 알 수 없고, 같은 값을
-          //  두 물건에 맞출 수가 없다. 수치를 보여 주고 직접 칠 수도 있게 한다.
-          `<label>회전<input type="range" data-rot min="0" max="359" step="5"
-             value="${Math.round(sel.r * 180 / Math.PI)}">` +
-          `<input class="enum" type="number" data-rotn min="0" max="359" step="5"
-             value="${Math.round(sel.r * 180 / Math.PI)}"><i>°</i></label>` +
-          `<label>크기<input type="range" data-scale min="40" max="220" step="5"
-             value="${Math.round((sel.s || 1) * 100)}">` +
-          `<input class="enum" type="number" data-scalen min="0.4" max="2.2" step="0.1"
-             value="${((sel.s || 1)).toFixed(1)}"><i>배</i></label>` +
-          `<button data-dup class="ghostb">복제</button>` +
-          `<button data-del class="ghostb">치우기</button>` +
-          `</div>`
-        : '') +
-      (mini ? '' :
-        `<div class="etabs">` + groups.map(g =>
-          `<button class="etab${g === editGroup ? ' on' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('') +
-        `</div>` +
-        `<div class="dgrid">` +
-          list.filter(d => d.group === editGroup).map(cell).join('') + `</div>`);
-    syncEditGrid();
-    syncGhost();
-  }
-
-  async function startEdit(){
-    if (editing || switching) return;
-    const inMyRoom = level === 'study';
-    if (!inMyRoom && !IS_ADMIN) return toast('공용 공간은 운영자만 꾸밀 수 있어요');
-    if (inMyRoom && !ME) return toast('로그인하면 내 방을 꾸밀 수 있어요');
-
-    editTarget = inMyRoom ? 'room' : 'place';
-    editing = true;
-    editItems = (editTarget === 'room' ? myRoom : place).map(it => ({...it}));
-    editOrig = editItems.map(it => ({...it}));
-    editSel = -1; placeType = null; editListOpen = true;
-    elBag.hidden = elShop.hidden = elTalk.hidden = true;
-    elEditBar.hidden = false; syncRoomBtn();
-    //  꾸밀 때는 **넓게** 본다. 평소 거리(0.75)는 캐릭터를 보라고 당겨 둔 값이라,
-    //  길을 깔다 보면 세 칸 앞이 화면 밖이다. 편집을 마치면 원래대로 돌아간다.
-    zoomBefore = zoomTo;
-    zoomTo = Math.min(ZOOM_MAX, 1.35);
-    redraw();
-
-    if (!decorReady){
-      try { await preloadDecor(); decorReady = true; refreshEditBar(); }
-      catch (e){ console.warn('[campus] 꾸미기 모델 로드 실패', e); }
-    }
-  }
-
-  async function endEdit(save){
-    if (!editing) return;
-    editing = false;
-    elEditBar.hidden = true;
-    selMarker.visible = false;
-    if (zoomBefore != null){ zoomTo = zoomBefore; zoomBefore = null; }
-    clearGhost();
-    syncEditGrid();                     // editing=false 라 지우기만 한다
-    syncRoomBtn();
-    const items = save ? editItems : editOrig;
-    if (editTarget === 'room') applyRoom(items); else applyPlace(items);
-    if (!save) return toast('되돌렸어요');
-    const r = editTarget === 'room' ? await saveRoom(items) : await savePlace(level, items);
-    toast(r.ok ? '저장했어요' : '저장 실패: ' + r.error);
-  }
-
-  elRoomBtn.onclick = startEdit;
-  elEditBar.addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    const d = b.dataset;
-    if (d.group !== undefined){ editGroup = d.group; refreshEditBar(); }
-    else if (d.list !== undefined){ editListOpen = true; refreshEditBar(); }
-    else if (d.place !== undefined){
-      placeType = placeType === d.place ? null : d.place;
-      editListOpen = !placeType;               // 골랐으면 접고, 해제했으면 다시 편다
-      editSel = -1; redraw();
-    }
-    else if (d.save !== undefined) endEdit(true);
-    else if (d.cancel !== undefined) endEdit(false);
-    else if (editSel >= 0 && d.del !== undefined){
-      //  문 달린 건물을 지우면 들어갈 데가 없어진다. 지우는 대신 옮기게 한다.
-      if (DECOR_BY_ID[editItems[editSel].t]?.door)
-        return toast('건물은 치울 수 없어요 — 옮기거나 크기를 바꿔 보세요');
-      editItems.splice(editSel, 1); editSel = -1; redraw();
-    }
-    else if (editSel >= 0 && d.dup !== undefined){
-      const c = {...editItems[editSel]}; c.x += 1; c.z += 1;
-      editItems.push(c); editSel = editItems.length - 1; redraw();
-    }
+  let zoomBefore = null;
+  const editor = initEditor({
+    scene, camera, roomGroup, placeGroup, FLAT,
+    me: ME, isAdmin: IS_ADMIN, toast,
+    level: () => level,
+    switching: () => switching,
+    getMyRoom: () => myRoom,
+    getPlace: () => place,
+    applyRoom, applyPlace,
+    countOf, tierNow,
+    roomEarned: () => INV.earned,
+    closePanels: () => { elBag.hidden = elShop.hidden = elTalk.hidden = true; },
+    //  꾸밀 때는 넓게 본다(0.75 → 1.35). 마치면 원래 거리로 되돌린다.
+    pushZoom: v => { zoomBefore = zoomTo; zoomTo = Math.min(ZOOM_MAX, v); },
+    popZoom: () => { if (zoomBefore != null){ zoomTo = zoomBefore; zoomBefore = null; } },
+    onEditingChange: () => syncRoomBtn(),
   });
-  elEditBar.addEventListener('input', e => {
-    if (editSel < 0) return;
-    const t = e.target, it = editItems[editSel], row = elEditBar.querySelector('.erow');
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-    const setRot = deg => {
-      it.r = deg * Math.PI / 180;
-      //  ⚠ 값을 바꾼 쪽은 건드리지 않는다. 숫자칸을 치는 중에 그 칸의 value 를
-      //    다시 쓰면 커서가 끝으로 튀고 '1' 을 치려다 '10' 이 된다.
-      const a = row.querySelector('[data-rot]'), b = row.querySelector('[data-rotn]');
-      if (t !== a) a.value = Math.round(deg);
-      if (t !== b) b.value = Math.round(deg);
-    };
-    const setScale = mul => {
-      it.s = mul;
-      const a = row.querySelector('[data-scale]'), b = row.querySelector('[data-scalen]');
-      if (t !== a) a.value = Math.round(mul * 100);
-      if (t !== b) b.value = mul.toFixed(1);
-    };
-    if (t.dataset.rot !== undefined)        setRot(+t.value);
-    else if (t.dataset.rotn !== undefined)  setRot(clamp(+t.value || 0, 0, 359));
-    else if (t.dataset.scale !== undefined) setScale((+t.value) / 100);
-    else if (t.dataset.scalen !== undefined) setScale(clamp(+t.value || 1, 0.4, 2.2));
-    else return;
-    // 슬라이더를 끄는 동안 목록을 다시 그리면 포커스가 튄다 — 3D 만 갱신한다
-    if (editTarget === 'room') applyRoom(editItems); else applyPlace(editItems);
-    syncMarker();
-  });
-
-  //  편집 중의 탭 — 놓기 / 고르기 / 옮기기. 걷기 탭과 완전히 분리된다.
-  function editTap(cx, cy){
-    const r = cv.getBoundingClientRect();
-    ndc.set((cx - r.left)/r.width*2 - 1, -((cy - r.top)/r.height*2 - 1));
-    rayc.setFromCamera(ndc, camera);
-
-    const group = editTarget === 'room' ? roomGroup : placeGroup;
-    const hits = rayc.intersectObjects(group.children, true);   // 유령은 scene 직속이라 안 걸린다
-    if (hits.length){
-      //  ⚠ 맨 앞 히트를 그대로 잡으면 안 된다. 바닥 타일은 3m 판이라 그 위에
-      //    선 가로등을 노려도 판이 먼저 걸릴 수 있다 — "옆의 것이 잡힌다"가
-      //    이것이다. **세워진 것 먼저**, 깔린 것(FLAT)은 그다음이다.
-      const idxOf = h => {
-        let node = h.object;
-        while (node.parent && node.parent !== group) node = node.parent;
-        return group.children.indexOf(node);
-      };
-      let pick = -1;
-      for (const h of hits){
-        const i = idxOf(h);
-        if (i < 0) continue;
-        const t = editItems[i]?.t;
-        if (t && !FLAT.has(t)){ pick = i; break; }   // 세워진 것 — 즉시 확정
-        if (pick < 0) pick = i;                      // 깔린 것 — 후보로만
-      }
-      if (pick >= 0){ editSel = pick; placeType = null; syncMarker(); refreshEditBar(); return; }
-    }
-
-    // 격자는 물건이 정한다 — 유령이 서 있는 자리와 **같은 함수**로 계산한다
-    const sp = snapAt(cx, cy);
-    if (!sp) return;
-    const x = sp.x, z = sp.z;
-    const B = editBounds();
-    if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
-      if (placeType || editSel >= 0){
-        const t = editTarget === 'room' ? tierNow() : null;
-        toast(t && t.next
-          ? `여기는 아직 못 써요 — 누적 ${t.next.need.toLocaleString()}P 면 넓어져요`
-          : '이 범위 밖에는 놓을 수 없어요');
-      }
-      return;
-    }
-    if (placeType){
-      editItems.push({t: placeType, x, z, r: 0, s: 1});
-      editSel = editItems.length - 1;
-      redraw();
-    } else if (editSel >= 0){
-      editItems[editSel].x = x; editItems[editSel].z = z;
-      redraw();
-    }
-  }
 
   // ── 첫 레벨 ────────────────────────────────────────────────────────
   refreshBag();                       // 툴바의 벨 잔액 첫 표시
@@ -2656,7 +1807,7 @@ export async function mountCampus(){
       if (z.kind === 'tree' && INV.picked.includes(z.tree)) continue;   // 오늘 흔든 나무는 끝
       if (P.x > z.minX && P.x < z.maxX && P.z > z.minZ && P.z < z.maxZ){ inZone = z; break; }
     }
-    setZone(editing ? null : inZone);
+    setZone(editor.isEditing() ? null : inZone);
 
     // 내 좌표 발행 — 채널이 바뀌면 net.js가 구독 대상을 통째로 갈아끼운다
     if (net) net.publish(P.x, P.z, P.yaw, wire, channelOf(inZone), P.y);
@@ -2706,7 +1857,7 @@ export async function mountCampus(){
     zone: () => currentZone && currentZone.kind,
     warp: (x, z) => placeAt(x, z, P.yaw),
     interact, shake: shakeTree, openShop, openBag, openTalk, award,
-    startEdit, endEdit, editTap,
+    startEdit: editor.startEdit, endEdit: editor.endEdit, editTap: editor.editTap,
     fruits: () => ({trees: fruitTrees.map(t => ({id:t.id, left:t.fruits.length})), ground: groundFruits.length}),
   };
   window.__ready = true;
