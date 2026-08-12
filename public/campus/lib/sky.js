@@ -225,12 +225,22 @@ export function createSky(scene){
       }
       cloudMat.opacity = 0.9 - s.night * 0.55;
       cloudMat.color.setHex(lerpHex(0xffffff, 0x6a7ba8, s.night));
+      //  별 밀도 곡선 — 초저녁(19시)부터 늘어 **자정에 절정**, 새벽 6시에 0.
+      //  먼동은 PHASES(5→7시)가 하늘색으로 그린다 — 별은 그 전에 물러난다.
+      //  그룹을 문턱 순서로 깨워 '개수가 는다'로 보이게 한다(밝기만 올리면 안 는다).
       //  반짝임 — 그룹별 위상·속도로 밝기를 흔든다. 바닥은 0.68 로 받쳐
       //  전멸하는 그룹이 없게 한다(밤하늘이 통째로 숨 쉬면 고장처럼 보인다).
       twinkleT += dt;
+      const sd = h >= 12 ? h - 24 : h;                       // -12~12, 0 = 자정
+      const lin = sd < 0 ? 1 + sd / 5 : 1 - sd / 6;          // 19시 → 자정 → 06시
+      const f = Math.max(0, Math.min(1, lin));
+      const density = f * f * (3 - 2 * f);                   // smoothstep
       const starBase = Math.max(0, s.night - 0.35) * 1.4;
-      for (const m of starMats)
-        m.opacity = starBase * (0.68 + 0.32 * Math.sin(twinkleT * m.userData.speed + m.userData.phase));
+      starMats.forEach((m, gi) => {
+        const reveal = Math.max(0, Math.min(1, density * STAR_GROUPS - gi));
+        m.opacity = starBase * reveal *
+          (0.68 + 0.32 * Math.sin(twinkleT * m.userData.speed + m.userData.phase));
+      });
       //  해: 6→18시. 달: 18→다음날 6시. 궤도 밖 시간엔 지평선 아래(투명)다.
       const sunT = (h - 6) / 12;
       if (sunT >= 0 && sunT <= 1){ orbit(sun, sunT); sunMat.opacity = 1 - s.night; }
