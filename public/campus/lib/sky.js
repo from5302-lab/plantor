@@ -141,16 +141,55 @@ export function createSky(scene){
   //  보다 보이는 해가 낫다).
   const sunMat = new THREE.MeshBasicMaterial({color: 0xffe9a8, transparent: true,
                                               opacity: 0, fog: false, depthWrite: false});
-  const sun = new THREE.Mesh(new THREE.CircleGeometry(5.2, 32), sunMat);
+  const sun = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), sunMat);
   root.add(sun);
-  const moonMat = new THREE.MeshBasicMaterial({color: 0xfdf6d8, transparent: true,
+  //  달 — **오늘 날짜의 위상**을 그린다. 삭망월 29.5306일, 기준 삭은
+  //  2000-01-06 18:14 UTC. 위상은 하루에 12°씩 도니 시간 단위로만 다시 그린다.
+  //  초승·상현은 오른쪽이 밝고(북반구), 보름은 꽉 차고, 그믐밤엔 거의 안 보인다 —
+  //  그날 진짜 하늘과 같은 모양이다.
+  const moonCv = document.createElement('canvas');
+  moonCv.width = moonCv.height = 128;
+  const moonTex = new THREE.CanvasTexture(moonCv);
+  moonTex.colorSpace = THREE.SRGBColorSpace;
+  const moonPhase = () => {
+    const SYNODIC = 29.530588853;
+    const epoch = Date.UTC(2000, 0, 6, 18, 14) / 86400000;
+    const d = Date.now() / 86400000 - epoch;
+    return ((d / SYNODIC) % 1 + 1) % 1;          // 0 = 삭, 0.5 = 보름
+  };
+  function paintMoon(){
+    const g = moonCv.getContext('2d'), c = 64, R = 58;
+    g.clearRect(0, 0, 128, 128);
+    const p = moonPhase();
+    const waxing = p < 0.5;                       // 차오르는 달 = 오른쪽이 밝다
+    const k = Math.cos(2 * Math.PI * p);          // 명암 경계선의 볼록함
+    g.fillStyle = '#fdf6d8';
+    g.beginPath();
+    g.arc(c, c, R, -Math.PI/2, Math.PI/2, !waxing);
+    g.ellipse(c, c, Math.abs(k) * R, R, 0, Math.PI/2, -Math.PI/2, (k < 0) === waxing);
+    g.fill();
+    moonTex.needsUpdate = true;
+  }
+  paintMoon();
+  const moonMat = new THREE.MeshBasicMaterial({map: moonTex, transparent: true,
                                                opacity: 0, fog: false, depthWrite: false});
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(3.6, 28), moonMat);
+  const moon = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6), moonMat);
   root.add(moon);
-  //  t: 0(뜸) → 1(짐). 동쪽(+x)에서 서쪽(−x)으로, 북쪽(−z) 하늘의 반원.
+  //  t: 0(뜸) → 1(짐). 동쪽(+x)→북쪽(−z)→서쪽(−x)으로 **지평선을 따라** 돈다.
+  //  ⚠ 반원 궤도로 하늘 높이 올리면 안 된다. 이 카메라(부감 12°, 반시야 15°)에서
+  //    보이는 하늘은 지평선 위 0~3° 띠뿐이라, 고도 24° 달은 화면 위로 지나가
+  //    영영 안 보였다(실측). 높이를 지평선에 고정하고 방위만 돈다 —
+  //    정오의 해는 북쪽 정면, 저녁 해는 서쪽 끝에 걸린다.
+  //  방위도 압축한다. 가로 반시야가 ~17° 라 정북 ±17° 만 보이는데, 동→서 180° 를
+  //  다 돌면 해가 화면을 스치는 건 정오 언저리 두 시간뿐이다. ±40° 로 눌러
+  //  낮 9시~15시(달은 21시~03시)에는 화면 안에 있게 한다. 뜨고 질 때는
+  //  가장자리 밖 — 뜨는 해를 보려면 카메라를 돌리면 된다(J/K).
+  //  높이는 **하늘 띠 안에 띄운다.** 보이는 하늘은 지평선 위 0~3° 띠다
+  //  (카메라 눈높이 ~5m, 거리 100m 기준 y 5~10.2). 그 가운데 y 8.7 에 두면
+  //  아래로 지평선에 안 닿고 위로 화면 밖에 안 나간다. 크기도 띠에 맞춘다.
   const orbit = (mesh, t) => {
-    const a = t * Math.PI;
-    mesh.position.set(Math.cos(a) * 88, 8 + Math.sin(a) * 46, -66);
+    const a = (0.5 + (t - 0.5) * 0.45) * Math.PI;
+    mesh.position.set(Math.cos(a) * 100, 8.7, -Math.sin(a) * 100);
   };
 
   const sky = makeSkyTexture();
@@ -166,7 +205,7 @@ export function createSky(scene){
       const s = skyAt(h);
       // 1분 단위로만 다시 칠한다 — 프레임마다 캔버스를 다시 그릴 이유가 없다
       const key = Math.floor(h * 60);
-      if (key !== painted){ sky.paint(s); painted = key; }
+      if (key !== painted){ sky.paint(s); paintMoon(); painted = key; }
 
       root.position.set(camera.position.x, 0, camera.position.z);
       for (const c of clouds){
