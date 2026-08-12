@@ -1641,10 +1641,15 @@ export async function mountCampus(){
     if (!tabs.some(t => t.id === dressTab)) dressTab = tabs[0].id;
     const tab = tabs.find(t => t.id === dressTab);
 
+    //  색 칸이 차지하는 높이는 어느 탭에서나 두 줄이다. 부위가 둘인 탭(옷)은
+    //  부위마다 한 줄씩, 부위가 하나면 그 하나가 두 줄을 쓴다. 색이 늘어도
+    //  바가 자라지 않아야 무대가 안 눌린다.
+    const rows1 = (tab.colors || []).length > 1;
     const swatches = (partId) => {
       const p = parts.find(x => x.id === partId);
       if (!p) return '';
-      return `<div class="drow"><span class="dlabel">${p.name}</span><div class="swrow">` +
+      return `<div class="drow"><span class="dlabel">${p.name}</span>` +
+        `<div class="swrow${rows1 ? ' r1' : ''}">` +
         p.ids.map(id => {
           const c = (Avatar.PALETTE || []).find(x => x.id === id);
           if (!c) return '';
@@ -1662,11 +1667,14 @@ export async function mountCampus(){
       body += `<div class="dgrid2">` + opts.map(v => {
         const on = v === L[slot] ? ' on' : '';
         const lock = ownsSlot(slot, v) ? '' : ' lock';
+        // '없음'도 글자 대신 그림으로 — 옆 칸이 전부 그림인데 혼자 글자면
+        // 카드가 아니라 안내문으로 읽힌다. 머리는 민머리, 안경은 벗은 안경.
         if (v === Avatar.BALD || v === 'none')
           return `<button class="dcard${on}" data-slot="${slot}" data-val="${v}" ` +
-                 `aria-label="${slot === 'eyewear' ? '안경 안 씀' : '없음'}">` +
-                 `<span class="dnone">${slot === 'eyewear'
-                    ? icon('glasses-off', 34) : '없음'}</span></button>`;
+                 `aria-label="${slot === 'eyewear' ? '안경 안 씀' : '머리 없음'}">` +
+                 `<span class="dnone">` +
+                 icon(slot === 'eyewear' ? 'glasses-off' : 'user-round', 34) +
+                 `</span></button>`;
         const url = thumbFor(slot, v, L);
         return `<button class="dcard${on}${lock}" data-slot="${slot}" data-val="${v}">` +
                (url ? `<img src="${url}" alt="" draggable="false">` : `<span class="dph"></span>`) +
@@ -1704,7 +1712,7 @@ export async function mountCampus(){
   elChars.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-roll')){ await rollLook(); return; }
-    if (b.hasAttribute('data-apply')){ await applyDraft(); return; }
+    if (b.hasAttribute('data-apply')){ await applyDraft(b); return; }
     if (b.hasAttribute('data-close')){ closeChars(); return; }
     if (b.dataset.tab){ dressTab = b.dataset.tab; drawChars(); return; }
     if (b.dataset.buy){
@@ -1775,7 +1783,10 @@ export async function mountCampus(){
   }
 
   /** 적용 — 초안을 내 것으로. 안 산 것은 여기서 걸러진다. */
-  async function applyDraft(){
+  async function applyDraft(btn){
+    // 저장은 왕복이 있어 한 박자 는다. 그동안 버튼이 그대로면 안 눌린 줄 알고
+    // 다시 누른다 — 누르는 순간 잠그고 무슨 일이 벌어지는지 버튼에 적는다.
+    if (btn){ btn.disabled = true; btn.textContent = '저장 중…'; }
     const L = Avatar.resolveLook(draft);
     const back = {};
     for (const sl of SLOTS) if (!ownsSlot(sl.id, L[sl.id])) back[sl.id] = Avatar.resolveLook(savedLook || {})[sl.id];
@@ -1783,10 +1794,17 @@ export async function mountCampus(){
     myLook = {...draft, ...back};
     rebuildPlayer();
     const r = await saveCharacter(myLook, myBody);
-    if (r.ok){ savedLook = {...myLook}; if (net) net.updateMeta(myLook, myBody); }
-    closeChars();
+    // 남들에게 알리다 실패해도 **내 저장은 이미 끝났다**. 여기서 예외가 새면
+    // 창이 안 닫히고 알림도 안 떠, 저장이 안 된 것처럼 보인다.
+    if (r.ok){
+      savedLook = {...myLook};
+      try { net && net.updateMeta(myLook, myBody); }
+      catch (e){ console.warn('[campus] 캐릭터 방송 실패', e); }
+    }
+    if (!r.ok && btn){ btn.disabled = false; btn.textContent = '적용'; }
+    if (r.ok) closeChars();
     toast(!r.ok ? '저장 실패: ' + r.error
-          : dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요');
+          : dropped ? '사지 않은 건 빼고 저장했어요' : '캐릭터를 저장했어요 ✓');
   }
 
   document.getElementById('dressBtn').onclick = openChars;

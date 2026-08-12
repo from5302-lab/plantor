@@ -414,11 +414,14 @@ export const SYNTH_FACES = [
 export function faceOptions(){
   return distinctModels('face').concat(SYNTH_FACES.map(f => f.id));
 }
-let faceAnchor = null;
-function anchorFace(){
-  if (faceAnchor) return faceAnchor;
-  const cells = PART_CELLS && PART_CELLS.face && PART_CELLS.face[DEFAULT_MODEL];
-  const e = cache.get(DEFAULT_MODEL);
+//  ⚠ 자리는 **얼굴마다 다시 잰다.** 기본 모델 한 번만 재서 쓰면, 머리가 작은
+//    얼굴(male-c 는 눈 높이가 male-a 보다 0.14 낮다)에서 표정이 허공에 뜨고,
+//    얼굴이 얕은 쪽에서는 표정 판이 앞으로 튀어나와 **안경을 가린다**.
+const faceAnchor = new Map();
+function anchorFace(name){
+  if (faceAnchor.has(name)) return faceAnchor.get(name);
+  const cells = PART_CELLS && PART_CELLS.face && PART_CELLS.face[name];
+  const e = cache.get(name);
   if (!cells || !cells.length || !e) return null;
   let hm = null;
   e.scene.traverse(o => { if (o.isMesh && o.name.charAt(0) === 'h') hm = o; });
@@ -436,8 +439,9 @@ function anchorFace(){
     b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y);
   }
   const mid = b => ({cx:(b.x0 + b.x1) / 2, cy:(b.y0 + b.y1) / 2, w:b.x1 - b.x0, h:b.y1 - b.y0});
-  faceAnchor = {z: zmax + 0.002, brow: mid(brow), mouth: mid(mouth)};
-  return faceAnchor;
+  const a = {z: zmax + 0.002, brow: mid(brow), mouth: mid(mouth)};
+  faceAnchor.set(name, a);
+  return a;
 }
 //  도형 셋 — 호(웃음·울상), 기운 막대(눈썹), 점(놀란 입)
 function shpArc(cx, cy, r, a0, a1, w){
@@ -504,8 +508,8 @@ function synthShapes(id, a){
   }
   return null;
 }
-function synthFace(baseHeadMesh, id, owned){
-  const a = anchorFace();
+function synthFace(baseHeadMesh, id, owned, baseName){
+  const a = anchorFace(baseName);
   const shapes = a && synthShapes(id, a);
   if (!shapes) return null;
   const g = new THREE.ShapeGeometry(shapes, 10);
@@ -820,7 +824,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
       }
       if (wantFace){
         hideVerts(headMesh, PART_CELLS && PART_CELLS.face && PART_CELLS.face[name]);
-        const f = synth ? synthFace(headMesh, L.face, owned)
+        const f = synth ? synthFace(headMesh, L.face, owned, name)
                         : graftPart(headMesh, L.face, 'face', 'face-graft', owned);
         if (f) headMesh.parent.add(f);
       }

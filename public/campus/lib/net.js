@@ -137,10 +137,19 @@ export function joinCampus(me, handlers){
                     a: act, m: act === 'walk' || act === 'run', at: serverTimestamp()});
   }
 
-  /** 맵에서 캐릭터를 바꿨을 때 남들에게도 반영한다. */
+  /**
+   * 맵에서 캐릭터를 바꿨을 때 남들에게도 반영한다.
+   *
+   * ⚠ RTDB 는 undefined 를 **던진다**(Firestore 처럼 조용히 무시하지 않는다).
+   *   꾸미기에서 옛 model 칸을 비우면 look.model 이 undefined 로 들어오는데,
+   *   그대로 넘기면 여기서 예외가 나 저장 뒤 창 닫기·알림이 통째로 안 돈다 —
+   *   저장은 됐는데 아무 반응이 없어 보였다. 경계에서 턴다.
+   */
+  const noUndef = v => JSON.parse(JSON.stringify(v ?? null));
   function updateMeta(look, body){
-    meta = {...meta, look, body};
-    if (room) update(ref(db, `${ROOT}/${room}/${me.uid}/meta`), {look, body});
+    const l = noUndef(look), b = noUndef(body);
+    meta = {...meta, look: l, body: b};
+    if (room) update(ref(db, `${ROOT}/${room}/${me.uid}/meta`), {look: l, body: b});
   }
 
   function leave(){
