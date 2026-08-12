@@ -248,7 +248,6 @@ export async function mountCampus(){
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
   prop('outdoor', 'bench-a', -3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
   prop('outdoor', 'bench-b',  3.8, 2.2, 1.6, 0.5, 0.40, 0xd9cdb4);
-  prop('outdoor', 'fountain', 0, 5.2, 2.2, 2.2, 0.5, 0xbdd8d2, true, true);
   // 휴게실 매점 카운터 — 점원(매점쌤)이 뒤에 선다
   prop('union', 'shop-counter', 11.5, 3.2, 2.8, 1.0, 0.95, 0xd9b98c);
 
@@ -670,7 +669,6 @@ export async function mountCampus(){
     //  옆으로 빠진다(같은 방향이면 벤치를 타고 앉은 그림이 된다).
     'bench-a':  {name:'stall-bench',   fitL:1.8, yaw:Math.PI/2, seat:0.44, seatYaw:0},
     'bench-b':  {name:'stall-bench',   fitL:1.8, yaw:Math.PI/2, seat:0.44, seatYaw:0},
-    'fountain': {name:'fountain-round', fitL:4.2, yaw:0},
     // 학습실
     'class-board': {name:'televisionModern', scale:3.2, yaw:0},
     // 상담실
@@ -999,8 +997,10 @@ export async function mountCampus(){
   let net = null;                     // 아래 showCount()가 읽으므로 먼저 선언한다
   const remotes = new Map();          // uid → {rig, x,z,yaw, tx,tz,tyaw, moving, walkT}
   const elCount = document.getElementById('count');
+  //  혼자인 게 이 캠퍼스의 기본값이다(게스트는 실시간에 안 붙는다). 늘 켜져 있는
+  //  '나 혼자' 는 알림이 아니라 잔소리라 뗐다 — 남이 있을 때만 뜬다.
   const showCount = () => {
-    const t = net ? (remotes.size ? `접속 ${remotes.size + 1}명` : '나 혼자') : '';
+    const t = (net && remotes.size) ? `접속 ${remotes.size + 1}명` : '';
     elCount.textContent = t;
     elCount.hidden = !t;          // 비어 있으면 숨긴다(padding 만 남아 왼쪽 여백이 생겼다)
   };
@@ -1146,9 +1146,11 @@ export async function mountCampus(){
   //  이동은 방향키만. WASD 를 비워 둬야 그 자리를 기능키로 쓸 수 있다.
   const MOVEKEYS = new Set(['arrowup','arrowdown','arrowleft','arrowright']);
   //  ── 키 배치 ──────────────────────────────────────────────────────
-  //    이동 ←↑↓→ · 달리기 D(누른 채) · 상호작용 F
-  //    Space 는 **입장/나가기 전용** — 아무 데서나 눌러도 엉뚱한 게 열리지 않는다
-  //    QWER 주기능: 앉기 · 점프 · 인사 · 끄덕임
+  //    이동 ←↑↓→ · 대시 D(누른 채) · 점프 F · 상호작용 Space
+  //    Space 는 문·나무·상점·NPC·의자 **전부**를 연다. 예전엔 문 전용이었는데,
+  //    "가장 큰 키"에 가장 흔한 동작이 안 걸려 있으면 손이 F 와 Space 사이를
+  //    계속 헤맨다 — 상호작용은 하나로 모으고, 점프를 F 로 내렸다.
+  //    나머지 몸짓 Q/E/R: 앉기 · 인사 · 끄덕임
   //    회전 J/K
   //  ⚠ e.key 를 쓰면 **한/영 상태에 따라 조작이 죽는다** — 한글 입력기가 켜져 있으면
   //    D 를 눌러도 e.key 가 'ㅇ' 로 온다(F→'ㄹ', J→'ㅓ'…). 방향키·Space 만 살아남아
@@ -1169,11 +1171,10 @@ export async function mountCampus(){
     if (k === 'j') turn(-1);
     if (k === 'k') turn(1);
     if (k === 'q'){ toggleSit(); e.preventDefault(); }
-    if (k === 'w'){ doJump(); e.preventDefault(); }
     if (k === 'e'){ doWave(); e.preventDefault(); }
     if (k === 'r'){ doNod(); e.preventDefault(); }
-    if (k === 'f'){ interact(); e.preventDefault(); }
-    if (k === ' ' || k === 'enter'){ interact('door'); e.preventDefault(); }
+    if (k === 'f'){ doJump(); e.preventDefault(); }
+    if (k === ' ' || k === 'enter'){ interact(); e.preventDefault(); }
   });
   addEventListener('keyup', e => {
     const k = keyId(e);
@@ -1276,9 +1277,7 @@ export async function mountCampus(){
         z.kind === 'shop' ? '열기'   :
         z.kind === 'npc'  ? '말 걸기' :
         z.kind === 'seat' ? '앉기'    : '입장';
-      // Space 는 문 전용이다(interact('door')). 그 밖에서 Space 를 안내하면
-      // 눌러도 아무 일이 안 일어난다 — 나머지는 전부 F 다.
-      elPKey.textContent = (z.kind === 'enter' || z.kind === 'exit') ? 'Space' : 'F';
+      elPKey.textContent = 'Space';
       elPrompt.classList.add('on');
     } else elPrompt.classList.remove('on');
     // 방 꾸미기 버튼은 내 자습실 존 안에서만 보인다(로그인 전용 — 방문자는 저장할 방이 없다)
@@ -1287,10 +1286,8 @@ export async function mountCampus(){
     elRoomBtn.hidden = !(inMyRoom || (IS_ADMIN && level !== 'study'));
     elRoomBtn.textContent = inMyRoom ? '내 방 꾸미기' : '꾸미기';
   }
-  /** @param only 'door' 면 입장/나가기만 처리한다(Space 전용) */
-  function interact(only){
+  function interact(){
     if (!currentZone || switching) return;
-    if (only === 'door' && currentZone.kind !== 'enter' && currentZone.kind !== 'exit') return;
     if (currentZone.kind === 'enter') return enterBuilding(currentZone.level);
     if (currentZone.kind === 'exit')  return exitToOutdoor();
     if (currentZone.kind === 'tree')  return shakeTree(currentZone.tree);
