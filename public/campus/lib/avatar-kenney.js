@@ -360,13 +360,20 @@ const modelOf = look => {
 export function resolveLook(look = {}){
   const fb = MODELS.includes(look.model) ? look.model : DEFAULT_MODEL;
   const pick = (v) => MODELS.includes(v) ? v : fb;
+  const base = pick(look.base);
+  // 안경(eyewear): 'own'(얼굴에 붙은 그대로) · 'none'(안 씀) · 소품 id.
+  //  ⚠ 옛 코드-아바타의 look.glasses 는 **불리언**이다. 같은 이름을 쓰면 NPC 의
+  //    glasses:true 가 여기로 흘러 들어와 안경을 벗겨 버린다 — 이름을 갈라 둔다.
+  // 얼굴에 안경이 없으면 'own' 과 'none' 은 같은 그림이다 — 하나로 모아
+  // 두어야 고르기 화면에서 "지금 이거" 표시가 어디에도 안 붙는 일이 없다.
+  let eyewear = look.eyewear || 'own';
+  if (eyewear === 'own' && !hasBuiltinGlasses(base)) eyewear = 'none';
   return {
-    base: pick(look.base),
+    base,
     head: look.head === BALD ? BALD : pick(look.head),
     body: pick(look.body),
     face: pick(look.face),                 // 표정 — 눈썹·입
-    // 안경: 'none'(벗기) · 'own'(얼굴에 붙은 그대로) · 소품 id
-    glasses: look.glasses === BALD ? BALD : (look.glasses || 'own'),
+    eyewear,
   };
 }
 
@@ -595,7 +602,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
   //   안경: 얼굴에 박힌 안경을 벗길 수 있다('none'). 벗어야 소품 안경을 씌운다
   if (headMesh){
     const wantFace = L.face !== name && cache.has(L.face);
-    const dropGlass = L.glasses === BALD || (L.glasses && L.glasses !== 'own');
+    const dropGlass = L.eyewear !== 'own';
     if (wantFace || dropGlass){
       if (!owned.includes(headMesh.geometry)){
         headMesh.geometry = headMesh.geometry.clone();
@@ -613,7 +620,7 @@ export function buildAvatar(look = {}, body = null, opts = {}){
 
   // 색을 고른 사람만 geometry 를 복제한다. 안 골랐으면 원본 UV 를 그대로 공유한다.
   if (look.colors && Object.keys(look.colors).length) recolor(model, L, look.colors, owned);
-  const wear = (L.glasses && L.glasses !== 'own' && L.glasses !== BALD) ? L.glasses : look.aid;
+  const wear = (L.eyewear !== 'own' && L.eyewear !== 'none') ? L.eyewear : look.aid;
   if (wear) attachAid(model, wear, owned);
 
   const root = new THREE.Group();

@@ -602,8 +602,10 @@ export function sanitizeCharacter(raw){
   //   값의 유효성은 avatar-kenney 가 볼 때 판단한다(모르는 id 는 무시하고 기본값).
   //   여기서는 모양만 본다 — 남의 문서에서 온 값이 그대로 DOM 에 닿지 않게.
   // model(옛 저장분) + base·head·body(조합). head 는 'none'(대머리)일 수 있다.
-  for (const k of ['model', 'base', 'head', 'body', 'face', 'glasses'])
+  for (const k of ['model', 'base', 'head', 'body', 'face'])
     if (typeof src[k] === 'string' && /^([a-z]+-[a-z]|none)$/.test(src[k])) look[k] = src[k];
+  // 안경은 모델 id 가 아니다 — 'own' · 'none' · 소품 id(sunglasses…).
+  if (typeof src.eyewear === 'string' && /^[a-z]+$/.test(src.eyewear)) look.eyewear = src.eyewear;
   if (typeof src.aid === 'string' && /^[a-z]+$/.test(src.aid)) look.aid = src.aid;
   if (src.colors && typeof src.colors === 'object' && !Array.isArray(src.colors)){
     const colors = {};
