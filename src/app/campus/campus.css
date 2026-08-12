@@ -568,3 +568,8 @@
   .campus-root .dlabel{display:flex;flex-direction:column;gap:1px;width:44px}
   .campus-root .dlabel i{font-style:normal;font-size:10.5px;font-weight:600;
        color:var(--primary);white-space:nowrap}
+
+  /* 카드가 썸네일 원본(132×150)보다 커지면 얼굴이 카드 안에서 작게 떠 보인다.
+     열이 몇 개가 되든 카드는 원본 크기를 넘지 않게 한다 */
+  .campus-root .dgrid2{grid-template-columns:repeat(auto-fill, minmax(92px, 132px));
+       justify-content:start}
