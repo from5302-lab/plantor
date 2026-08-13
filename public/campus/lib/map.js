@@ -77,7 +77,10 @@ export async function mountCampus(){
                    // 상점 매장 — Mini Market (mm-*). 캐릭터와 같은 mini 팔레트 계열
                    'mm-register', 'mm-shelf-boxes', 'mm-shelf-bags', 'mm-shelf-end',
                    'mm-fridge', 'mm-freezer', 'mm-display-fruit', 'mm-display-bread',
-                   'mm-bottle-return', 'mm-cart', 'mm-basket']);
+                   'mm-bottle-return', 'mm-cart', 'mm-basket',
+                   // 계산대·매대 윗면에 올릴 것들(SHOP_FOOD). 개당 20KB 남짓
+                   'food-coffee', 'food-donut', 'food-cookie',
+                   'food-croissant', 'food-banana', 'food-carton']);
     KIT_OK = true;
   } catch (e){
     console.warn('[campus] Kenney 키트 로드 실패 — 기본 지오메트리로 갑니다', e);
@@ -287,6 +290,26 @@ export async function mountCampus(){
   prop('union', 'mm-basket', 11.6, 4.3, 0.45, 0.45, 0.35, 0x2e7d5b, false);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
+
+  //  매장 진열 — **집기 자체는 이미 차 있다.** Kenney mini-market 의 곤돌라·엔드
+  //  진열대·과일/빵 매대는 박스·봉지·병·사과·빵이 모델에 박혀 있다. 비어 보이는
+  //  건 **윗면**뿐이다 — 계산대와 평대 냉동고가 회색 판으로 읽힌다. 거기만 채운다.
+  //
+  //  y 는 집기의 윗면 높이(prop 의 h)다. placeKit 은 물건을 바닥에 붙이므로
+  //  놓은 뒤 y 를 올려 준다. 각(yaw)은 조금씩 어긋나게 둔다 — 격자에 맞추면
+  //  진열이 아니라 전시가 된다.
+  //  scale 은 품목마다 다르다. food-kit 이 실측 크기로 만들어져 있지 않아
+  //  (크루아상 0.48 · 컵 0.14) 한 배수로는 컵이 사라진다.
+  const SHOP_FOOD = [
+    {kit:'food-coffee',    x:10.05, z:-1.45, y:0.9,  s:1.0,  r:0.4},
+    {kit:'food-donut',     x:10.6,  z:-1.35, y:0.9,  s:0.65, r:-0.3},
+    {kit:'food-cookie',    x:11.55, z:-1.45, y:0.9,  s:0.8,  r:0.9},
+    {kit:'food-croissant', x:12.1,  z:-1.3,  y:0.9,  s:0.5,  r:-0.6},
+    {kit:'food-carton',    x:5.35,  z:4.05,  y:0.65, s:0.45, r:0.2},
+    {kit:'food-carton',    x:5.75,  z:4.3,   y:0.65, s:0.45, r:-0.5},
+    {kit:'food-banana',    x:7.05,  z:4.1,   y:0.65, s:0.4,  r:1.1},
+    {kit:'food-croissant', x:7.45,  z:4.25,  y:0.65, s:0.5,  r:0.7},
+  ];
 
   // 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
   // 밝기는 조명 세기가 아니라 재질의 밝은 색에서 나온다. 세기를 올려 밝히면
@@ -723,6 +746,15 @@ export async function mountCampus(){
     }
 
     for (const p of PROPS.filter(p => p.level === level)) addProp(p);
+
+    //  집기 윗면의 물건들. 충돌은 안 만든다 — 도넛에 부딪혀 멈추면 우습다.
+    if (level === 'union' && KIT_OK){
+      for (const f of SHOP_FOOD){
+        const g = placeKit(f.kit, {x:f.x, z:f.z, yaw:f.r, scale:f.s,
+                                   track:m => junk.push(m)});
+        if (g){ g.position.y += f.y; world.add(g); }
+      }
+    }
 
     // 충쌤 존 — 상담실 안쪽이라 룸 존보다 앞에 둬야 잡힌다
     if (level === 'main'){
