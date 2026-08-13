@@ -308,6 +308,12 @@ export async function mountCampus(){
   const ZONES = [];
   let OCCLUDERS = [];       // 야외 건물 — 카메라를 가리면 투명해진다
 
+  //  야외 바닥 — 밤에 눕히려고 재질과 **원래 색**을 들고 있는다.
+  //  자체발광이 0.9 라 조명을 낮춰도 잔디가 그대로 형광 초록이었다(실측):
+  //  낮 0.9c + 1.0c, 밤 0.9c + 0.6c — 둘 다 흰색으로 잘려 차이가 안 보인다.
+  //  발광 자체를 내려야 밤이 밤이 되고, 그래야 가로등 빛이 읽힌다.
+  const groundLit = [];
+
   function clearLevel(){
     world.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
     world.clear();
@@ -315,6 +321,7 @@ export async function mountCampus(){
     junk = [];
     COLLIDERS.length = 0; ZONES.length = 0; OCCLUDERS = [];
     wallSpots = []; floorSpots = [];
+    groundLit.length = 0;
   }
 
   // 벽 패널을 모아 뒀다가 레벨 끝에서 한 번에 인스턴싱한다(조각마다 드로우콜을 쓰면
@@ -403,6 +410,7 @@ export async function mountCampus(){
     const m = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d, seg(w), seg(d)).rotateX(-Math.PI/2),
       lit ? lam(color, null, 0.9) : flat(color));
+    if (lit) groundLit.push({mat: m.material, base: new THREE.Color(color)});
     m.position.set(cx, y, cz);
     world.add(m);
     return m;
@@ -797,14 +805,15 @@ export async function mountCampus(){
   //  ── 가로등 ──
   //  밤에 켤 재질. 두 무리를 그때그때 훑어 모은다 — 방과 공용 공간이 서로 다른
   //  때에 다시 그려져서, 그릴 때마다 제 몫만 갈아 끼우려면 장부가 하나 더 는다.
-  const lampGlow = [], lampPool = [];
+  const lampGlow = [], lampPool = [], lampHalo = [];
   function collectLamps(){
-    lampGlow.length = 0; lampPool.length = 0;
+    lampGlow.length = 0; lampPool.length = 0; lampHalo.length = 0;
     for (const grp of [roomGroup, placeGroup])
       grp.traverse(o => {
         const n = o.isMesh && o.material?.name;
         if (n === 'lamp-glow') lampGlow.push(o.material);
         else if (n === 'lamp-pool') lampPool.push(o.material);
+        else if (n === 'lamp-halo') lampHalo.push(o.material);
       });
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
@@ -1833,9 +1842,14 @@ export async function mountCampus(){
       hemi.color.setHex(s.night > 0.5 ? 0xaebbdd : 0xffffff);
       //  가로등 — 해질녘(night 0.15)부터 켜진다. 대낮에 등이 빛나면 장식이 아니라
       //  고장으로 읽힌다. 웅덩이는 갓보다 흐리게 — 같이 올리면 바닥이 하얗게 뜬다.
+      //  땅을 눕힌다. 이게 없으면 등을 켜도 티가 안 난다 — 잔디가 대낮처럼
+      //  밝은 위에 빛 웅덩이를 깔면 아무것도 얹히지 않는다.
+      for (const g of groundLit)
+        g.mat.emissive.copy(g.base).multiplyScalar(0.9 - s.night * 0.66);
       const lit = Math.max(0, s.night - 0.15) / 0.85;
       for (const m of lampGlow) m.emissiveIntensity = lit * 1.7;
       for (const m of lampPool) m.opacity = lit * 0.42;
+      for (const m of lampHalo) m.opacity = lit * 0.75;
     }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──

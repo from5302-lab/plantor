@@ -383,6 +383,18 @@ function addLampPool(g, track){
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
   track && track(mat);
+  //  등갓에 헤일로. **렌즈 면은 법선이 (0,-1,0) 이라 부감 카메라에서 영영 안
+  //  보인다** — 자체발광만 올려 두면 켜진 티가 안 나고, 바닥에만 빛이 고여
+  //  광원 없는 웅덩이가 된다. 카메라를 향하는 판을 갓 자리에 하나 세운다.
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    name: 'lamp-halo', map: poolTexture(), transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  track && track(halo.material);
+  halo.scale.setScalar(c.y * 0.30);      // 라이브에서 눈으로 맞춘 값. 더 키우면 지붕까지 먹는다
+  halo.position.copy(c);
+  g.add(halo);
+
   const r = c.y * 0.95;                        // 갓이 높을수록 넓게 퍼진다
   //  지오메트리는 한 장을 모두가 나눠 쓴다 — 등마다 새로 만들면 다시 그릴 때마다
   //  버려진 판이 쌓인다(junk 는 재질만 거둔다).
