@@ -34,7 +34,13 @@ const loader = new GLTFLoader();
 const cache = new Map();          // 이름 → {scene, size:Vector3}
 
 function prep(scene){
+  //  냉장 쇼케이스 — 전처리가 문짝 계열을 `fridge-glass` 로 갈라 뒀다
+  //  (campus-prep-kit.py KIT_SPLIT). 문을 비치게 하려면 몸통을 **양면**으로
+  //  둬야 한다. 케니 모델은 껍데기라, 앞면만 그리면 유리 너머로 세상이 비친다.
+  let glass = false;
+  scene.traverse(o => { if (o.isMesh && o.material?.name === 'fridge-glass') glass = true; });
   scene.traverse(o => {
+
     if (!o.isMesh) return;
     const m = o.material;
     if (!m) return;
@@ -54,6 +60,17 @@ function prep(scene){
     if (m.name === 'lamp-glow' && m.emissive){
       m.emissive.setHex(0xffd08a);
       m.emissiveIntensity = 0;
+    }
+    if (glass){
+      if (m.name === 'fridge-glass'){
+        m.transparent = true;
+        m.opacity = 0.3;
+        m.color.setHex(0xdfeaf6);
+        m.depthWrite = false;          // 뒤에 든 음료가 문에 가려 사라지지 않게
+        m.roughness = 0.35;
+      } else {
+        m.side = THREE.DoubleSide;     // 유리 너머로 안쪽 면이 보여야 한다
+      }
     }
     if (m.map){
       m.map.magFilter = THREE.NearestFilter;

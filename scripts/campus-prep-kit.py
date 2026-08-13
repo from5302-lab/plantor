@@ -20,6 +20,31 @@ OUT = os.environ['KIT_OUT']
 jobs = [l.strip() for l in os.environ['KIT_LIST'].strip().split('\n') if l.strip()]
 
 
+def split_family(obj, fx, fy, name):
+    """
+    팔레트 **계열 하나**를 따로 떼어 이름 붙인 재질로 만든다.
+    KIT_SPLIT="3,3=>fridge-glass" 처럼 쓴다.
+
+    런타임이 그 부분만 다르게 다루고 싶을 때 쓴다 — 냉장고 문을 유리로
+    비치게 하는 것이 첫 용도다. 모델이 mesh 1 · material 1 이라
+    이렇게 갈라 두지 않으면 몸통까지 같이 투명해진다.
+    """
+    me = obj.data
+    src = me.materials[0].copy()
+    src.name = name
+    me.materials.append(src)
+    gi = len(me.materials) - 1
+    uv = me.uv_layers.active.data
+    n = 0
+    for poly in me.polygons:
+        u = sum(uv[l].uv[0] for l in poly.loop_indices) / poly.loop_total
+        v = 1.0 - sum(uv[l].uv[1] for l in poly.loop_indices) / poly.loop_total
+        if (min(int(u * 8), 7), min(int(v * 4), 3)) == (fx, fy):
+            poly.material_index = gi
+            n += 1
+    return n
+
+
 def split_glow(obj):
     """
     빛나는 면을 `lamp-glow` 재질로 떼어낸다. KIT_GLOW=1 일 때만 부른다.
@@ -80,6 +105,14 @@ for job in jobs:
         for o in bpy.data.objects:
             if o.type == 'MESH' and o.data.materials:
                 print('GLOW', rel, o.name, split_glow(o))
+
+    # 계열 하나를 떼어 낸다 — KIT_SPLIT="3,3=>fridge-glass"
+    if os.environ.get('KIT_SPLIT'):
+        cell, mname = [p.strip() for p in os.environ['KIT_SPLIT'].split('=>')]
+        fx, fy = [int(v) for v in cell.split(',')]
+        for o in bpy.data.objects:
+            if o.type == 'MESH' and o.data.materials:
+                print('SPLIT', rel, o.name, split_family(o, fx, fy, mname))
 
     # 소품은 애니메이션을 버려 용량을 줄인다. 펫(cube-pets)은 클립이 본체다 —
     # KIT_ANIM=1 로 켠다.

@@ -80,7 +80,8 @@ export async function mountCampus(){
                    'mm-bottle-return', 'mm-cart', 'mm-basket',
                    // 계산대·매대 윗면에 올릴 것들(SHOP_FOOD). 개당 20KB 남짓
                    'food-coffee', 'food-donut', 'food-cookie',
-                   'food-croissant', 'food-banana', 'food-carton']);
+                   'food-croissant', 'food-banana', 'food-carton',
+                   'food-can', 'food-carton-s', 'fu-tableRound']);
     KIT_OK = true;
   } catch (e){
     console.warn('[campus] Kenney 키트 로드 실패 — 기본 지오메트리로 갑니다', e);
@@ -288,6 +289,15 @@ export async function mountCampus(){
   prop('union', 'mm-cart-a', 12.9, 3.6, 0.5, 0.7, 0.55, 0x8b93a8);
   prop('union', 'mm-cart-b', 12.35, 4.05, 0.5, 0.7, 0.55, 0x8b93a8);
   prop('union', 'mm-basket', 11.6, 4.3, 0.45, 0.45, 0.35, 0x2e7d5b, false);
+  //  먹는 자리 — 남동쪽 5×4m 가 통째로 비어 있었다(집기가 서·중앙·북에 몰려 있다).
+  //  진열대를 더 놓아 메울 수도 있지만, 문에서 계산대로 가는 길을 좁힌다.
+  //  산 것을 먹고 가는 자리를 두면 빈 바닥이 **쓰임을 얻는다** — 앉기도 된다.
+  //  ⚠ 남쪽 벽(z≈5)에 붙이면 안 된다. 카메라가 플레이어보다 16m 남쪽에 있어
+  //    벽 너머에서 들여다보는 꼴이 되고, 앉은 사람이 벽에 가린다(실측).
+  prop('union', 'shop-table',   9.4, 2.3, 1.05, 1.2, 0.55, 0xdcb98d);
+  prop('union', 'shop-stool-a', 8.5, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-b', 10.3, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-c', 9.4, 3.3, 0.3, 0.3, 0.45, 0xdcb98d);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
 
@@ -310,6 +320,23 @@ export async function mountCampus(){
     {kit:'food-banana',    x:7.05,  z:4.1,   y:0.65, s:0.4,  r:1.1},
     {kit:'food-croissant', x:7.45,  z:4.25,  y:0.65, s:0.5,  r:0.7},
   ];
+  //  냉장 쇼케이스 **안쪽**. 문짝을 유리로 만들었으니(kit.js fridge-glass) 안이
+  //  비어 있으면 빈 냉장고가 된다.
+  //  좌표는 손으로 적지 않는다 — 모델이 로컬 z 0(앞) ~ -0.5(뒤), 배치가
+  //  (1.6, z) · 배수 1.5 · yaw π/2 라 월드 x = 1.6 + 1.5·(로컬 z) 로 떨어진다.
+  //  안쪽 깊이 -0.30 → x 1.15. 선반이 실제로는 없으므로 두 높이에 띄워 둔다.
+  //  ⚠ 배수 0.45(캔 0.14m)로는 **게임 거리에서 안 보인다**. 30% 유리 너머의
+  //    14cm 짜리는 화면에서 몇 픽셀이다 — 실측하고 0.9(캔 0.29m)로 올렸다.
+  //    치비 월드라 좀 큼직한 편이 오히려 읽힌다.
+  for (const fz of [-1.8, -0.3, 1.2]){
+    SHOP_FOOD.push(
+      {kit:'food-can',      x:1.15, z:fz - 0.42, y:0.42, s:0.9, r:0.3},
+      {kit:'food-carton-s', x:1.15, z:fz,        y:0.42, s:0.9, r:-0.2},
+      {kit:'food-can',      x:1.15, z:fz + 0.42, y:0.42, s:0.9, r:0.8},
+      {kit:'food-carton-s', x:1.15, z:fz - 0.24, y:0.90, s:0.9, r:0.5},
+      {kit:'food-can',      x:1.15, z:fz + 0.24, y:0.90, s:0.9, r:-0.6},
+    );
+  }
 
   // 로컬 광원(천장 전등) 없음 — 전역 조명만 쓴다.
   // 밝기는 조명 세기가 아니라 재질의 밝은 색에서 나온다. 세기를 올려 밝히면
@@ -560,7 +587,10 @@ export async function mountCampus(){
 
   function addSeat(x, z, yaw, h, span){
     const r = span/2 + 0.9;
-    ZONES.push({kind:'seat', name:'앉기', sub:'여기에 앉는다',
+    //  ⚠ push 가 아니라 **unshift** 다. 존 판정은 첫 일치에서 멈추는데, 실내
+    //    의자는 언제나 룸 존 안에 있다 — 뒤에 두면 '앉기'가 영영 안 잡히고
+    //    룸 이름만 뜬다(매장 의자에서 실측). 충쌤·매점 존과 같은 이유다.
+    ZONES.unshift({kind:'seat', name:'앉기', sub:'여기에 앉는다',
       seat:{x, z, yaw: yaw || 0, h},
       minX:x - r, maxX:x + r, minZ:z - r, maxZ:z + r});
   }
@@ -629,6 +659,13 @@ export async function mountCampus(){
     'mm-cart-a':        {name:'mm-cart',          scale:1.3,  yaw:-0.2},
     'mm-cart-b':        {name:'mm-cart',          scale:1.3,  yaw:0.35},
     'mm-basket':        {name:'mm-basket',        scale:1.3,  yaw:0.6},
+    //  먹는 자리. 스툴 배수는 **앉는 높이 0.45m 기준**이다 — 꾸미기 팔레트의
+    //  스툴(s=1.6)은 0.70m 바 스툴이라 키 1.3m 캐릭터에게는 가슴께다.
+    //  seatYaw 는 앉아서 보는 쪽 = 탁자 쪽.
+    'shop-table':   {name:'fu-tableRound', scale:1.5,  yaw:0},
+    'shop-stool-a': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: Math.PI/2},
+    'shop-stool-b': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw:-Math.PI/2},
+    'shop-stool-c': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: Math.PI},
   };
   // 책상마다 의자를 한 벌씩 붙인다 — 학습실이 책상만 늘어서면 창고로 보인다
   const DESK_IDS = /^class-desk-/;
