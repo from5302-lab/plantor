@@ -220,12 +220,12 @@ export async function mountCampus(){
     //   camH 8.9 → 19° : 지평선이 화면 밖. "하늘"처럼 보이던 건 안개에 잠긴 먼 땅이었다.
     //   camH 6.0 → 12° : 화면 위 ~10% 가 진짜 하늘이 된다.
     outdoor: {id:'outdoor', name:'캠퍼스',     outdoor:true, spawn:{x:0,   z:0,    yaw:Math.PI}, camR:22.0, camH:6.0, fog:[64, 130]},
-    main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
+    main:    {id:'main',    name:'학습센터', spawn:{x:0,    z:-4.2, yaw:Math.PI}, camR:13.0, camH:8.9, fog:[34, 70]},
     // 우리집은 뒷모습으로 통일한다.
-    study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:16.0, camH:11.0, fog:[34, 70]},
+    study:   {id:'study',   name:'우리집',   spawn:{x:-7.5, z:-4.6, yaw:Math.PI}, camR:13.0, camH:8.9, fog:[34, 70]},
     // 상점 문은 **동쪽**(화면 오른쪽)이다 — 밖에서 걸어 들어온 방향이 이어져야
     // 한다(사용자 결정). 스폰은 문 바로 안, 서향(-π/2)으로 매장을 향해 선다.
-    union:   {id:'union',   name:'상점',     spawn:{x:11.6, z:1,    yaw:-Math.PI/2}, camR:16.0, camH:11.0, fog:[34, 70]},
+    union:   {id:'union',   name:'상점',     spawn:{x:11.6, z:1,    yaw:-Math.PI/2}, camR:13.0, camH:8.9, fog:[34, 70]},
   };
 
   const ROOMS = [
@@ -325,10 +325,13 @@ export async function mountCampus(){
   //  산 것을 먹고 가는 자리를 두면 빈 바닥이 **쓰임을 얻는다** — 앉기도 된다.
   //  ⚠ 남쪽 벽(z≈5)에 붙이면 안 된다. 카메라가 플레이어보다 16m 남쪽에 있어
   //    벽 너머에서 들여다보는 꼴이 되고, 앉은 사람이 벽에 가린다(실측).
+  //  스툴 넷을 탁자에서 **같은 거리(1.0m)** 로 사방에 둔다 — 셋을 어중간하게
+  //  두면 규칙이 안 읽힌다. 각 스툴은 앉으면 탁자를 본다(seatYaw).
   prop('union', 'shop-table',   9.4, 2.3, 1.05, 1.2, 0.55, 0xdcb98d);
-  prop('union', 'shop-stool-a', 8.5, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
-  prop('union', 'shop-stool-b', 10.3, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
-  prop('union', 'shop-stool-c', 9.4, 3.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-a', 8.4, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-b', 10.4, 2.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-c', 9.4, 1.3, 0.3, 0.3, 0.45, 0xdcb98d);
+  prop('union', 'shop-stool-d', 9.4, 3.3, 0.3, 0.3, 0.45, 0xdcb98d);
   // 야외: 벤치 — 앉는 기능은 아직 없다. 광장이 비어 보이지 않게 두는 랜드마크다
   // 벤치는 캐릭터(키 1.3m)에 맞춰 1.8m 로 줄였다 — 2.6m 는 3인용 정원 벤치 크기였다
 
@@ -434,9 +437,12 @@ export async function mountCampus(){
       const cx = (seg.minX + seg.maxX)/2, cz = (seg.minZ + seg.maxZ)/2;
       for (let i = 0; i < n; i++){
         const t = -len/2 + (i + 0.5)*step;
-        wallSpots.push(alongX
-          ? {x: cx + t, z: cz, yaw: 0, scale: step / 1.0}
-          : {x: cx, z: cz + t, yaw: Math.PI/2, scale: step / 1.0});
+        //  길이(x)만 조각 길이에 맞추고 높이·두께는 **고정**한다.
+        //  원본 1.0 × 1.29 × 0.05 → 높이 1.5m(sy 1.163) · 두께 0.20m(sz 4).
+        const spot = {yaw: alongX ? 0 : Math.PI/2,
+                      sx: step / 1.0, sy: 1.5 / 1.29, sz: 4.0};
+        wallSpots.push(alongX ? {...spot, x: cx + t, z: cz}
+                              : {...spot, x: cx, z: cz + t});
       }
       return;
     }
@@ -697,7 +703,8 @@ export async function mountCampus(){
     'shop-table':   {name:'fu-tableRound', scale:1.5,  yaw:0},
     'shop-stool-a': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: Math.PI/2},
     'shop-stool-b': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw:-Math.PI/2},
-    'shop-stool-c': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: Math.PI},
+    'shop-stool-c': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: 0},
+    'shop-stool-d': {name:'stoolBar', scale:1.03, yaw:0, seat:0.45, seatYaw: Math.PI},
   };
   // 책상마다 의자를 한 벌씩 붙인다 — 학습실이 책상만 늘어서면 창고로 보인다
   const DESK_IDS = /^class-desk-/;
@@ -810,8 +817,9 @@ export async function mountCampus(){
       if (wallSpots.length){
         // 벽은 세로로도 늘려야 사람 키를 넘지 않는 허리벽이 된다.
         // placeKitInstanced 는 균등 스케일만 다루므로 그룹 전체를 눌러 높이를 맞춘다.
+        //  높이는 이제 조각마다 sy 로 맞춘다 — 그룹을 통째로 누르던 꼼수를 뺐다.
         const g = placeKitInstanced('wall', wallSpots, {scale: 1, track: m => junk.push(m)});
-        if (g){ g.scale.y = 1.5 / 1.29; world.add(g); }
+        if (g) world.add(g);
       }
     }
 

@@ -131,9 +131,15 @@ export function placeKitInstanced(name, spots, opts = {}){
     for (let i = 0; i < spots.length; i++){
       const sp = spots[i];
       const s = (sp.scale ?? 1) * base;
-      pos.set(sp.x, -entry.min.y * s, sp.z);
+      //  축마다 다른 배율. 벽처럼 **길이만 늘려야 하는 것**에 쓴다 — 균등 배율로
+      //  늘리면 긴 조각은 두껍고 높아지고 짧은 조각은 얇고 낮아져서, 조각끼리
+      //  높이가 안 맞고 모서리가 어긋난다(실내 벽에서 그랬다).
+      const sx = (sp.sx ?? sp.scale ?? 1) * base;
+      const sy = (sp.sy ?? sp.scale ?? 1) * base;
+      const sz2 = (sp.sz ?? sp.scale ?? 1) * base;
+      pos.set(sp.x, -entry.min.y * sy, sp.z);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), sp.yaw || 0);
-      sc.set(s, s, s);
+      sc.set(sx, sy, sz2);
       m.compose(pos, q, sc).multiply(local);
       inst.setMatrixAt(i, m);
     }
@@ -168,7 +174,16 @@ export function placeKit(name, opts = {}){
     ?? (opts.fitL ? opts.fitL / longest
     :  (opts.fitW ? opts.fitW / entry.size.x : 1));
   g.scale.setScalar(s);
-  g.position.set(opts.x || 0, -entry.min.y * s, opts.z || 0);   // 바닥 붙이기
-  g.rotation.y = opts.yaw || 0;
+  //  ⚠ 원점이 **중심이 아닌 모델이 213개 중 62개**다(가구 키트가 특히 모서리에
+  //    원점을 둔다 — 침대 x+0.75 · 원탁 x+0.35 z-0.40). 보정하지 않으면 놓으라는
+  //    자리에서 최대 0.8m 비껴 그려진다. 격자에 붙여도 칸에 안 앉는 이유였다.
+  //    y 는 이미 바닥을 붙이고 있었다(-min.y) — x·z 도 같은 값으로 맞춘다.
+  const yaw = opts.yaw || 0;
+  const cx = (entry.min.x + entry.size.x / 2) * s;
+  const cz = (entry.min.z + entry.size.z / 2) * s;
+  const ox = cx * Math.cos(yaw) + cz * Math.sin(yaw);
+  const oz = -cx * Math.sin(yaw) + cz * Math.cos(yaw);
+  g.position.set((opts.x || 0) - ox, -entry.min.y * s, (opts.z || 0) - oz);
+  g.rotation.y = yaw;
   return g;
 }
