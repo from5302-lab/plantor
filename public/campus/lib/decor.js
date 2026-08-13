@@ -66,6 +66,19 @@ export const DECOR = [
   {id:'fence',    name:'울타리',    kit:'fence',             s:8.0, group:'야외', snap:[3.8, 3.8]},
   {id:'planter',  name:'화단',      kit:'planter',           s:4.0, group:'야외'},
   {id:'fountain', name:'분수',      kit:'fountain-round',    s:2.1, group:'야외'},
+
+  //  광장 한 벌 — 분수를 **조립**한다. 판타지타운 분수는 모듈이라 턱·모서리·
+  //  분출구를 이어 붙이면 크기를 마음대로 키울 수 있다. 원본이 1×1(큰 분수만
+  //  2×2)이고 기존 분수가 s=2.1 이라, 같은 배수를 쓰면 한 칸이 2.1m 로 맞는다.
+  //  ⚠ 물 타일은 높이가 0 이다 — FLAT 에 넣어야 보이지 않는 벽이 안 생긴다.
+  {id:'fntWater', name:'분수 물',    kit:'ft-fountain-center', s:2.1, group:'야외', snap:[2.1, 2.1]},
+  {id:'fntEdge',  name:'분수 턱',    kit:'ft-fountain-curved', s:2.1, group:'야외', snap:[2.1, 2.1]},
+  {id:'fntCorner',name:'분수 모서리', kit:'ft-fountain-corner', s:2.1, group:'야외', snap:[2.1, 2.1]},
+  {id:'fntSpout', name:'분수 분출구', kit:'ft-fountain-inner',  s:2.1, group:'야외', snap:[2.1, 2.1]},
+  {id:'fntBig',   name:'큰 분수',    kit:'ft-fountain-square', s:2.1, group:'야외', snap:[4.2, 4.2]},
+  //  파라솔 — 노천 카페 톤. 키 2.2m(캐릭터 1.3m 머리 위), 차양 폭 1.7m.
+  //  같은 팩의 parasol-a 는 실루엣이 거의 같아 안 넣었다.
+  {id:'parasol',  name:'파라솔',     kit:'parasol-b',          s:4.9, group:'야외'},
   {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'바닥', snap:[2.88, 3.2]},
 
   //  야외 2차분 — Nature Kit(민트 톤은 kit.js 가 잔디색으로 맞춘다)과 mini-forest.
@@ -219,6 +232,11 @@ export const DECOR = [
   {id:'lily',     name:'수련',       kit:'lily_large',        s:3.2, group:'자연'},
   {id:'statueH',  name:'석상 머리',  kit:'statue_head',       s:3.2, group:'자연'},
   {id:'obelisk',  name:'오벨리스크', kit:'statue_obelisk',    s:3.2, group:'자연', tall:true},
+  //  기념물 부재 — 광장 한가운데 세울 것들. 같은 Nature Kit 이라 s 도 같다.
+  {id:'stColumn', name:'석주',       kit:'statue_column',     s:3.2, group:'자연', tall:true},
+  {id:'stBroken', name:'부서진 석주', kit:'statue_columnDamaged', s:3.2, group:'자연'},
+  {id:'stRing',   name:'고리 석상',  kit:'statue_ring',       s:3.2, group:'자연'},
+  {id:'stBlock',  name:'석재',       kit:'statue_block',      s:3.2, group:'자연'},
   {id:'logStack', name:'장작 더미',  kit:'log_stack',         s:3.6, group:'자연'},
   {id:'canoe',    name:'카누',       kit:'canoe',             s:3.2, group:'자연'},
   {id:'tentBig',  name:'큰 텐트',    kit:'tent_detailedOpen', s:3.6, group:'자연', tall:true},
