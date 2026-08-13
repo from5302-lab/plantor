@@ -49,6 +49,12 @@ function prep(scene){
     // 맵 재질(lam)과 같은 방식으로 자체발광을 조금 얹어 밝기를 맞춘다.
     // 텍스처가 있는 모델은 이미 밝게 읽히므로 건드리지 않는다(얹으면 색이 뜬다).
     if (!m.map && m.emissive) m.emissive.copy(m.color).multiplyScalar(0.3);
+    //  가로등 등갓 — 전처리가 채도로 갈라 둔 면이다(campus-prep-kit.py KIT_GLOW).
+    //  낮에는 0 이고, 밤이 되면 map.js 가 세기를 올린다.
+    if (m.name === 'lamp-glow' && m.emissive){
+      m.emissive.setHex(0xffd08a);
+      m.emissiveIntensity = 0;
+    }
     if (m.map){
       m.map.magFilter = THREE.NearestFilter;
       m.map.minFilter = THREE.NearestFilter;

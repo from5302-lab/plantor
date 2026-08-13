@@ -11,6 +11,7 @@
 // ══════════════════════════════════════════════════════════════════
 import * as THREE from 'three';
 import { loadKit, placeKit, kitSize } from '/campus/lib/kit.js';
+import { bend } from '/campus/lib/curve.js';
 
 /**
  * 배치 가능한 오브젝트.
@@ -73,6 +74,13 @@ export const DECOR = [
   {id:'palm',     name:'야자수',     kit:'tree_palm',         s:3.6, group:'야외', tall:true},
   {id:'patch',    name:'풀밭',       kit:'patch-grass',       s:4.0, group:'야외'},
   {id:'sand',     name:'모래밭',     kit:'patch-dirt',        s:4.0, group:'야외'},
+
+  //  가로등 — 밤이 되면 등갓이 켜지고 바닥에 빛 웅덩이가 깔린다(addLampPool).
+  //  s 는 등 높이가 **3.2m**(캐릭터 1.3m 의 2.5배)이 되게 잡았다. 원본 높이가
+  //  굽은 등 0.675 · 나머지 0.600 이라 배수가 갈린다.
+  {id:'lampC',    name:'가로등',     kit:'lamp-curved',       s:4.7, group:'야외', tall:true},
+  {id:'lampS',    name:'사각 가로등', kit:'lamp-square',      s:5.3, group:'야외', tall:true},
+  {id:'lampD',    name:'쌍둥이 가로등', kit:'lamp-double',    s:5.3, group:'야외', tall:true},
 
   {id:'rockL',    name:'큰 바위',    kit:'rock_largeA',       s:3.6, group:'자연'},
   {id:'rock',     name:'바위',       kit:'rock_smallA',       s:3.6, group:'자연'},
@@ -336,12 +344,65 @@ export function decorBox(it){
   return {minX: it.x - w/2, maxX: it.x + w/2, minZ: it.z - d/2, maxZ: it.z + d/2, top: sz.h};
 }
 
+// ── 빛 웅덩이 ──────────────────────────────────────────────────────
+//  가로등 아래 바닥에 까는 반투명 원판. **광원이 아니다** — three.js 는 광원이
+//  늘 때마다 셰이더를 다시 굽는다. 등을 스무 개 놓으면 그대로 프레임이 죽는다.
+//  밝기는 map.js 가 밤 정도로 움직인다(이름 'lamp-pool' 로 찾는다).
+let POOL_TEX = null, POOL_GEO = null;
+function poolTexture(){
+  if (POOL_TEX) return POOL_TEX;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  //  가장자리를 딱 끊으면 원이 도장처럼 보인다. 중간을 빨리 떨어뜨려 번지게 둔다.
+  grd.addColorStop(0, 'rgba(255,226,170,1)');
+  grd.addColorStop(0.45, 'rgba(255,214,150,0.34)');
+  grd.addColorStop(1, 'rgba(255,205,140,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  POOL_TEX = new THREE.CanvasTexture(c);
+  POOL_TEX.colorSpace = THREE.SRGBColorSpace;
+  return POOL_TEX;
+}
+
+/**
+ * 등갓(`lamp-glow` 재질) 아래에 웅덩이를 붙인다.
+ * ⚠ 자리는 **모델 중심이 아니라 등갓 중심**이다 — 굽은 등은 갓이 기둥에서
+ *   옆으로 비켜 있어 중심으로 잡으면 빛이 기둥 밑에 고인다.
+ */
+function addLampPool(g, track){
+  let head = null;
+  g.traverse(o => { if (!head && o.isMesh && o.material?.name === 'lamp-glow') head = o; });
+  if (!head) return;
+  g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(head)
+    .applyMatrix4(new THREE.Matrix4().copy(g.matrixWorld).invert());   // → g 로컬
+  const c = box.getCenter(new THREE.Vector3());
+  //  등은 굽는데 웅덩이만 안 굽으면 곡면을 되살렸을 때 빛이 등에서 떨어진다.
+  const mat = bend(new THREE.MeshBasicMaterial({
+    name: 'lamp-pool', map: poolTexture(), transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  track && track(mat);
+  const r = c.y * 0.95;                        // 갓이 높을수록 넓게 퍼진다
+  //  지오메트리는 한 장을 모두가 나눠 쓴다 — 등마다 새로 만들면 다시 그릴 때마다
+  //  버려진 판이 쌓인다(junk 는 재질만 거둔다).
+  POOL_GEO = POOL_GEO || new THREE.PlaneGeometry(1, 1);
+  const disc = new THREE.Mesh(POOL_GEO, mat);
+  disc.scale.set(r * 2, r * 2, 1);
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.set(c.x, 0.012, c.z);          // 바닥에서 살짝 띄운다(z-fighting)
+  disc.renderOrder = 2;
+  g.add(disc);
+}
+
 /** 씬에 놓는다. r 은 라디안, s 는 기본 크기 대비 배수. */
 export function buildDecor(it, track){
   const d = DECOR_BY_ID[it.t];
   if (!d) return null;
-  return placeKit(d.kit, {x: it.x, z: it.z, yaw: it.r || 0,
-                          scale: d.s * (it.s || 1), track});
+  const g = placeKit(d.kit, {x: it.x, z: it.z, yaw: it.r || 0,
+                             scale: d.s * (it.s || 1), track});
+  if (g) addLampPool(g, track);
+  return g;
 }
 
 // ── 미리보기 ────────────────────────────────────────────────────────

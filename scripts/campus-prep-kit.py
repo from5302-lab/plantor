@@ -14,9 +14,46 @@
 #  (KIT_LIST 는 개행 구분, 각 줄은 "소스경로 → 출력 상대경로")
 # ══════════════════════════════════════════════════════════════════
 import bpy, os
+import numpy as np
 
 OUT = os.environ['KIT_OUT']
 jobs = [l.strip() for l in os.environ['KIT_LIST'].strip().split('\n') if l.strip()]
+
+
+def split_glow(obj):
+    """
+    빛나는 면을 `lamp-glow` 재질로 떼어낸다. KIT_GLOW=1 일 때만 부른다.
+
+    가로등은 mesh 1 · material 1 이라 그대로 두면 **기둥까지 같이 빛난다.**
+    그런데 등 전체가 무채색 회백이고 **렌즈만 유채색**이다 — 면의 UV 중심에서
+    텍스처를 찍어 채도로 가른다. 셀 좌표를 박는 것보다 등 4종에 두루 통한다.
+    """
+    me = obj.data
+    mat = me.materials[0]
+    img = next((n.image for n in mat.node_tree.nodes
+                if n.type == 'TEX_IMAGE' and n.image), None)
+    if not img: return 0
+    buf = np.empty(len(img.pixels), dtype=np.float32)
+    img.pixels.foreach_get(buf)
+    px = buf.reshape(img.size[1], img.size[0], 4)[::-1, :, :3]   # 블렌더는 아래→위
+    H, W = px.shape[:2]
+
+    glow = mat.copy()
+    glow.name = 'lamp-glow'
+    me.materials.append(glow)
+    gi = len(me.materials) - 1
+
+    uv = me.uv_layers.active.data
+    n = 0
+    for poly in me.polygons:
+        u = sum(uv[l].uv[0] for l in poly.loop_indices) / poly.loop_total
+        v = sum(uv[l].uv[1] for l in poly.loop_indices) / poly.loop_total
+        c = px[min(int((1 - v) * H), H - 1), min(int(u * W), W - 1)]
+        sat = 0 if c.max() <= 0 else (c.max() - c.min()) / c.max()
+        if sat > 0.25:
+            poly.material_index = gi
+            n += 1
+    return n
 
 for job in jobs:
     src, rel = [p.strip() for p in job.split('=>')]
@@ -37,6 +74,12 @@ for job in jobs:
         if img.source == 'FILE' and not img.packed_file:
             try: img.pack()
             except Exception as e: print('PACK-FAIL', img.name, e)
+
+    # 가로등은 빛나는 면을 갈라 둬야 런타임이 등갓만 켤 수 있다 — KIT_GLOW=1.
+    if os.environ.get('KIT_GLOW') == '1':
+        for o in bpy.data.objects:
+            if o.type == 'MESH' and o.data.materials:
+                print('GLOW', rel, o.name, split_glow(o))
 
     # 소품은 애니메이션을 버려 용량을 줄인다. 펫(cube-pets)은 클립이 본체다 —
     # KIT_ANIM=1 로 켠다.

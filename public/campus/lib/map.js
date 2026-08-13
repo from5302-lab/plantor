@@ -791,6 +791,21 @@ export async function mountCampus(){
           .then(() => drawDecor(items, group, junkArr, colliders, true))
           .catch(e => console.warn('[campus] 배치물 모델 로드 실패', e));
     }
+    collectLamps();
+  }
+
+  //  ── 가로등 ──
+  //  밤에 켤 재질. 두 무리를 그때그때 훑어 모은다 — 방과 공용 공간이 서로 다른
+  //  때에 다시 그려져서, 그릴 때마다 제 몫만 갈아 끼우려면 장부가 하나 더 는다.
+  const lampGlow = [], lampPool = [];
+  function collectLamps(){
+    lampGlow.length = 0; lampPool.length = 0;
+    for (const grp of [roomGroup, placeGroup])
+      grp.traverse(o => {
+        const n = o.isMesh && o.material?.name;
+        if (n === 'lamp-glow') lampGlow.push(o.material);
+        else if (n === 'lamp-pool') lampPool.push(o.material);
+      });
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
   //  밟고 지나가는 것들 — 충돌을 두면 러그 위를 못 걷고 길 위를 못 지나간다.
@@ -1816,6 +1831,11 @@ export async function mountCampus(){
       sun.color.setHex(s.night > 0.5 ? 0xcfd8ff : 0xfffdf7);
       hemi.intensity = 0.76 - s.night * 0.30;
       hemi.color.setHex(s.night > 0.5 ? 0xaebbdd : 0xffffff);
+      //  가로등 — 해질녘(night 0.15)부터 켜진다. 대낮에 등이 빛나면 장식이 아니라
+      //  고장으로 읽힌다. 웅덩이는 갓보다 흐리게 — 같이 올리면 바닥이 하얗게 뜬다.
+      const lit = Math.max(0, s.night - 0.15) / 0.85;
+      for (const m of lampGlow) m.emissiveIntensity = lit * 1.7;
+      for (const m of lampPool) m.opacity = lit * 0.42;
     }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
@@ -1908,7 +1928,7 @@ export async function mountCampus(){
   frame();
   // 브라우저 플레이 검증용 훅 (test-playable-web-games)
   window.__game = {
-    P, get ZONES(){ return ZONES.concat(PLACE_ZONES); },
+    P, scene, get ZONES(){ return ZONES.concat(PLACE_ZONES); },
     get COLLIDERS(){ return COLLIDERS.concat(PLACE_COLLIDERS); },
     get place(){ return place; },
     room: () => currentZone && currentZone.room && currentZone.room.id,
