@@ -116,8 +116,15 @@ export const DECOR = [
   {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연', seat:0.85, seatFace:-Math.PI/2},
   {id:'mushR',    name:'빨간 버섯',  kit:'mushroom_red',      s:3.2, group:'자연'},
   {id:'mushT',    name:'버섯 무리',  kit:'mushroom_tanGroup', s:3.2, group:'자연'},
+  //  모닥불 넷 — 다 같은 불빛(glow)을 쓰고 생김새만 다르다. s 는 넷의 가로폭이
+  //  1.05m 로 같아지게 잡았다(원본 크기가 제각각이다). 돌 링만 있는 것은 장작을
+  //  겹쳐 놓으라고 둔 것이라 불은 안 붙인다.
   {id:'campfire', name:'모닥불',     kit:'campfire_logs',     s:3.6, group:'자연',
    glow:{color:0xff8a3a, pool:1.6, halo:0.42}},
+  {id:'firePit',  name:'화덕',       kit:'campfire-pit',      s:3.78, group:'자연',
+   glow:{color:0xff8a3a, pool:1.6, halo:0.42}},
+  {id:'fireStone', name:'돌 화덕',   kit:'campfire_stones',   s:1.94, group:'자연'},
+  {id:'fireBrick', name:'벽돌 화덕', kit:'campfire_bricks',   s:2.24, group:'자연'},
   {id:'tent',     name:'텐트',       kit:'tent_smallOpen',    s:3.6, group:'자연'},
   {id:'sign',     name:'표지판',     kit:'sign',              s:3.6, group:'자연'},
   {id:'bridge',   name:'나무 다리',  kit:'bridge_wood',       s:3.6, group:'자연'},
