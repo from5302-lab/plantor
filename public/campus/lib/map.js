@@ -822,12 +822,19 @@ export async function mountCampus(){
   let PLACE_ZONES = [], PLACE_OCC = [];
   let roomJunk = [], placeJunk = [];
   let myRoom = [], place = [], placeLevel = null;
+  //  꾸미기로 놓은 의자에 앉는 자리. 고정 가구의 앉기(PROP_KIT.seat)는 레벨을
+  //  지을 때 한 번 만들면 끝이지만, 배치물은 **저장할 때마다 옮겨 다닌다** —
+  //  다시 그릴 때마다 함께 다시 만든다. 방과 공용 공간을 따로 담는 이유는
+  //  둘이 서로 다른 때에 다시 그려지기 때문이다.
+  const ROOM_SEATS = [], PLACE_SEATS = [];
 
   function drawDecor(items, group, junkArr, colliders, retried){
+    const seats = group === placeGroup ? PLACE_SEATS : ROOM_SEATS;
     group.clear();
     for (const m of junkArr) m.dispose?.();
     junkArr.length = 0;
     colliders.length = 0;
+    seats.length = 0;
     if (group === placeGroup){ PLACE_ZONES = []; PLACE_OCC = []; }
     for (const [idx, it] of items.entries()){
       const g = buildDecor(it, m => junkArr.push(m));
@@ -843,6 +850,16 @@ export async function mountCampus(){
       // 러그·바닥처럼 밟고 지나가는 것은 막지 않는다(높이로 판단한다)
       const box = decorBox(it);
       if (box && d && !FLAT.has(it.t)) colliders.push(box);   // box.top = 실제 높이
+
+      //  앉는 물건 — 의자·소파·벤치·통나무. 앉는 높이는 **비율**이라 크기를
+      //  키워도 따라간다. 앉아서 보는 쪽은 물건이 놓인 각(it.r) 그대로다.
+      if (g && d && d.seat && box){
+        const span = Math.max(box.maxX - box.minX, box.maxZ - box.minZ);
+        seats.push({kind:'seat', name:'앉기', sub:'여기에 앉는다',
+          seat:{x: it.x, z: it.z, yaw: it.r || 0, h: (box.top || 0) * d.seat},
+          minX: it.x - span/2 - 0.8, maxX: it.x + span/2 + 0.8,
+          minZ: it.z - span/2 - 0.8, maxZ: it.z + span/2 + 0.8});
+      }
 
       //  문 달린 배치물 = 건물. 앞에 '입장' 존을 깔고, 가리면 비치게 한다.
       if (g && d && d.door && box && group === placeGroup){
@@ -1977,7 +1994,9 @@ export async function mountCampus(){
 
     // ── 존 판정 ──
     let inZone = null;
-    for (const z of ZONES.concat(PLACE_ZONES)){
+    //  앉는 자리를 **맨 앞에** 둔다. 판정은 첫 일치에서 멈추는데, 실내 의자는
+    //  언제나 룸 존 안에 있어서 뒤에 두면 '앉기'가 영영 안 잡힌다.
+    for (const z of ROOM_SEATS.concat(PLACE_SEATS, ZONES, PLACE_ZONES)){
       if (z.kind === 'tree' && INV.picked.includes(z.tree)) continue;   // 오늘 흔든 나무는 끝
       if (P.x > z.minX && P.x < z.maxX && P.z > z.minZ && P.z < z.maxZ){ inZone = z; break; }
     }
@@ -2019,7 +2038,7 @@ export async function mountCampus(){
   frame();
   // 브라우저 플레이 검증용 훅 (test-playable-web-games)
   window.__game = {
-    P, scene, get ZONES(){ return ZONES.concat(PLACE_ZONES); },
+    P, scene, get ZONES(){ return ROOM_SEATS.concat(PLACE_SEATS, ZONES, PLACE_ZONES); },
     get COLLIDERS(){ return COLLIDERS.concat(PLACE_COLLIDERS); },
     get place(){ return place; },
     room: () => currentZone && currentZone.room && currentZone.room.id,

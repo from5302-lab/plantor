@@ -19,15 +19,18 @@ import { bend } from '/campus/lib/curve.js';
  *   s    = 기본 크기 배수. 캐릭터 키 1.3m 기준으로 어울리게 잡은 값
  *   tall = 사람 키를 넘는 것. 실내에 놓으면 시야를 가려 경고를 띄운다
  *   group= 팔레트 묶음
+ *   seat = 앉는 면 높이. **미터가 아니라 이 물건 높이의 비율**이다 —
+ *          꾸미기는 크기 슬라이더로 물건을 키울 수 있어서, 미터로 박아 두면
+ *          두 배로 키운 소파에 앉을 때 허공에 뜬다. 비율이면 따라 올라간다.
  */
 export const DECOR = [
   // 가구
   {id:'desk',     name:'책상',      kit:'desk',              s:1.7, group:'가구'},
-  {id:'chair',    name:'의자',      kit:'chairDesk',         s:1.4, group:'가구'},
+  {id:'chair',    name:'의자',      kit:'chairDesk',         s:1.4, group:'가구', seat:0.55},
   {id:'table',    name:'테이블',    kit:'table',             s:1.8, group:'가구'},
-  {id:'sofa',     name:'소파',      kit:'loungeSofa',        s:1.8, group:'가구'},
-  {id:'bed',      name:'침대',      kit:'bedSingle',         s:1.8, group:'가구'},
-  {id:'stool',    name:'스툴',      kit:'stoolBar',          s:1.6, group:'가구'},
+  {id:'sofa',     name:'소파',      kit:'loungeSofa',        s:1.8, group:'가구', seat:0.52},
+  {id:'bed',      name:'침대',      kit:'bedSingle',         s:1.8, group:'가구', seat:0.5},
+  {id:'stool',    name:'스툴',      kit:'stoolBar',          s:1.6, group:'가구', seat:0.95},
   {id:'shelf',    name:'책장',      kit:'bookcaseOpen',      s:2.0, group:'가구', tall:true},
   {id:'shelfw',   name:'낮은 책장', kit:'bookcaseClosedWide', s:2.0, group:'가구'},
   {id:'counter',  name:'카운터',    kit:'kitchenBar',        s:2.2, group:'가구'},
@@ -62,7 +65,7 @@ export const DECOR = [
   {id:'fRed',     name:'빨간 꽃',   kit:'flower_redA',       s:3.2, group:'야외'},
   {id:'fYellow',  name:'노란 꽃',   kit:'flower_yellowA',    s:3.2, group:'야외'},
   {id:'fPurple',  name:'보라 꽃',   kit:'flower_purpleA',    s:3.2, group:'야외'},
-  {id:'bench',    name:'벤치',      kit:'stall-bench',       s:1.9, group:'야외'},
+  {id:'bench',    name:'벤치',      kit:'stall-bench',       s:1.9, group:'야외', seat:0.95},
   {id:'fence',    name:'울타리',    kit:'fence',             s:8.0, group:'야외', snap:[3.8, 3.8]},
   {id:'planter',  name:'화단',      kit:'planter',           s:4.0, group:'야외'},
   {id:'fountain', name:'분수',      kit:'fountain-round',    s:2.1, group:'야외'},
@@ -97,8 +100,8 @@ export const DECOR = [
 
   {id:'rockL',    name:'큰 바위',    kit:'rock_largeA',       s:3.6, group:'자연'},
   {id:'rock',     name:'바위',       kit:'rock_smallA',       s:3.6, group:'자연'},
-  {id:'stump',    name:'그루터기',   kit:'stump_round',       s:3.6, group:'자연'},
-  {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연'},
+  {id:'stump',    name:'그루터기',   kit:'stump_round',       s:3.6, group:'자연', seat:0.9},
+  {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연', seat:0.85},
   {id:'mushR',    name:'빨간 버섯',  kit:'mushroom_red',      s:3.2, group:'자연'},
   {id:'mushT',    name:'버섯 무리',  kit:'mushroom_tanGroup', s:3.2, group:'자연'},
   {id:'campfire', name:'모닥불',     kit:'campfire_logs',     s:3.6, group:'자연'},
@@ -245,8 +248,8 @@ export const DECOR = [
   {id:'bear',     name:'곰인형',     kit:'fu-bear',        s:1.5, group:'가구'},
   {id:'bedBunk',  name:'2층 침대',   kit:'fu-bedBunk',     s:1.8, group:'가구', tall:true},
   {id:'bedDouble',name:'큰 침대',    kit:'fu-bedDouble',   s:1.8, group:'가구'},
-  {id:'chairRelax', name:'안락의자', kit:'fu-chairRelax',  s:1.8, group:'가구'},
-  {id:'sofaLong', name:'긴 소파',    kit:'fu-sofaLong',    s:1.8, group:'가구'},
+  {id:'chairRelax', name:'안락의자', kit:'fu-chairRelax',  s:1.8, group:'가구', seat:0.42},
+  {id:'sofaLong', name:'긴 소파',    kit:'fu-sofaLong',    s:1.8, group:'가구', seat:0.52},
   {id:'tableCoffee', name:'탁자',    kit:'fu-tableCoffee', s:1.8, group:'가구'},
   {id:'tableRound',  name:'원탁',    kit:'fu-tableRound',  s:1.8, group:'가구'},
   {id:'sideTable',   name:'협탁',    kit:'fu-sideTable',   s:1.8, group:'가구'},
