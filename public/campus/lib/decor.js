@@ -177,7 +177,12 @@ export const DECOR = [
   {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 4.0], group:'바닥', snap:[3.0, 3.0]},
   //  포장 광장 타일(city-kit-roads tile-low)과 마당길(suburban path) —
   //  레퍼런스(도시 블록)의 회색 바닥이 이것들이다.
-  {id:'plaza',    name:'광장 타일',  kit:'tile-low',        s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  //  bright = 재질 색 배수. 텍스처에 곱해지므로 1 보다 크면 밝아진다. 조명을
+  //  안 건드리므로 밤에는 조명 따라 같이 어두워진다(자체발광으로 올리면 밤에도 뜬다).
+  {id:'plaza',    name:'광장 타일',  kit:'tile-low',        s:3.0, group:'바닥', snap:[3.0, 3.0], bright:1.45},
+  //  플랜토 로고 — 키트 모델이 아니라 **바닥에 까는 판**이다(decal).
+  //  s 는 배수가 아니라 **한 변의 미터**다. 6m = 타일 두 칸.
+  {id:'logo',     name:'플랜토 로고', decal:'/campus/logo-decal.png', s:6.0, group:'바닥', snap:[3.0, 3.0]},
   {id:'dwShort',  name:'짧은 진입로', kit:'driveway-short', s:8.0, group:'바닥', snap:[3.0, 1.5]},
   {id:'walk',     name:'마당길',     kit:'sb-path-long',    s:8.0, group:'바닥', snap:[1.5, 3.0]},
   {id:'walkS',    name:'짧은 마당길', kit:'sb-path-short',  s:8.0, group:'바닥', snap:[1.5, 1.5]},
@@ -324,13 +329,15 @@ export const GROUPS = [...new Set(DECOR.map(d => d.group))];
 
 /** 팔레트가 열리기 전에 한 번. 모델을 다 받아 둬야 미리보기를 그릴 수 있다. */
 export function preloadDecor(){
-  return loadKit([...new Set(DECOR.map(d => d.kit))]);
+  return loadKit([...new Set(DECOR.map(d => d.kit).filter(Boolean))]);
 }
 
 /** 배치된 한 항목의 실제 크기(m). decorBox 가 쓴다. */
 function decorSize(it){
   const d = DECOR_BY_ID[it.t];
   if (!d) return null;
+  //  바닥 데칼(로고)은 GLB 가 없다 — 선언한 한 변을 그대로 쓴다. 두께는 0.
+  if (d.decal){ const s = d.s * (it.s || 1); return {w: d.s ? d.s * (it.s || 1) : 1, h: 0, d: s}; }
   const k = kitSize(d.kit);
   if (!k) return null;
   const s = d.s * (it.s || 1);
@@ -485,12 +492,44 @@ function addFireGlow(g, track, glow){
   g.add(disc);
 }
 
+//  바닥 데칼 — 로고처럼 **그림 한 장을 땅에 까는 것**. GLB 를 만들 것 없이
+//  판 하나에 텍스처를 붙인다. 텍스처는 종류마다 한 장을 나눠 쓴다.
+const DECAL_TEX = new Map();
+function buildDecal(it, d, track){
+  let tex = DECAL_TEX.get(d.decal);
+  if (!tex){
+    tex = new THREE.TextureLoader().load(d.decal);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    DECAL_TEX.set(d.decal, tex);
+  }
+  //  ⚠ depthWrite 를 끈다. 두께가 0 이라 켜 두면 위에 놓은 물건과 z 싸움을 한다.
+  const mat = bend(new THREE.MeshBasicMaterial({
+    map: tex, transparent: true, depthWrite: false, toneMapped: false,
+  }));
+  track && track(mat);
+  POOL_GEO = POOL_GEO || new THREE.PlaneGeometry(1, 1);
+  const side = d.s * (it.s || 1);
+  const m = new THREE.Mesh(POOL_GEO, mat);
+  m.scale.set(side, side, 1);
+  m.rotation.x = -Math.PI / 2;
+  m.rotation.z = -(it.r || 0);
+  m.position.set(it.x, 0.02, it.z);        // 포장 타일(0.02 두께) 위에 얹는다
+  m.renderOrder = 3;
+  const g = new THREE.Group();
+  g.add(m);
+  return g;
+}
+
 /** 씬에 놓는다. r 은 라디안, s 는 기본 크기 대비 배수. */
 export function buildDecor(it, track){
   const d = DECOR_BY_ID[it.t];
   if (!d) return null;
+  if (d.decal) return buildDecal(it, d, track);
   const g = placeKit(d.kit, {x: it.x, z: it.z, yaw: it.r || 0,
                              scale: d.s * (it.s || 1), track});
+  //  색 배수 — 텍스처가 어두울 때 한 톤 올린다. 재질은 인스턴스마다 복제돼 있다.
+  if (d.bright) g?.traverse(o => { if (o.isMesh) o.material.color.multiplyScalar(d.bright); });
   if (g){
     addLampPool(g, track);                       // 등갓이 있는 것(가로등)
     if (d.glow) addFireGlow(g, track, d.glow);   // 표에 적어 둔 것(모닥불)
@@ -568,6 +607,8 @@ export function decorThumb(id){
   if (thumbCache.has(id)) return thumbCache.get(id);
   const d = DECOR_BY_ID[id];
   if (!d) return '';
+  //  데칼은 그림 자체가 곧 미리보기다 — 오프스크린으로 찍을 것이 없다.
+  if (d.decal) return d.decal;
   thumbSetup();
 
   // placeKit 은 곡면 셰이더를 주입한다 — 썸네일 카메라에서는 굽으면 안 되므로
