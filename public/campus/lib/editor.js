@@ -48,7 +48,10 @@ export function initEditor(env){
     if (!editing) return;
     const type = placeType || (editSel >= 0 && editItems[editSel] ? editItems[editSel].t : null);
     const [gx, gz] = decorSnap(type, editSel >= 0 && !placeType ? editItems[editSel].r : 0);
-    const B = editBounds();
+    //  범위가 없는 공용 공간에서는 격자를 무한히 그을 수 없다 — 플레이어
+    //  둘레로 한 뼘(±30m)만 긋는다. 어차피 안개 너머는 안 보인다.
+    const B = editBounds() || (c => ({minX: c.x - 34, maxX: c.x + 34,
+                                      minZ: c.z - 40, maxZ: c.z + 10}))(env.camera.position);
     const pts = [];
     //  ⚠ 선을 스냅 자리(칸의 중심)에 그으면 안 된다. 스냅은 round 라 물건의
     //    **중심**이 배수 자리에 놓이므로, 배수 자리에 선을 그으면 타일이 선을
@@ -131,7 +134,7 @@ export function initEditor(env){
   function moveGhost(cx, cy){
     const p = editing ? snapAt(cx, cy) : null;
     const B = editBounds();
-    const ok = p && p.x >= B.minX && p.x <= B.maxX && p.z >= B.minZ && p.z <= B.maxZ;
+    const ok = p && (!B || (p.x >= B.minX && p.x <= B.maxX && p.z >= B.minZ && p.z <= B.maxZ));
     if (ghost){
       ghost.visible = !!ok;
       if (ok) ghost.position.set(p.x, 0, p.z);
@@ -158,10 +161,10 @@ export function initEditor(env){
   env.scene.add(selMarker);
 
   //  내 방은 티어 범위 안으로 제한한다. 공용 공간은 그 레벨의 활동 범위로 넉넉히 둔다.
-  const editBounds = () => editTarget === 'room'
-    ? roomBounds(env.roomEarned())
-    : (env.level() === 'outdoor' ? {minX:-14, maxX:14, minZ:-13, maxZ:7}
-                           : {minX:-26, maxX:26, minZ:-22, maxZ:8});
+  //  공용 공간은 **범위를 두지 않는다**(사용자 결정). 운영자만 고치는 곳이라
+  //  가둘 이유가 없고, 마당 밖에 울타리나 나무를 두르려면 오히려 나가야 한다.
+  //  내 방은 그대로 — 누적 포인트로 넓어지는 것이 우리집의 규칙이다.
+  const editBounds = () => editTarget === 'room' ? roomBounds(env.roomEarned()) : null;
 
   function redraw(){
     if (editTarget === 'room') env.applyRoom(editItems); else env.applyPlace(editItems);
@@ -338,10 +341,13 @@ export function initEditor(env){
       //  ⚠ 맨 앞 히트를 그대로 잡으면 안 된다. 바닥 타일은 3m 판이라 그 위에
       //    선 가로등을 노려도 판이 먼저 걸릴 수 있다 — "옆의 것이 잡힌다"가
       //    이것이다. **세워진 것 먼저**, 깔린 것(FLAT)은 그다음이다.
+      //  물건이 제 순번을 들고 있다(drawDecor 의 userData.decorIndex).
+      //  group.children 의 순번은 못 믿는다 — 안 받아진 모델은 아무것도 안 붙고,
+      //  시계 같은 덤 자식이 끼어들어 목록과 어긋난다.
       const idxOf = h => {
         let node = h.object;
-        while (node.parent && node.parent !== group) node = node.parent;
-        return group.children.indexOf(node);
+        while (node && node.userData.decorIndex === undefined) node = node.parent;
+        return node ? node.userData.decorIndex : -1;
       };
       let pick = -1;
       for (const h of hits){
@@ -359,9 +365,9 @@ export function initEditor(env){
     if (!sp) return;
     const x = sp.x, z = sp.z;
     const B = editBounds();
-    if (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ){
+    if (B && (x < B.minX || x > B.maxX || z < B.minZ || z > B.maxZ)){
       if (placeType || editSel >= 0){
-        const t = editTarget === 'room' ? env.tierNow() : null;
+        const t = env.tierNow();
         toast(t && t.next
           ? `여기는 아직 못 써요 — 누적 ${t.next.need.toLocaleString()}P 면 넓어져요`
           : '이 범위 밖에는 놓을 수 없어요');

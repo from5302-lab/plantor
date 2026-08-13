@@ -79,7 +79,7 @@ export const DECOR = [
   //  파라솔 — 노천 카페 톤. 키 2.2m(캐릭터 1.3m 머리 위), 차양 폭 1.7m.
   //  같은 팩의 parasol-a 는 실루엣이 거의 같아 안 넣었다.
   {id:'parasol',  name:'파라솔',     kit:'parasol-b',          s:4.9, group:'야외'},
-  {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'바닥', snap:[2.88, 3.2]},
+  {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'바닥', snap:[3.0, 3.0]},
 
   //  야외 2차분 — Nature Kit(민트 톤은 kit.js 가 잔디색으로 맞춘다)과 mini-forest.
   {id:'treeFall', name:'단풍나무',   kit:'tree_default_fall', s:3.6, group:'야외', tall:true},
@@ -133,33 +133,33 @@ export const DECOR = [
   {id:'grRocks',  name:'돌 많은 강', kit:'gr-rocks',    s:3.0, group:'바닥', snap:[3.0, 3.0]},
 
   //  징검다리·나무 데크 — 낱개라 격자에 안 묶는다(자유롭게 흩뿌리는 물건)
-  {id:'psStone',  name:'돌판',       kit:'ps-stone',      s:3.0, group:'바닥'},
-  {id:'psCircle', name:'둥근 돌판',  kit:'ps-circle',     s:3.0, group:'바닥'},
-  {id:'psCorner', name:'돌판 꺾임',  kit:'ps-corner',     s:3.0, group:'바닥'},
-  {id:'psWood',   name:'나무 데크',  kit:'ps-wood',       s:3.0, group:'바닥'},
-  {id:'psWoodC',  name:'데크 꺾임',  kit:'ps-woodcorner', s:3.0, group:'바닥'},
+  {id:'psStone',  name:'돌판',       kit:'ps-stone',      s:3.0, group:'바닥', snap:[3.0, 1.5]},
+  {id:'psCircle', name:'둥근 돌판',  kit:'ps-circle',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'psCorner', name:'돌판 꺾임',  kit:'ps-corner',     s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'psWood',   name:'나무 데크',  kit:'ps-wood',       s:3.0, group:'바닥', snap:[3.0, 1.5]},
+  {id:'psWoodC',  name:'데크 꺾임',  kit:'ps-woodcorner', s:3.0, group:'바닥', snap:[3.0, 3.0]},
 
   //  단 — 올라설 수 있는 낮은 판. 점프해서 오르는 발판이 된다(FLAT 아님).
-  {id:'platG',    name:'잔디 단',    kit:'plat-grass', s:3.0, group:'바닥'},
-  {id:'platS',    name:'돌 단',      kit:'plat-stone', s:3.0, group:'바닥'},
-  {id:'platB',    name:'모래 단',    kit:'plat-beach', s:3.0, group:'바닥'},
+  {id:'platG',    name:'잔디 단',    kit:'plat-grass', s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'platS',    name:'돌 단',      kit:'plat-stone', s:3.0, group:'바닥', snap:[3.0, 3.0]},
+  {id:'platB',    name:'모래 단',    kit:'plat-beach', s:3.0, group:'바닥', snap:[3.0, 3.0]},
 
   //  아스팔트 도로 — City Kit. 원본이 커서 배수가 다르다(아래에서 실측해 맞춘다)
-  {id:'rdStr',    name:'도로',       kit:'rd-straight', s:3.0, snap:[3.0, 3.0], group:'바닥'},
-  {id:'rdBend',   name:'도로 굽이',  kit:'rd-bend',     s:3.0, snap:[3.0, 3.0], group:'바닥'},
-  {id:'rdCross',  name:'도로 사거리', kit:'rd-cross',   s:3.0, snap:[3.0, 3.0], group:'바닥'},
-  {id:'rdCrossing', name:'횡단보도', kit:'rd-crossing', s:3.0, snap:[3.0, 3.0], group:'바닥'},
-  {id:'rdEnd',    name:'도로 끝',    kit:'rd-end',      s:3.0, snap:[3.0, 3.0], group:'바닥'},
+  {id:'rdStr',    name:'도로',       kit:'rd-straight', s:3.0, snap:[3.0, 3.0], group:'바닥', snap:[3.0, 3.0]},
+  {id:'rdBend',   name:'도로 굽이',  kit:'rd-bend',     s:3.0, snap:[3.0, 3.0], group:'바닥', snap:[3.0, 3.0]},
+  {id:'rdCross',  name:'도로 사거리', kit:'rd-cross',   s:3.0, snap:[3.0, 3.0], group:'바닥', snap:[3.0, 3.0]},
+  {id:'rdCrossing', name:'횡단보도', kit:'rd-crossing', s:3.0, snap:[3.0, 3.0], group:'바닥', snap:[3.0, 3.0]},
+  {id:'rdEnd',    name:'도로 끝',    kit:'rd-end',      s:3.0, snap:[3.0, 3.0], group:'바닥', snap:[3.0, 3.0]},
   //  인도는 도로보다 깊다(3 × 3.93). 깊이만 4로 잡아야 옆 칸을 안 먹는다.
-  {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 4.0], group:'바닥'},
+  {id:'rdSide',   name:'인도',       kit:'rd-side',     s:3.0, snap:[3.0, 4.0], group:'바닥', snap:[3.0, 3.0]},
   //  포장 광장 타일(city-kit-roads tile-low)과 마당길(suburban path) —
   //  레퍼런스(도시 블록)의 회색 바닥이 이것들이다.
   {id:'plaza',    name:'광장 타일',  kit:'tile-low',        s:3.0, group:'바닥', snap:[3.0, 3.0]},
-  {id:'dwShort',  name:'짧은 진입로', kit:'driveway-short', s:8.0, group:'바닥'},
-  {id:'walk',     name:'마당길',     kit:'sb-path-long',    s:8.0, group:'바닥'},
-  {id:'walkS',    name:'짧은 마당길', kit:'sb-path-short',  s:8.0, group:'바닥'},
-  {id:'stones',   name:'디딤돌 길',  kit:'sb-stones-long',  s:8.0, group:'바닥'},
-  {id:'stonesM',  name:'흩은 디딤돌', kit:'sb-stones-messy', s:8.0, group:'바닥'},
+  {id:'dwShort',  name:'짧은 진입로', kit:'driveway-short', s:8.0, group:'바닥', snap:[3.0, 1.5]},
+  {id:'walk',     name:'마당길',     kit:'sb-path-long',    s:8.0, group:'바닥', snap:[1.5, 3.0]},
+  {id:'walkS',    name:'짧은 마당길', kit:'sb-path-short',  s:8.0, group:'바닥', snap:[1.5, 1.5]},
+  {id:'stones',   name:'디딤돌 길',  kit:'sb-stones-long',  s:8.0, group:'바닥', snap:[1.5, 3.0]},
+  {id:'stonesM',  name:'흩은 디딤돌', kit:'sb-stones-messy', s:8.0, group:'바닥', snap:[1.5, 3.0]},
 
   //  건물 — 다른 것과 달리 **문이 달려 있다.**
   //  door 가 있으면 배치할 때 '입장' 존이 같이 생긴다(map.js drawDecor).

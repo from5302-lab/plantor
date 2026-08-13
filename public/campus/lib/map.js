@@ -829,9 +829,16 @@ export async function mountCampus(){
     junkArr.length = 0;
     colliders.length = 0;
     if (group === placeGroup){ PLACE_ZONES = []; PLACE_OCC = []; }
-    for (const it of items){
+    for (const [idx, it] of items.entries()){
       const g = buildDecor(it, m => junkArr.push(m));
-      if (g) group.add(g);
+      //  ⚠ 몇 번째 물건인지 **자기가 들고 있어야** 한다. 에디터는 탭한 메시에서
+      //    거슬러 올라가 편집 목록의 자리를 찾는데, 예전엔 group.children 의
+      //    순번을 그대로 썼다. 그런데 순번은 두 가지 이유로 어긋난다:
+      //      · 모델이 아직 안 받아진 물건은 아무것도 안 붙는다(g === null)
+      //      · 학습센터 시계(addClockFace)가 group 에 자식을 하나 더 붙인다
+      //    학습센터가 목록 0번이라 **그 뒤 전부가 한 칸씩 밀려**, 탭하면 옆
+      //    물건이 잡혔다 — "이미 놓은 걸 못 고친다"가 이것이었다.
+      if (g){ g.userData.decorIndex = idx; group.add(g); }
       const d = DECOR_BY_ID[it.t];
       // 러그·바닥처럼 밟고 지나가는 것은 막지 않는다(높이로 판단한다)
       const box = decorBox(it);
