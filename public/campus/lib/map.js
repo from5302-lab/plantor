@@ -921,6 +921,7 @@ export async function mountCampus(){
     'grStr', 'grBend', 'grCross', 'grCorner', 'grEnd', 'grRocks',
     'psStone', 'psCircle', 'psCorner', 'psWood', 'psWoodC', 'patch', 'sand',
     'fntWater',                                   // 분수 물 — 높이 0 이라 막으면 보이지 않는 벽이 된다
+    'bdEdge', 'bdCorner', 'bdRound',              // 돌 테두리 — 22cm 짜리를 막으면 잔디가 우리가 된다
     'rdStr', 'rdBend', 'rdCross', 'rdCrossing', 'rdEnd', 'rdSide',
     'plaza', 'dwShort', 'walk', 'walkS', 'stones', 'stonesM']);
 

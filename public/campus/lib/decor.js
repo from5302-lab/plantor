@@ -87,6 +87,13 @@ export const DECOR = [
   //  파라솔 — 노천 카페 톤. 키 2.2m(캐릭터 1.3m 머리 위), 차양 폭 1.7m.
   //  같은 팩의 parasol-a 는 실루엣이 거의 같아 안 넣었다.
   {id:'parasol',  name:'파라솔',     kit:'parasol-b',          s:4.9, group:'야외'},
+  //  돌 테두리 — 잔디와 포장이 만나는 자리에 두르는 낮은 난간(Building Kit).
+  //  원본이 길이 2 · 높이 0.3 이라 배수 하나로 둘이 같이 움직인다. s=1.5 면
+  //  길이 3m(타일 한 변) · 높이 0.45m 인데, **통나무(0.28m)보다 높아 뒤를 가린다** —
+  //  크기 0.5 로 줄여 반 칸(1.5m)씩 이어 붙이는 쪽이 낫다.
+  {id:'bdEdge',   name:'돌 테두리',   kit:'bd-edge',   s:1.5, group:'야외', snap:[1.5, 1.5]},
+  {id:'bdCorner', name:'테두리 모서리', kit:'bd-corner', s:1.5, group:'야외', snap:[1.5, 1.5]},
+  {id:'bdRound',  name:'둥근 테두리',  kit:'bd-round',  s:1.5, group:'야외', snap:[1.5, 1.5]},
   {id:'path',     name:'포장 타일', kit:'driveway-long',     s:8.0, group:'바닥', snap:[3.0, 3.0]},
 
   //  야외 2차분 — Nature Kit(민트 톤은 kit.js 가 잔디색으로 맞춘다)과 mini-forest.
