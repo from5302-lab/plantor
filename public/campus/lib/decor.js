@@ -22,6 +22,11 @@ import { bend } from '/campus/lib/curve.js';
  *   seat = 앉는 면 높이. **미터가 아니라 이 물건 높이의 비율**이다 —
  *          꾸미기는 크기 슬라이더로 물건을 키울 수 있어서, 미터로 박아 두면
  *          두 배로 키운 소파에 앉을 때 허공에 뜬다. 비율이면 따라 올라간다.
+ *   seatFace = 앉아서 보는 쪽. 물건이 놓인 각에 **더하는 값**이다.
+ *          벤치·통나무는 긴 축이 세로(Z)라, 그대로 앉으면 통나무를 따라 본다 —
+ *          긴 축과 직각으로 앉아야 다리가 앞으로 나온다.
+ *   glow = 밤에 빛나는 것(모닥불). {color, pool, halo} — pool·halo 는 물건
+ *          가로폭에 대한 배수다. 가로등은 모델에 lamp-glow 면이 있어 따로 안 적는다.
  */
 export const DECOR = [
   // 가구
@@ -65,7 +70,7 @@ export const DECOR = [
   {id:'fRed',     name:'빨간 꽃',   kit:'flower_redA',       s:3.2, group:'야외'},
   {id:'fYellow',  name:'노란 꽃',   kit:'flower_yellowA',    s:3.2, group:'야외'},
   {id:'fPurple',  name:'보라 꽃',   kit:'flower_purpleA',    s:3.2, group:'야외'},
-  {id:'bench',    name:'벤치',      kit:'stall-bench',       s:1.9, group:'야외', seat:0.95},
+  {id:'bench',    name:'벤치',      kit:'stall-bench',       s:1.9, group:'야외', seat:0.95, seatFace:-Math.PI/2},
   {id:'fence',    name:'울타리',    kit:'fence',             s:8.0, group:'야외', snap:[3.8, 3.8]},
   {id:'planter',  name:'화단',      kit:'planter',           s:4.0, group:'야외'},
   {id:'fountain', name:'분수',      kit:'fountain-round',    s:2.1, group:'야외'},
@@ -100,11 +105,12 @@ export const DECOR = [
 
   {id:'rockL',    name:'큰 바위',    kit:'rock_largeA',       s:3.6, group:'자연'},
   {id:'rock',     name:'바위',       kit:'rock_smallA',       s:3.6, group:'자연'},
-  {id:'stump',    name:'그루터기',   kit:'stump_round',       s:3.6, group:'자연', seat:0.9},
-  {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연', seat:0.85},
+  {id:'stump',    name:'그루터기',   kit:'stump_round',       s:3.6, group:'자연', seat:0.9, seatFace:-Math.PI/2},
+  {id:'log',      name:'통나무',     kit:'log',               s:3.6, group:'자연', seat:0.85, seatFace:-Math.PI/2},
   {id:'mushR',    name:'빨간 버섯',  kit:'mushroom_red',      s:3.2, group:'자연'},
   {id:'mushT',    name:'버섯 무리',  kit:'mushroom_tanGroup', s:3.2, group:'자연'},
-  {id:'campfire', name:'모닥불',     kit:'campfire_logs',     s:3.6, group:'자연'},
+  {id:'campfire', name:'모닥불',     kit:'campfire_logs',     s:3.6, group:'자연',
+   glow:{color:0xff8a3a, pool:1.6, halo:0.42}},
   {id:'tent',     name:'텐트',       kit:'tent_smallOpen',    s:3.6, group:'자연'},
   {id:'sign',     name:'표지판',     kit:'sign',              s:3.6, group:'자연'},
   {id:'bridge',   name:'나무 다리',  kit:'bridge_wood',       s:3.6, group:'자연'},
@@ -428,13 +434,53 @@ function addLampPool(g, track){
   g.add(disc);
 }
 
+/**
+ * 모닥불처럼 **모델에 빛나는 면이 없는 것**에 불빛을 붙인다(d.glow).
+ * 웅덩이·헤일로는 가로등과 같은 물건이고 색만 다르다 — map.js 가 이름으로
+ * 찾아 밤 정도에 맞춰 밝기를 움직인다('fire-*' 는 흔들림까지 얹는다).
+ */
+function addFireGlow(g, track, glow){
+  g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(g)
+    .applyMatrix4(new THREE.Matrix4().copy(g.matrixWorld).invert());
+  const size = box.getSize(new THREE.Vector3());
+  const c = box.getCenter(new THREE.Vector3());
+  const w = Math.max(size.x, size.z);
+
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    name: 'fire-halo', map: poolTexture(), color: glow.color, transparent: true,
+    opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  track && track(halo.material);
+  halo.scale.setScalar(w * glow.halo);
+  //  장작 **위**에 불꽃이 앉는다. 모델이 납작해서 중심에 두면 땅에 깔린다.
+  halo.position.set(c.x, box.max.y + w * glow.halo * 0.35, c.z);
+  g.add(halo);
+
+  const mat = bend(new THREE.MeshBasicMaterial({
+    name: 'fire-pool', map: poolTexture(), color: glow.color, transparent: true,
+    opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  track && track(mat);
+  POOL_GEO = POOL_GEO || new THREE.PlaneGeometry(1, 1);
+  const disc = new THREE.Mesh(POOL_GEO, mat);
+  disc.scale.setScalar(w * glow.pool * 2);
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.set(c.x, 0.014, c.z);
+  disc.renderOrder = 2;
+  g.add(disc);
+}
+
 /** 씬에 놓는다. r 은 라디안, s 는 기본 크기 대비 배수. */
 export function buildDecor(it, track){
   const d = DECOR_BY_ID[it.t];
   if (!d) return null;
   const g = placeKit(d.kit, {x: it.x, z: it.z, yaw: it.r || 0,
                              scale: d.s * (it.s || 1), track});
-  if (g) addLampPool(g, track);
+  if (g){
+    addLampPool(g, track);                       // 등갓이 있는 것(가로등)
+    if (d.glow) addFireGlow(g, track, d.glow);   // 표에 적어 둔 것(모닥불)
+  }
   return g;
 }
 

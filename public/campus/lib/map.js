@@ -856,7 +856,8 @@ export async function mountCampus(){
       if (g && d && d.seat && box){
         const span = Math.max(box.maxX - box.minX, box.maxZ - box.minZ);
         seats.push({kind:'seat', name:'앉기', sub:'여기에 앉는다',
-          seat:{x: it.x, z: it.z, yaw: it.r || 0, h: (box.top || 0) * d.seat},
+          seat:{x: it.x, z: it.z, yaw: (it.r || 0) + (d.seatFace || 0),
+                h: (box.top || 0) * d.seat},
           minX: it.x - span/2 - 0.8, maxX: it.x + span/2 + 0.8,
           minZ: it.z - span/2 - 0.8, maxZ: it.z + span/2 + 0.8});
       }
@@ -898,15 +899,16 @@ export async function mountCampus(){
   //  ── 가로등 ──
   //  밤에 켤 재질. 두 무리를 그때그때 훑어 모은다 — 방과 공용 공간이 서로 다른
   //  때에 다시 그려져서, 그릴 때마다 제 몫만 갈아 끼우려면 장부가 하나 더 는다.
-  const lampGlow = [], lampPool = [], lampHalo = [];
+  const lampGlow = [], lampPool = [], lampHalo = [], fireMats = [];
   function collectLamps(){
-    lampGlow.length = 0; lampPool.length = 0; lampHalo.length = 0;
+    lampGlow.length = 0; lampPool.length = 0; lampHalo.length = 0; fireMats.length = 0;
     for (const grp of [roomGroup, placeGroup])
       grp.traverse(o => {
         const n = o.isMesh && o.material?.name;
         if (n === 'lamp-glow') lampGlow.push(o.material);
         else if (n === 'lamp-pool') lampPool.push(o.material);
         else if (n === 'lamp-halo') lampHalo.push(o.material);
+        else if (n === 'fire-pool' || n === 'fire-halo') fireMats.push(o.material);
       });
   }
   //  깔개류 — 충돌을 두면 러그 위를 못 걷는다
@@ -1944,6 +1946,13 @@ export async function mountCampus(){
       for (const m of lampGlow) m.emissiveIntensity = lit * 1.7;
       for (const m of lampPool) m.opacity = lit * 0.42;
       for (const m of lampHalo) m.opacity = lit * 0.75;
+      //  모닥불 — 등과 달리 **낮에도 탄다**. 다만 대낮엔 빛이 안 읽히니 밤에 세진다.
+      //  두 주파수를 겹쳐 흔든다. 하나면 맥박처럼 규칙적이라 불로 안 보인다.
+      if (fireMats.length){
+        const fl = 0.78 + 0.14 * Math.sin(t * 7.3) + 0.08 * Math.sin(t * 17.1 + 1.7);
+        const base = 0.22 + 0.78 * s.night;
+        for (const m of fireMats) m.opacity = base * fl * (m.name === 'fire-halo' ? 0.95 : 0.5);
+      }
     }
 
     // ── 동숲: 곡면 램프 · 구름 · 나무 흔들림 · 과일 낙하/줍기 ──
