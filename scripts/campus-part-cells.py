@@ -123,12 +123,25 @@ EN = {'살':'skin', '머리카락':'hair', '상의':'top',
 #  달라 다른 계열에 있고, 그래서 이목구비로 묶여 머리를 지워도 혼자 떠 있었다.
 #  female-b·female-c : 정수리의 머리끈(y 0.51~0.68, 가운데)
 #  male-c            : 모자의 노란 장식
+#  아래 둘은 mini-characters 밖에서 온 9종을 들이며 드러났다. 규칙이 상정한
+#  "맨손·맨머리" 가 아니라서 자동 판정이 어긋난다.
+#  archer  : 장갑·부츠(갈색)가 팔레트의 살색 구역에 있어 **손 대신 장갑이 살**로
+#            잡혔다. 그 바람에 얼굴이 머리카락으로 밀렸다 — 셋을 제자리로 돌린다.
+#            머리카락은 안 보인다(후드가 덮는다). 후드를 '머리' 로 준다.
+#  orc     : 초록 얼굴·어깨가 팔뚝(살색 계열)과 다른 계열이라 갈라져 있었다.
+#            셋을 살로 묶어야 피부를 바꿀 때 초록이 통째로 따라온다.
 OVERRIDE = {
     'female-f': {'머리카락': [('h',6,3,'head')]},
     'male-e':   {'머리카락': [('h',6,3,'head')]},
     'female-b': {'머리카락': [('h',2,2,'head')]},
     'female-c': {'머리카락': [('h',4,2,'head')]},
     'male-c':   {'머리카락': [('h',2,2,'head')]},
+    'archer':   {'살':      [('h',7,3,'head')],
+                 '머리카락': [('h',1,2,'head')],
+                 '이목구비': [('h',6,3,'head')],
+                 '상의':     [('b',6,3,'arm'), ('b',5,3,'arm')],
+                 '신발':     [('b',6,3,'leg')]},
+    'orc':      {'살':      [('h',1,2,'head'), ('b',1,2,'arm')]},
 }
 
 def apply_override(nm, agg):
@@ -244,9 +257,11 @@ if __name__ == '__main__':
         # (male-b 에도 같은 계열이 있지만 폭 0.03 짜리 작은 조각이다).
         lens = [pr['pos'][i] for pr in prims for i, k in enumerate(pr['key'])
                 if k[0] == 'h' and (k[1], k[2]) == (3, 3)]
+        #  폭만 보면 **투구가 걸린다**(soldier). 안경은 눈높이에 걸친 얇은 띠라
+        #  세로로 납작하다 — 실측 0.046, 투구는 0.443.
         if lens:
-            xs = [p[0] for p in lens]
-            if max(xs) - min(xs) > 0.25: builtin.append(nm)
+            xs, ys = [p[0] for p in lens], [p[1] for p in lens]
+            if max(xs) - min(xs) > 0.25 and max(ys) - min(ys) < 0.1: builtin.append(nm)
         bald[nm] = bald_hide(prims, table[nm])
         face[nm], glass[nm] = face_parts(prims, table[nm])
         print(f'   대머리 {len(bald[nm])} · 표정 {len(face[nm])} · 안경 {len(glass[nm])}')

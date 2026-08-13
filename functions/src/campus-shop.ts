@@ -14,10 +14,16 @@ import { resolveChild } from "./rewards-api";
 
 const db = getFirestore();
 
-/** 12종. 캠퍼스의 avatar-kenney.MODELS 와 같은 목록이어야 한다. */
+/**
+ * 21종. 캠퍼스의 avatar-kenney.MODELS 와 같은 목록이어야 한다.
+ * 여기 없는 id 는 readOwned 가 버리고 구매도 "없는 물건"으로 막힌다 —
+ * 클라이언트에만 캐릭터를 늘리면 **영영 잠긴 칸**이 된다.
+ */
 const MODELS = [
   "male-a", "male-b", "male-c", "male-d", "male-e", "male-f",
   "female-a", "female-b", "female-c", "female-d", "female-e", "female-f",
+  "gamer", "arcade-clerk", "market-clerk", "skate-boy", "skate-girl",
+  "archer", "hero", "orc", "soldier",
 ];
 
 /** 처음부터 주는 것 — 남·여 한 벌씩. 이걸로 시작해서 나머지를 사 모은다. */

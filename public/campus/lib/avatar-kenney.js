@@ -32,12 +32,18 @@ import { bend } from '/campus/lib/curve.js';
 let FLAT = false;
 const bendIf = mat => FLAT ? mat : bend(mat);
 
-export const CREDIT = 'Kenney "Mini Characters" (CC0) — kenney.nl';
+export const CREDIT = 'Kenney "Mini" 시리즈 (CC0) — kenney.nl';
 
 const BASE = '/campus/models/kenney/';
+//  뒤의 아홉은 mini-characters 밖(arcade·market·skate·forest·dungeon·arena)에서
+//  왔다. 리그(뼈 7개)는 같아서 클립을 그대로 쓰지만 **팩마다 팔레트 자리가 달라**,
+//  굽는 단계에서 UV 를 mini-characters 자리로 옮겨 뒀다(campus-prep-kenney.py).
+//  ⚠ 저장된 look.model 이 있으므로 **추가만** 한다. 순서를 바꾸면 안 된다.
 export const MODELS = [
   'male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f',
+  'gamer', 'arcade-clerk', 'market-clerk', 'skate-boy', 'skate-girl',
+  'archer', 'hero', 'orc', 'soldier',
 ];
 // 애니메이션 클립을 들고 있는 파일. 전처리가 이 한 종에만 남겼다.
 export const DEFAULT_MODEL = 'male-a';
