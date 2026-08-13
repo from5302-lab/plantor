@@ -108,6 +108,37 @@ export async function mountCampus(){
 
   // ── 재질 헬퍼 ──────────────────────────────────────────────────────
 
+  //  대리석 — 흰 바탕에 옅은 결 몇 줄. 사진을 쓰지 않는 이유는 저폴리 톤에서
+  //  사진 결이 혼자 사실적이라 겉돌기 때문이다. 결은 고정 시드라 매번 같다.
+  function marbleTex(rep){
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f8f9fb'; g.fillRect(0, 0, 256, 256);
+    let seed = 20260813;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    g.lineCap = 'round';
+    for (let i = 0; i < 7; i++){
+      g.beginPath();
+      let x = rnd() * 256, y = rnd() * 256;
+      g.moveTo(x, y);
+      for (let k = 0; k < 4; k++){
+        x += (rnd() - 0.3) * 90; y += (rnd() - 0.5) * 60;
+        g.lineTo(x, y);
+      }
+      g.strokeStyle = `rgba(148,158,176,${0.07 + rnd() * 0.06})`;
+      g.lineWidth = 1 + rnd() * 2.5;
+      g.stroke();
+    }
+    //  줄눈 — 판이 몇 장인지 보여야 넓이가 읽힌다
+    g.strokeStyle = 'rgba(120,132,150,.16)'; g.lineWidth = 2;
+    g.strokeRect(1, 1, 254, 254);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  }
+
   function tileTex(rep){
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d');
@@ -379,7 +410,11 @@ export async function mountCampus(){
   let wallSpots = [];
   const WALL_S = 1.16;                    // Kenney wall 1.0×1.29 → 폭 1.16m · 높이 1.5m
 
-  function addWall(x1, z1, x2, z2){
+  //  hidden = 충돌만 남기고 **그리지 않는다**. 카메라 쪽(남) 벽에 쓴다 —
+  //  동물의 숲처럼 앞이 트인 방으로 보이되, 방 밖으로 걸어 나가지는 못한다.
+  //  (occluder 로 비치게 하는 길도 있지만, 벽 하나가 통째로 반투명하면
+  //   방 안이 흐릿해진다. 아예 안 그리는 쪽이 깨끗하다)
+  function addWall(x1, z1, x2, z2, hidden){
     const seg = {
       minX: Math.min(x1,x2) - WALL_T/2, maxX: Math.max(x1,x2) + WALL_T/2,
       minZ: Math.min(z1,z2) - WALL_T/2, maxZ: Math.max(z1,z2) + WALL_T/2,
@@ -389,6 +424,7 @@ export async function mountCampus(){
     //  나간다. 여긴 놀이터가 아니라 방이다.
     seg.top = 3.0;
     COLLIDERS.push(seg);
+    if (hidden) return;
 
     if (KIT_OK){
       const alongX = (seg.maxX - seg.minX) > (seg.maxZ - seg.minZ);
@@ -414,10 +450,11 @@ export async function mountCampus(){
   const WALL_MAT = () => (_wallMat ||= lam(0xeef2ee, null, 0.42));
 
   // 문이 뚫린 벽 한 줄. axis='x' 면 z 고정, 'z' 면 x 고정.
-  function wallWithDoor(axis, fixed, from, to, doorAt){
+  function wallWithDoor(axis, fixed, from, to, doorAt, hidden){
     const a = Math.min(from, to), b = Math.max(from, to);
     const d0 = doorAt - DOOR_W/2, d1 = doorAt + DOOR_W/2;
-    const put = (s, e) => axis === 'x' ? addWall(s, fixed, e, fixed) : addWall(fixed, s, fixed, e);
+    const put = (s, e) => axis === 'x' ? addWall(s, fixed, e, fixed, hidden)
+                                       : addWall(fixed, s, fixed, e, hidden);
     if (doorAt === null){ put(a, b); return; }
     put(a, d0); put(d1, b);
   }
@@ -426,17 +463,12 @@ export async function mountCampus(){
   let floorSpots = [];
   const FLOOR_S = 2.0;                    // Kenney floorFull 1×1 → 2m 타일
 
+  //  ⚠ 예전에는 Kenney floorFull 타일을 깔았다(베이지). 사용자 요청으로
+  //    **흰 대리석 판**으로 바꾼다 — 밝아서 가구가 뜨고, 판 크기가 커서
+  //    타일 수백 장을 인스턴싱할 일도 없어진다. floorSpots 는 안 쓰이게 된다.
   function floorPlate(minX, maxX, minZ, maxZ, color, rep, y){
-    if (KIT_OK){
-      const w = maxX - minX, d = maxZ - minZ;
-      const nx = Math.max(1, Math.round(w / FLOOR_S)), nz = Math.max(1, Math.round(d / FLOOR_S));
-      const sx = w / nx, sz = d / nz;
-      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
-        floorSpots.push({x: minX + (i + 0.5)*sx, z: minZ + (j + 0.5)*sz, scale: sx, y});
-      return null;
-    }
     const w = maxX - minX, d = maxZ - minZ;
-    const t = track(tileTex(1)); t.repeat.set(w/rep, d/rep);
+    const t = track(marbleTex(1)); t.repeat.set(w/rep, d/rep);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), flat(color, t));
     m.rotation.x = -Math.PI/2;
     m.position.set((minX+maxX)/2, y, (minZ+maxZ)/2);
@@ -728,7 +760,7 @@ export async function mountCampus(){
       floorPlate(r.x - r.w/2, r.x + r.w/2, r.z - r.d/2, r.z + r.d/2, 0xf4f3ef, 2, 0.01);
       const x0 = r.x - r.w/2, x1 = r.x + r.w/2, z0 = r.z - r.d/2, z1 = r.z + r.d/2;
       wallWithDoor('x', z0, x0, x1, r.door === 'n' ? r.x : null);
-      wallWithDoor('x', z1, x0, x1, r.door === 's' ? r.x : null);
+      wallWithDoor('x', z1, x0, x1, r.door === 's' ? r.x : null, true);   // 남 = 카메라 쪽. 안 그린다
       wallWithDoor('z', x0, z0, z1, r.door === 'w' ? r.z : null);
       wallWithDoor('z', x1, z0, z1, r.door === 'e' ? r.z : null);
 
@@ -752,7 +784,8 @@ export async function mountCampus(){
       // 복도 외벽 — 나가는 문 한 곳만 뚫는다
       addWall(hall.minX, hall.minZ, hall.minX, hall.maxZ);
       addWall(hall.maxX, hall.minZ, hall.maxX, hall.maxZ);
-      wallWithDoor('x', hall.exitZ, hall.minX, hall.maxX, hall.exitX);
+      wallWithDoor('x', hall.exitZ, hall.minX, hall.maxX, hall.exitX,
+                   hall.exitSide === 's');   // 남쪽으로 나가는 복도면 그 벽은 안 그린다
 
       // 출구 존 — 문 안쪽에 붙는다
       const eSide = hall.exitSide === 's' ? -1 : 1;
