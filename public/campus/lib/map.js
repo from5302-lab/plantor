@@ -862,11 +862,19 @@ export async function mountCampus(){
           minZ: it.z - span/2 - 0.8, maxZ: it.z + span/2 + 0.8});
       }
 
-      //  문 달린 배치물 = 건물. 앞에 '입장' 존을 깔고, 가리면 비치게 한다.
+      //  문 달린 배치물 = 건물. 둘레에 '입장' 존을 깔고, 가리면 비치게 한다.
+      //
+      //  ⚠ 예전에는 **정면에 문 폭만큼**만 깔았다. 문은 남쪽 한 곳이지만,
+      //    부감 카메라에서 건물 옆으로 다가서면 "왜 안 들어가지" 가 된다 —
+      //    앞·좌·우 세 면을 두른다(사용자 결정). **뒷면은 뺀다**: 뒤까지 두르면
+      //    건물 뒤를 지나가기만 해도 입장 안내가 뜨고, 뒤에 둔 물건을 못 만진다.
       if (g && d && d.door && box && group === placeGroup){
-        PLACE_ZONES.push({kind:'enter', level:d.door, name:d.name, sub:'건물 안으로',
-          minX: it.x - DOOR_W/2 - 0.6, maxX: it.x + DOOR_W/2 + 0.6,
-          minZ: box.maxZ + 0.2, maxZ: box.maxZ + 2.6});
+        const M = 2.4;                       // 벽에서 이만큼 떨어져도 잡힌다
+        const zone = (minX, maxX, minZ, maxZ) => PLACE_ZONES.push(
+          {kind:'enter', level:d.door, name:d.name, sub:'건물 안으로', minX, maxX, minZ, maxZ});
+        zone(box.minX - M, box.maxX + M, box.maxZ + 0.05, box.maxZ + M);   // 앞(남)
+        zone(box.minX - M, box.minX - 0.05, box.minZ, box.maxZ + M);       // 왼(서)
+        zone(box.maxX + 0.05, box.maxX + M, box.minZ, box.maxZ + M);       // 오른(동)
         const parts = [];
         g.traverse(o => { if (o.isMesh) parts.push(o); });
         PLACE_OCC.push({test: parts, meshes: parts});
