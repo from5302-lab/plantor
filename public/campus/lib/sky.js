@@ -126,10 +126,14 @@ export function createSky(scene){
   //  반짝임 — 점마다 흔들려면 셰이더가 필요하다. 대신 **4개 그룹**으로 나눠
   //  그룹 밝기를 어긋난 위상으로 흔든다. 그룹이 공간에 고루 섞여 있어
   //  눈에는 낱개가 깜빡이는 것으로 읽힌다. 크기도 그룹마다 달리해 깊이를 준다.
+  //  ⚠ 최저 높이는 **카메라보다 높아야** 한다. 별이 카메라 눈높이보다 낮으면
+  //    지평선 **아래**로 투영돼 땅 위에 뿌려진다(예전 0.04 = 4.8m < 야외 카메라
+  //    6m — 2200개 중 12%가 바닥에 겹쳐 있었다). 0.12 = 14.4m 면 발판에 올라선
+  //    카메라(≈10m)까지 여유가 있다. 하늘 띠가 얇아 낮게 깔던 의도는 그대로다.
   const starN = 2200, STAR_GROUPS = 4;
   const starBuckets = Array.from({length: STAR_GROUPS}, () => []);
   for (let i = 0; i < starN; i++){
-    const a = RND() * Math.PI * 2, y = 0.04 + 0.9 * Math.pow(RND(), 2.2), r = 120;
+    const a = RND() * Math.PI * 2, y = 0.12 + 0.82 * Math.pow(RND(), 2.2), r = 120;
     const rr = Math.sqrt(Math.max(0, 1 - y * y));
     starBuckets[i % STAR_GROUPS].push(Math.cos(a) * rr * r, y * r, Math.sin(a) * rr * r);
   }
