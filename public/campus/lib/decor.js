@@ -514,7 +514,9 @@ function buildDecal(it, d, track){
   m.scale.set(side, side, 1);
   m.rotation.x = -Math.PI / 2;
   m.rotation.z = -(it.r || 0);
-  m.position.set(it.x, 0.02, it.z);        // 포장 타일(0.02 두께) 위에 얹는다
+  //  ⚠ 포장 타일은 **6cm 두께**다(tile-low 0.02 × s 3.0). 2cm 에 두면 타일 속에
+  //    묻혀 아예 안 보인다 — 실측하고 10cm 로 올렸다.
+  m.position.set(it.x, 0.10, it.z);
   m.renderOrder = 3;
   const g = new THREE.Group();
   g.add(m);
